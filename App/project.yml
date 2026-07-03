@@ -60,6 +60,7 @@ targets:
           - "Info.plist"
           - "*.entitlements"
     info:
+      path: Info-macOS.plist
       properties:
         # OAuth-redirect (se OAuthProviders.swift/Info.plist-kommentaren för iOS).
         CFBundleURLTypes:
