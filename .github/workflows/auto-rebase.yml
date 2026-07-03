@@ -1,0 +1,54 @@
+name: Auto-Update PRs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find open PRs with auto-rebase label
+        id: find-prs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open'
+            });
+            const updatable = prs.filter(pr =>
+              pr.user.login !== 'dependabot[bot]' &&
+              pr.labels.some(l => l.name === 'auto-rebase' || l.name === 'auto-merge')
+            ).map(pr => pr.number);
+            return updatable;
+
+      - name: Update PR branches
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9
+        with:
+          script: |
+            const prNumbers = ${{ steps.find-prs.outputs.result }};
+            for (const prNumber of prNumbers) {
+              try {
+                await github.rest.pulls.updateBranch({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber
+                });
+                console.log(`Updated PR #${prNumber}`);
+              } catch (e) {
+                console.log(`Could not update PR #${prNumber}: ${e.message}`);
+              }
+            }
