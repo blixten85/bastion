@@ -228,7 +228,7 @@ SSHCore dras in automatiskt som paketberoenden till båda targeten.
 
 ### Väg till App Store
 1. Byt `PRODUCT_BUNDLE_IDENTIFIER` i `project.yml` till ditt eget (t.ex. `se.dittnamn.bastion`).
-2. Sätt signeringsteam, lägg till app-ikon och en riktig launch screen.
+2. Sätt signeringsteam (app-ikon och launch screen finns redan, se `Assets.xcassets`).
 3. Höj `MARKETING_VERSION`, arkivera (**Product → Archive**) och ladda upp via Organizer.
 4. Öppen källkod-appar godkänns — se bara till att licens (MIT/Apache) och ev.
    tredjepartslicenser (SwiftNIO, SwiftTerm) listas i appen.
@@ -250,12 +250,15 @@ exec-utdata idag för att bevisa datavägen till skärmen.
    `SyncProvider`-implementationerna (Dropbox/Google Drive/OneDrive) är skrivna
    men aldrig byggda (Xcode-only, kan inte kompileras på Linux). Kräver ett
    registrerat klient-ID per leverantör (se "Konton" ovan) för att testas på riktigt.
-2. App-ikon + launch screen (manuellt i Xcode-assets).
-3. Windows-GUI via `WinUIBackend` — otestad, ingen Windows-miljö tillgänglig här.
-4. Riktig rå tangentbordsinmatning i Linux-terminalen (kräver att gå under
+2. Windows-GUI via `WinUIBackend` — otestad, ingen Windows-miljö tillgänglig här.
+3. Riktig rå tangentbordsinmatning i Linux-terminalen (kräver att gå under
    SwiftCrossUI mot GTK:s event-controllers direkt — se "Uppskjutet med avsikt").
 
 ### Klart
+- **App-ikon + launch screen**: `App/Assets.xcassets` (genererad från en SVG med
+  `rsvg-convert`, opak PNG utan alfakanal enligt Apples krav — alla iOS- och
+  macOS-storlekar) + en mörk `LaunchBackground`-färg som matchar ikonen.
+  `ASSETCATALOG_COMPILER_APPICON_NAME` satt i `project.yml` för båda targeten.
 - **macOS-target**: `Bastion-macOS` i `project.yml` (App Sandbox + utgående nätverk),
   terminalvyn plattformsvillkorad (`UIViewRepresentable`/`NSViewRepresentable`),
   app-guards `canImport(SwiftUI)`, `typealias Host = SSHCore.Host` i `Platform.swift`
