@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import Foundation
+import SSHCore
 
 enum OAuthError: Error {
     case notConfigured
