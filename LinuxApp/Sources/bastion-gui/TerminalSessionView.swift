@@ -103,15 +103,26 @@ struct TerminalSessionView: View {
     }
 
     private var controlKeyRow: some View {
-        HStack(spacing: 6) {
-            Button("Esc") { controller.sendRaw("\u{1B}") }
-            Button("Tab") { controller.sendRaw("\t") }
-            Button("←") { controller.sendRaw("\u{1B}[D") }
-            Button("↑") { controller.sendRaw("\u{1B}[A") }
-            Button("↓") { controller.sendRaw("\u{1B}[B") }
-            Button("→") { controller.sendRaw("\u{1B}[C") }
-            Button("Ctrl+C") { controller.sendRaw("\u{03}") }
-            Button("Ctrl+D") { controller.sendRaw("\u{04}") }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Button("Esc") { controller.sendRaw("\u{1B}") }
+                Button("Tab") { controller.sendRaw("\t") }
+                Button("←") { controller.sendRaw("\u{1B}[D") }
+                Button("↑") { controller.sendRaw("\u{1B}[A") }
+                Button("↓") { controller.sendRaw("\u{1B}[B") }
+                Button("→") { controller.sendRaw("\u{1B}[C") }
+                Button("Ctrl+C") { controller.sendRaw("\u{03}") }
+                Button("Ctrl+D") { controller.sendRaw("\u{04}") }
+            }
+            HStack(spacing: 6) {
+                // Home/End/PgUp/PgDn: standard xterm-sekvenser. Space skickas
+                // direkt (inte via textfältet) för sidbläddring i less/more/man.
+                Button("Home") { controller.sendRaw("\u{1B}[H") }
+                Button("End") { controller.sendRaw("\u{1B}[F") }
+                Button("PgUp") { controller.sendRaw("\u{1B}[5~") }
+                Button("PgDn") { controller.sendRaw("\u{1B}[6~") }
+                Button("Space") { controller.sendRaw(" ") }
+            }
         }
     }
 }
