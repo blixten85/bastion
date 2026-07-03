@@ -85,6 +85,7 @@ Klistra in respektive klient-ID i `App/OAuthProviders.swift` (t.ex.
 | Auto-poll av dashboard | 🧩 `DashboardModel.startPolling()`, 15 s intervall, behåller data vid övergående fel |
 | Linux-GUI (`bastion-gui`, SwiftCrossUI/GTK4) | ✅ byggd och körd (Xvfb) + egen CI-lane (`linux-gui.yml`, required check) |
 | Linux-terminal (VT100/ANSI-tolk, bestående PTY-shell) | ✅ 17 fristående parser-tester gröna, körd (Xvfb) — radvis input (ingen rå key-API i SwiftCrossUI) |
+| Linux-Docker-hantering (`DockerView`) | ✅ lista/start/stopp/omstart/logg/shell — motsvarar `App/DockerView.swift` |
 
 ## Layout
 
@@ -144,7 +145,8 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   DashboardView.swift    Samma auto-poll-modell som App/, SwiftCrossUI-vyer
   TerminalBuffer.swift   Egen VT100/ANSI-tolk (markör, SGR-färg, radering) — testad, se nedan
   TerminalGridView.swift Renderar buffern som hopslagna Text-körningar (ingen Canvas i SwiftCrossUI)
-  TerminalSessionView.swift Bestående PTY-shell + radvis input + kontrollknappar (piltangenter/Ctrl+C/Tab/Esc)
+  TerminalSessionView.swift Bestående PTY-shell + radvis input + kontrollknappar (piltangenter/Home/End/PgUp/PgDn/Ctrl+C/Tab/Esc)
+  DockerView.swift       Docker: lista/start/stopp/omstart/logg/shell — motsvarar App/DockerView.swift
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
 ```
 
@@ -289,6 +291,10 @@ exec-utdata idag för att bevisa datavägen till skärmen.
   skickas som rå bytes direkt (navigering i t.ex. `htop`/`less` fungerar,
   löpande texttangenttryckning gör det inte). Fast 100×30 storlek — ingen
   fönsterstorleks-driven `resize()` mot PTY:n än.
+- **Linux-Docker-hantering**: `DockerView` (i `HostDetailView` via en knapp/sheet)
+  lista/start/stopp/omstart/logg/shell — samma `DockerService` som iOS-appen.
+  Shell öppnar en `TerminalSessionView` med `docker exec` som initialt kommando
+  (nytt `initialCommand`-stöd i `TerminalController`).
 - **Kontointegration, PKCE-kärna + Dropbox/Google Drive/OneDrive**: `OAuthPKCE`
   (SSHCore, plattformsoberoende) genererar verifier/challenge enligt RFC 7636
   — testad mot RFC:ns egen vektor (fångade ett eget transkriptionsfel i testet

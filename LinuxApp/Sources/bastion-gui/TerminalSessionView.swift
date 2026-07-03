@@ -19,13 +19,16 @@ final class TerminalController: ObservableObject {
     @Published var statusMessage: String?
     private let host: Host
     private let password: String?
+    /// Skickas till shellen direkt efter att den öppnats (t.ex. `docker exec …`).
+    private let initialCommand: String?
     private var session: SSHSession?
     private var shell: SSHShell?
 
-    init(host: Host, password: String?, cols: Int = 100, rows: Int = 30) {
+    init(host: Host, password: String?, initialCommand: String? = nil, cols: Int = 100, rows: Int = 30) {
         self.buffer = TerminalBuffer(cols: cols, rows: rows)
         self.host = host
         self.password = password
+        self.initialCommand = initialCommand
     }
 
     func start() async {
@@ -40,6 +43,7 @@ final class TerminalController: ObservableObject {
             let shell = try await session.openShell(cols: buffer.cols, rows: buffer.rowCount)
             self.shell = shell
             statusMessage = nil
+            if let initialCommand { shell.send(initialCommand + "\r") }
             for try await chunk in shell.output {
                 buffer.feed(chunk.text)
             }
@@ -68,8 +72,8 @@ struct TerminalSessionView: View {
     @State private var controller: TerminalController
     @State private var input = ""
 
-    init(host: Host, password: String?) {
-        self._controller = State(wrappedValue: TerminalController(host: host, password: password))
+    init(host: Host, password: String?, initialCommand: String? = nil) {
+        self._controller = State(wrappedValue: TerminalController(host: host, password: password, initialCommand: initialCommand))
     }
 
     var body: some View {
