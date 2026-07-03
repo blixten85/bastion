@@ -1,0 +1,51 @@
+name: Xcode-bygge (iOS + macOS)
+
+# Verifierar att App/ (iPhone/iPad/Mac) faktiskt kompilerar. Ingen signering
+# eller enhetsinstallation här — det kräver ett Apple Developer-konto, se
+# README "Kontointegration"/"Bygg appen (på en Mac)" för nästa steg dit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  xcodegen-and-build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Visa Xcode-version
+        run: xcodebuild -version
+
+      - name: Installera XcodeGen
+        run: brew install xcodegen
+
+      - name: Generera Xcode-projekt
+        run: cd App && xcodegen generate
+
+      - name: Bygg iOS (simulator, osignerat)
+        run: |
+          xcodebuild build \
+            -project App/Bastion.xcodeproj \
+            -scheme Bastion \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Bygg macOS (osignerat)
+        run: |
+          xcodebuild build \
+            -project App/Bastion.xcodeproj \
+            -scheme Bastion-macOS \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO
+
+  swiftpm-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift build (SSHCore + bastion-cli)
+        run: swift build
+      - name: swift test (SSHCore)
+        run: swift test
