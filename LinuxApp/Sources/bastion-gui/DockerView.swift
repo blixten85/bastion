@@ -17,6 +17,10 @@ final class DockerModel: ObservableObject {
     private let host: Host
     private let password: String?
     private var session: SSHSession?
+    // Cachar det pågående anslutningsförsöket så samtidiga anrop (t.ex.
+    // refresh() och act() strax efter varandra, innan connect() svarat) väntar
+    // in samma försök i stället för att skapa varsin SSHSession var.
+    private var connectingTask: Task<SSHSession?, Never>?
 
     init(host: Host, password: String?) {
         self.host = host
@@ -25,19 +29,30 @@ final class DockerModel: ObservableObject {
 
     private func ensureSession() async -> SSHSession? {
         if let s = session { return s }
-        guard let auth = resolveAuth(for: host, password: password) else {
-            errorMessage = "Kan inte autentisera värden."
-            return nil
+        if let connectingTask { return await connectingTask.value }
+
+        // Skapad inifrån en @MainActor-metod (inte .detached), så den ärver
+        // MainActor-isoleringen — säkert att sätta errorMessage direkt här.
+        let task = Task<SSHSession?, Never> { [weak self] in
+            guard let self else { return nil }
+            guard let auth = resolveAuth(for: self.host, password: self.password) else {
+                self.errorMessage = "Kan inte autentisera värden."
+                return nil
+            }
+            let s = SSHSession(target: self.host.target, auth: auth)
+            do {
+                try await s.connect()
+                return s
+            } catch {
+                self.errorMessage = "\(error)"
+                return nil
+            }
         }
-        let s = SSHSession(target: host.target, auth: auth)
-        do {
-            try await s.connect()
-            session = s
-            return s
-        } catch {
-            errorMessage = "\(error)"
-            return nil
-        }
+        connectingTask = task
+        let result = await task.value
+        connectingTask = nil
+        session = result
+        return result
     }
 
     func refresh() async {
