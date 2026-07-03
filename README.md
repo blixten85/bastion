@@ -320,5 +320,5 @@ Interaktiv shell finns i kärnan (`SSHSession.openShell`) och driver både
 
 ## Licens
 
-Föreslagen: MIT eller Apache 2.0. Alla valda beroenden (SwiftNIO, SwiftNIO SSH,
-swift-crypto, SwiftTerm) är Apache 2.0 / MIT — kompatibla.
+MIT (se `LICENSE`). Alla valda beroenden (SwiftNIO, SwiftNIO SSH, swift-crypto,
+SwiftCrossUI, SwiftTerm) är Apache 2.0 / MIT — kompatibla.

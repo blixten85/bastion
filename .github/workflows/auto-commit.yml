@@ -1,0 +1,33 @@
+name: Commit Message Check
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v6
+        with:
+          fetch-depth: 2
+
+      - name: Validate commit message format
+        run: |
+          MSG=$(git log -1 --pretty=%B)
+          if echo "$MSG" | grep -qE "^(docs|feat|fix|ci|refactor|test|chore|style|perf|build|revert)(\(.+\))?!?:"; then
+            echo "OK: Commit follows conventional commits format"
+          else
+            echo "WARNING: Commit message does not follow conventional commits format"
+            echo "  Message : $MSG"
+            echo "  Expected: type(scope): description"
+            echo "  Types   : feat, fix, docs, ci, refactor, test, chore, style, perf, build, revert"
+          fi

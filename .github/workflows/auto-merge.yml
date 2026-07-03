@@ -1,0 +1,130 @@
+name: Bot Auto-Merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-merge github_actions updates
+        if: |
+          steps.metadata.outputs.package-ecosystem == 'github_actions' && (
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-major')
+        run: |
+          for i in 1 2 3 4 5; do
+            gh pr merge --auto --delete-branch --squash "$PR_URL" && break
+            echo "attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Auto-merge patch and minor updates (other ecosystems)
+        if: |
+          steps.metadata.outputs.package-ecosystem != 'github_actions' && (
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor')
+        run: |
+          for i in 1 2 3 4 5; do
+            gh pr merge --auto --delete-branch --squash "$PR_URL" && break
+            echo "attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+
+  security-autofix:
+    runs-on: ubuntu-latest
+    if: contains(github.head_ref, 'alert-autofix')
+    steps:
+      - name: Enable auto-merge for security fixes
+        run: |
+          for i in 1 2 3 4 5; do
+            gh pr merge --auto --squash --delete-branch "$PR_URL" && break
+            echo "attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+
+  claude:
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'claude/')
+    steps:
+      - name: Auto-merge Claude AI PRs once checks pass
+        run: |
+          gh pr ready "$PR_URL" || true
+          for i in 1 2 3 4 5; do
+            gh pr merge --auto --squash --delete-branch "$PR_URL" && break
+            echo "attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+
+  maintainer-fix:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'blixten85' && startsWith(github.head_ref, 'fix/')
+    steps:
+      - name: Auto-merge trusted fix PRs once checks pass
+        run: |
+          gh pr ready "$PR_URL" || true
+          for i in 1 2 3 4 5; do
+            gh pr merge --auto --squash --delete-branch "$PR_URL" && break
+            echo "attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+
+  codex:
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'codex/')
+    steps:
+      - name: Auto-merge Codex AI PRs once checks pass
+        run: |
+          gh pr ready "$PR_URL" || true
+          for i in 1 2 3 4 5; do
+            gh pr merge --auto --squash --delete-branch "$PR_URL" && break
+            echo "attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+
+  copilot:
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'copilot/')
+    steps:
+      - name: Auto-merge Copilot PRs once checks pass
+        run: |
+          gh pr ready "$PR_URL" || true
+          for i in 1 2 3 4 5; do
+            gh pr merge --auto --squash --delete-branch "$PR_URL" && break
+            echo "attempt $i failed, retrying in 60s..."
+            sleep 60
+          done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
