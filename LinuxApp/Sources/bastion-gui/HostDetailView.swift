@@ -10,6 +10,7 @@ struct HostDetailView: View {
     @State private var resolvedPassword: String?
     @State private var showDocker = false
     @State private var showSnippets = false
+    @State private var showCommandLibrary = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,6 +23,7 @@ struct HostDetailView: View {
                 if connected || !needsPassword {
                     Button("Docker") { showDocker = true }
                     Button("Snippets") { showSnippets = true }
+                    Button("Bibliotek") { showCommandLibrary = true }
                 }
             }
 
@@ -41,6 +43,9 @@ struct HostDetailView: View {
         }
         .sheet(isPresented: $showSnippets) {
             SnippetListView(host: host, password: resolvedPassword)
+        }
+        .sheet(isPresented: $showCommandLibrary) {
+            CommandLibraryView(host: host, password: resolvedPassword)
         }
     }
 
