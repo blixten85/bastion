@@ -25,6 +25,13 @@ final class AppLockManager: ObservableObject {
     /// autentisering i sig — bara ett visuellt lock tills appen är aktiv igen.
     @Published var isObscured = false
 
+    /// Sant om enheten inte har någon autentiseringsmetod konfigurerad
+    /// (varken biometri eller lösenkod) — AppLockView visar då en förklaring
+    /// + en EXPLICIT "stäng av"-knapp istället för att tyst släppa igenom
+    /// (fail-closed, CodeRabbit-fynd: den gamla vägen låste ute produktions-
+    /// användare aldrig på riktigt, det räckte att sakna lösenkod).
+    @Published var noAuthMethodAvailable = false
+
     var isEnabled: Bool {
         UserDefaults.standard.bool(forKey: AppLockKeys.enabled)
     }
@@ -59,13 +66,15 @@ final class AppLockManager: ObservableObject {
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            // Ingen biometri/lösenkod konfigurerad på enheten — släpp igenom
-            // hellre än att låsa ute permanent (t.ex. en simulator utan
-            // Face ID/passcode konfigurerat).
-            isUnlocked = true
-            isObscured = false
-            return true
+            // Fail-closed: förbli låst. noAuthMethodAvailable låter AppLockView
+            // visa en förklaring + en EXPLICIT "stäng av App-lås"-knapp, i
+            // stället för att tyst släppa igenom (vilket gjorde funktionen
+            // verkningslös för alla utan lösenkod konfigurerat).
+            noAuthMethodAvailable = true
+            isUnlocked = false
+            return false
         }
+        noAuthMethodAvailable = false
         do {
             let success = try await context.evaluatePolicy(
                 .deviceOwnerAuthentication, localizedReason: "Lås upp Bastion")
@@ -76,6 +85,15 @@ final class AppLockManager: ObservableObject {
             isUnlocked = false
             return false
         }
+    }
+
+    /// Explicit utväg när enheten saknar autentiseringsmetod — kräver ett
+    /// aktivt tryck från användaren (skiljer sig från en tyst bypass).
+    func disableLockDueToMissingAuthMethod() {
+        UserDefaults.standard.set(false, forKey: AppLockKeys.enabled)
+        noAuthMethodAvailable = false
+        isUnlocked = true
+        isObscured = false
     }
 }
 
@@ -88,7 +106,10 @@ struct PrivacyCoverView: View {
             .font(.system(size: 48))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.regularMaterial)
+            // Solid, INTE .regularMaterial — en genomskinlig bakgrund kan
+            // fortfarande läcka host-listan i App Switcher-ögonblicksbilden,
+            // som är hela poängen med den här vyn (CodeRabbit-fynd).
+            .background(Color(white: 0.05))
     }
 }
 
@@ -102,11 +123,19 @@ struct AppLockView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
             Text("Bastion är låst").font(.headline)
-            Button("Lås upp") { Task { await manager.authenticate() } }
-                .buttonStyle(.borderedProminent)
+            if manager.noAuthMethodAvailable {
+                Text("Ingen Face ID/Touch ID/lösenkod konfigurerad på enheten.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                Button("Stäng av App-lås") { manager.disableLockDueToMissingAuthMethod() }
+            } else {
+                Button("Lås upp") { Task { await manager.authenticate() } }
+                    .buttonStyle(.borderedProminent)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        .background(Color(white: 0.05))
         .task { await manager.authenticate() }
     }
 }
