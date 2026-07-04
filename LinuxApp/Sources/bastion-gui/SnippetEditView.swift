@@ -36,7 +36,7 @@ struct SnippetEditView: View {
     }
 
     private var isValid: Bool {
-        !draft.name.trimmingCharacters(in: .whitespaces).isEmpty
-            && !draft.template.trimmingCharacters(in: .whitespaces).isEmpty
+        !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !draft.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }

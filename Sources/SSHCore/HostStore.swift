@@ -130,7 +130,7 @@ public final class HostStore {
         let state = SyncState(hosts: Array(byID.values).sorted { $0.alias < $1.alias },
                               tombstones: tombstones)
         if let data = try? encoder.encode(state) {
-            try? data.write(to: URL(fileURLWithPath: path))
+            try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
         }
     }
 }
