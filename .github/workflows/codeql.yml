@@ -33,7 +33,7 @@ jobs:
           languages: swift
           build-mode: manual
 
-      - name: Bygg (root-paketet: SSHCore + bastion-cli)
+      - name: "Bygg (root-paketet: SSHCore + bastion-cli)"
         run: swift build
 
       - name: Perform CodeQL Analysis
