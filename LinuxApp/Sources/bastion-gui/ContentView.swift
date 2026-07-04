@@ -76,10 +76,18 @@ struct ContentView: View {
             TextField("Sök…", text: $searchText)
 
             List(filteredHosts, selection: $selectedHostID) { host in
-                VStack(alignment: .leading) {
-                    Text(host.alias.isEmpty ? host.hostName : host.alias)
-                    Text(host.tags.isEmpty ? "\(host.user)@\(host.hostName)" : host.tags.joined(separator: ", "))
-                        .foregroundColor(.gray)
+                HStack {
+                    if let color = HostColorPalette.color(for: host.colorTag) {
+                        Circle().fill(color).frame(width: 10, height: 10)
+                    }
+                    VStack(alignment: .leading) {
+                        Text(host.alias.isEmpty ? host.hostName : host.alias)
+                        Text(host.tags.isEmpty ? "\(host.user)@\(host.hostName)" : host.tags.joined(separator: ", "))
+                            .foregroundColor(.gray)
+                    }
+                    if host.isFavorite {
+                        Text("★").foregroundColor(.yellow)
+                    }
                 }
             }
 
@@ -88,6 +96,9 @@ struct ContentView: View {
                     Button("Ändra") {
                         editingHost = selected
                         showEditor = true
+                    }
+                    Button(selected.isFavorite ? "★ Favorit" : "☆ Favorit") {
+                        model.toggleFavorite(selected)
                     }
                     Button("Ta bort") {
                         model.delete(selected)
