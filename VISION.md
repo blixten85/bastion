@@ -11,12 +11,6 @@ Affärsmodellen:
 * Inga funktionslås.
 * Eventuella betalda intäkter kan komma från frivilliga tjänster, exempelvis en molntjänst för synk, men appen ska fungera fullt ut utan den.
 
-En sak att prioritera högt: det största misstaget många liknande projekt gör är att försöka lägga till "allt". Principen istället:
-
-> **Allt som en systemadministratör använder varje dag ska kännas snabbare och enklare än i Termius. Allt mer specialiserat ska kunna läggas till via plugins.**
-
-Det håller kärnan lätt, samtidigt som projektet kan växa utan att bli svårunderhållet.
-
 ---
 
 ## Målgrupp
@@ -166,27 +160,73 @@ Inte kopiera Termius. Inspireras av Apples Human Interface Guidelines, minimalis
 
 ## Namn
 
-Arbetsnamn: **Bastion**. Andra idéer som övervägdes: Forge, Relay, North, Atlas, Harbor, Haven, Ember, Helix, Terminal One, OpenSSH Studio, Dock.
+Några idéer: Forge, Relay, Bastion, North, Atlas, Harbor, Haven, Ember, Helix, Terminal One, OpenSSH Studio, Dock.
+
+Kontrollera alltid varumärken innan ni bestämmer er.
+
+(Valt arbetsnamn: **Bastion**.)
 
 ---
 
 ## Teknik
 
 * **iOS/macOS:** Swift + SwiftUI
-* **SSH:** SwiftNIO SSH (ren Swift, samma kärna på Linux och Apple)
-* **Terminalemulering:** SwiftTerm (Apple), egenskriven VT100/ANSI-tolk (Linux, SwiftCrossUI saknar en färdig terminalwidget)
-* **Databas:** JSON (host-databas), SQLite inte nödvändigt ännu
-* **Kryptering:** Keychain/Secure Enclave på Apple, AES-256-GCM + PBKDF2 för sync
-* **Synk:** mapp-baserad (iCloud/Dropbox/Syncthing/Git) + OAuth2/PKCE-kontointegration (Dropbox/Google Drive/OneDrive)
-* **Linux-GUI:** SwiftCrossUI (GTK4)
+* **SSH:** OpenSSH eller ett välunderhållet bibliotek med kompatibel licens
+* **Terminalemulering:** en etablerad VT100/xterm-kompatibel motor
+* **Databas:** SQLite
+* **Kryptering:** plattformarnas säkra nyckelhantering (Keychain/Secure Enclave på Apple-enheter)
+* **Synk:** iCloud och Git som första alternativ
 
 ---
 
-## Utvecklingsplan (ursprunglig)
+## Utvecklingsplan
 
-**Version 0.1:** SSH, nyckelhantering, hostlista, terminal, SFTP
-**Version 0.5:** Taggar, dashboard, snippets, Face ID, import från `~/.ssh/config`
-**Version 1.0:** Docker-stöd, editor, synk, flera sessioner, Split View
-**Version 2.0:** Plugin-system, Proxmox, Kubernetes, Tailscale, WireGuard, Git-integration
+**Version 0.1**
 
-Se [ROADMAP.md](ROADMAP.md) för faktisk status mot den här visionen.
+* SSH
+* Nyckelhantering
+* Hostlista
+* Terminal
+* SFTP
+
+**Version 0.5**
+
+* Taggar
+* Dashboard
+* Snippets
+* Face ID
+* Import från `~/.ssh/config`
+
+**Version 1.0**
+
+* Docker-stöd
+* Editor
+* Synk
+* Flera sessioner
+* Split View
+
+**Version 2.0**
+
+* Plugin-system
+* Proxmox
+* Kubernetes
+* Tailscale
+* WireGuard
+* Git-integration
+
+---
+
+## En sak att prioritera högt
+
+Det största misstaget många liknande projekt gör är att försöka lägga till "allt". Principen istället:
+
+> **Allt som en systemadministratör använder varje dag ska kännas snabbare och enklare än i Termius. Allt mer specialiserat ska kunna läggas till via plugins.**
+
+Det håller kärnan lätt, samtidigt som projektet kan växa med bidrag från andra utvecklare utan att bli svårunderhållet.
+
+---
+
+Det här dokumentet är den ursprungliga visionen, bevarad orört som historisk
+referens. Faktiska tekniska val (som avviker en del — se
+[ROADMAP.md](ROADMAP.md) "Tekniska avsteg från visionen") och status mot
+punkterna ovan finns i [ROADMAP.md](ROADMAP.md).
