@@ -96,6 +96,23 @@ struct HostListView: View {
     @State private var passwordInput = ""
     @State private var showSettings = false
     @State private var showImport = false
+    @State private var searchText = ""
+
+    /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
+    /// case-insensitive); tomma sektioner (ingen träff i gruppen) faller bort.
+    private var filteredGroups: [(tag: String, hosts: [Host])] {
+        guard !searchText.isEmpty else { return model.groups }
+        let needle = searchText.lowercased()
+        return model.groups.compactMap { group in
+            let hosts = group.hosts.filter { host in
+                host.alias.lowercased().contains(needle)
+                    || host.hostName.lowercased().contains(needle)
+                    || host.user.lowercased().contains(needle)
+                    || host.tags.contains { $0.lowercased().contains(needle) }
+            }
+            return hosts.isEmpty ? nil : (group.tag, hosts)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -108,6 +125,7 @@ struct HostListView: View {
                 }
             }
             .navigationTitle("Värdar")
+            .searchable(text: $searchText, prompt: "Sök värd, användare eller tagg")
             .task { _ = await model.syncNow() }
             .toolbar {
                 ToolbarItem(placement: .navigation) {
@@ -151,7 +169,7 @@ struct HostListView: View {
 
     private var hostList: some View {
         List {
-            ForEach(model.groups, id: \.tag) { group in
+            ForEach(filteredGroups, id: \.tag) { group in
                 Section(group.tag) {
                     ForEach(group.hosts) { host in
                         Button { start(host) } label: { HostRow(host: host) }
