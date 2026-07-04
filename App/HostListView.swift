@@ -107,6 +107,7 @@ struct HostListView: View {
     @State private var passwordInput = ""
     @State private var showSettings = false
     @State private var showImport = false
+    @State private var showAppLock = false
     @State private var searchText = ""
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
@@ -144,6 +145,7 @@ struct HostListView: View {
                     Menu {
                         Button { showSettings = true } label: { Label("Sync-inställningar", systemImage: "arrow.triangle.2.circlepath") }
                         Button { showImport = true } label: { Label("Importera ssh-config", systemImage: "square.and.arrow.down") }
+                        Button { showAppLock = true } label: { Label("App-lås", systemImage: "faceid") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -162,6 +164,9 @@ struct HostListView: View {
             }
             .sheet(isPresented: $showImport) {
                 ImportConfigView(onImport: { model.importConfig($0) })
+            }
+            .sheet(isPresented: $showAppLock) {
+                AppLockSettingsView()
             }
             .cover(item: $connecting) { req in
                 HostDetailView(request: req)

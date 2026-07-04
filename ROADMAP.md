@@ -169,8 +169,12 @@ Inget nytt att bygga, bara verifiera/lansera:
   CLI-/UI-koppling än (varken `bastion-cli`, App/ eller LinuxApp) — kärnan
   går att anropa programmatiskt men har ingen yta att starta/stoppa en
   tunnel från än.
-- **Face ID/Touch ID-app-lås** — Keychain finns redan för hemligheter, men
-  inget lager som låser SJÄLVA appen vid start/bakgrund.
+- **Face ID/Touch ID-app-lås** — ✅ klart i App/. `AppLockManager` (LocalAuthentication,
+  `.deviceOwnerAuthentication` — Face ID/Touch ID/lösenkod-fallback), låser vid
+  bakgrund (`scenePhase`), egen inställningsyta (menyn i värdlistan, av som
+  standard). `NSFaceIDUsageDescription` tillagd i Info.plist (krävs av iOS,
+  annars kraschar appen vid första anropet). LinuxApp/Windows: ingen
+  motsvarighet — plattformsspecifikt Apple-API.
 - **Snippets med variabler** — ✅ klart, både App/ och LinuxApp. `Snippet`/
   `SnippetStore` i SSHCore (`{{namn}}`-variabler, testat inkl. en fångad
   regression: extraherad variabel trimmades men ersättningen letade efter
