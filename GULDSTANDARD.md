@@ -68,7 +68,7 @@ av att taggar och grenar är olika saker.
 | Secret scanning validity checks | av |
 | Secret scanning non-provider patterns | av |
 | Dependabot version updates (`.github/dependabot.yml`) | **av överallt** — Renovate används istället, se `renovate.json` |
-| Code scanning / CodeQL | **av överallt** — inte en del av guldstandarden idag |
+| Code scanning / CodeQL | **av i övriga repon, på i bastion** (`.github/workflows/codeql.yml`, tillagt 2026-07-04) — gratis för publika repon, motiverat av injektionskänsliga ytor (Docker-kommandobyggare, SSH-nyckelparser). Inte utrullat på övriga repon än, så bastion avviker medvetet här tills vidare. |
 
 ## Renovate (GitHub App)
 
