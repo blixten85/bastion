@@ -95,6 +95,8 @@ App/                   XCODE-ONLY: iOS+macOS-appen (SwiftUI, delad kod) + XcodeG
   Platform.swift         Plattformsskillnader iOS/macOS samlade (Host-alias, nav-hjälpare)
   BastionApp.swift       @main
   HostListView.swift     Värdlista grupperad på tagg, anslut/redigera/ta bort
+  SessionManager.swift   Håller alla samtidigt öppna sessioner (flikväxlare, se MultiSessionView)
+  MultiSessionView.swift TabView mellan flera anslutna värdar — overksamma flikar hålls anslutna i bakgrunden
   HostEditView.swift     Lägg till / ändra värd
   HostDetailView.swift   Dashboard vid öppning + knapp till terminal
   DashboardView.swift    Renderar SystemSnapshot (last, minne, disk, Docker)

@@ -195,8 +195,18 @@ Inget nytt att bygga, bara verifiera/lansera:
 - **Sök i host-listan** — ✅ klart, både LinuxApp (`ContentView.swift`) och
   App/ (`HostListView.swift`, native `.searchable()`). Filtrerar alias/
   hostname/user/taggar i båda.
-- **Flera samtidiga sessioner / Split View** — appen hanterar en session åt
-  gången idag.
+- **Flera samtidiga sessioner** — ✅ klart i App/ (iOS/macOS). `SessionManager`
+  (`App/SessionManager.swift`) håller alla öppna sessioner; `MultiSessionView`
+  presenterar dem som `TabView`-flikar — SwiftUI river inte ner overksamma
+  flikars vyer vid växling, så en bakgrundad session förblir faktiskt
+  ansluten utan egen livscykelkod. "Klar" (i `HostDetailView`) döljer bara
+  flikväxlaren (`dismiss()`, sessionerna lever kvar); en ny meny-post
+  "Stäng session" kopplar faktiskt från. Sista fliken stängd → tillbaka
+  till värdlistan automatiskt. **Kvar**: äkta sida-vid-sida Split View
+  (iPad/Mac) — bara flikväxling hittills, ingen samtidig visning av två
+  terminaler. LinuxApp oförändrad (dess `NavigationSplitView` byter fortfarande
+  ut hela detaljvyn vid nytt värdval — samma begränsning som App/ hade innan
+  den här ändringen, inte adresserad än).
 
 ### Fas C — Differentiatorer bortom Termius
 - Docker-hantering ✅ redan klart (App + LinuxApp).

@@ -101,8 +101,9 @@ struct ConnectRequest: Identifiable {
 
 struct HostListView: View {
     @StateObject private var model = HostListModel()
+    @StateObject private var sessionManager = SessionManager()
     @State private var editing: Host?
-    @State private var connecting: ConnectRequest?
+    @State private var showSessions = false
     @State private var passwordFor: Host?
     @State private var passwordInput = ""
     @State private var showSettings = false
@@ -168,14 +169,20 @@ struct HostListView: View {
             .sheet(isPresented: $showAppLock) {
                 AppLockSettingsView()
             }
-            .cover(item: $connecting) { req in
-                HostDetailView(request: req)
+            .cover(isPresented: $showSessions) {
+                MultiSessionView(manager: sessionManager)
+            }
+            // Sista fliken stängd -> tillbaka till värdlistan automatiskt,
+            // inte kvar på en tom flikväxlare.
+            .onChange(of: sessionManager.sessions.isEmpty) { isEmpty in
+                if isEmpty { showSessions = false }
             }
             .alert("Lösenord", isPresented: .constant(passwordFor != nil)) {
                 SecureField("Lösenord", text: $passwordInput)
                 Button("Anslut") {
                     if let h = passwordFor {
-                        connecting = ConnectRequest(host: h, password: passwordInput)
+                        sessionManager.open(ConnectRequest(host: h, password: passwordInput))
+                        showSessions = true
                     }
                     passwordFor = nil; passwordInput = ""
                 }
@@ -214,7 +221,8 @@ struct HostListView: View {
         if case .askPassword = host.auth {
             passwordFor = host
         } else {
-            connecting = ConnectRequest(host: host, password: nil)
+            sessionManager.open(ConnectRequest(host: host, password: nil))
+            showSessions = true
         }
     }
 }
