@@ -11,6 +11,18 @@ struct ContentView: View {
     @State private var editingHost: Host?
     @State private var showEditor = false
     @State private var showImport = false
+    @State private var searchText = ""
+
+    private var filteredHosts: [Host] {
+        guard !searchText.isEmpty else { return model.hosts }
+        let needle = searchText.lowercased()
+        return model.hosts.filter { host in
+            host.alias.lowercased().contains(needle)
+                || host.hostName.lowercased().contains(needle)
+                || host.user.lowercased().contains(needle)
+                || host.tags.contains { $0.lowercased().contains(needle) }
+        }
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -61,7 +73,9 @@ struct ContentView: View {
                 Spacer()
             }
 
-            List(model.hosts, selection: $selectedHostID) { host in
+            TextField("Sök…", text: $searchText)
+
+            List(filteredHosts, selection: $selectedHostID) { host in
                 VStack(alignment: .leading) {
                     Text(host.alias.isEmpty ? host.hostName : host.alias)
                     Text(host.tags.isEmpty ? "\(host.user)@\(host.hostName)" : host.tags.joined(separator: ", "))
