@@ -12,24 +12,57 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: linux-gui-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   linuxapp-build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v6
+        with:
+          persist-credentials: false
 
       - name: Installera GTK4-dev
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libgtk-4-dev pkg-config
 
-      - name: Hämta senaste Swift dev-snapshot (ubuntu24.04 — matchar runnerns OS)
+      - name: Läs senaste Swift dev-snapshot-metadata (ubuntu24.04 — matchar runnerns OS)
+        id: meta
         run: |
-          curl -sL https://download.swift.org/development/ubuntu2404/latest-build.yml -o latest-build.yml
+          set -euo pipefail
+          curl -fsSL https://download.swift.org/development/ubuntu2404/latest-build.yml -o latest-build.yml
           DIR=$(grep '^dir:' latest-build.yml | cut -d' ' -f2)
           FILE=$(grep '^download:' latest-build.yml | cut -d' ' -f2)
-          curl -sL -o swift.tar.gz "https://download.swift.org/development/ubuntu2404/$DIR/$FILE"
-          mkdir swift-toolchain
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Cacha toolchain (keyad på snapshot-id — samma snapshot laddas aldrig ner två gånger)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: swift-toolchain
+          key: swift-toolchain-ubuntu2404-${{ steps.meta.outputs.dir }}
+
+      - name: Hämta + verifiera + extrahera Swift dev-snapshot
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          BASE="https://download.swift.org/development/ubuntu2404/${{ steps.meta.outputs.dir }}"
+          FILE="${{ steps.meta.outputs.file }}"
+          curl -fsSL -o "swift.tar.gz" "$BASE/$FILE"
+          curl -fsSL -o "swift.tar.gz.sig" "$BASE/$FILE.sig"
+          curl --compressed -fsSL https://www.swift.org/keys/all-keys.asc | gpg --import
+          gpg --verify swift.tar.gz.sig swift.tar.gz
+          mkdir -p swift-toolchain
           tar xzf swift.tar.gz -C swift-toolchain --strip-components=1
-          echo "$PWD/swift-toolchain/usr/bin" >> "$GITHUB_PATH"
+
+      - name: Lägg toolchain i PATH
+        run: echo "$PWD/swift-toolchain/usr/bin" >> "$GITHUB_PATH"
 
       - name: Visa Swift-version
         run: swift --version
