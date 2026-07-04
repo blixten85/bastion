@@ -29,15 +29,15 @@ jobs:
         # compnerd/gha-setup-swift#18.
         shell: pwsh
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           persist-credentials: false
 
       - name: Sätt upp VS-devmiljö (MSVC-verktyg som Swift-linker behöver)
-        uses: seanmiddleditch/gha-setup-vsdevenv@v5
+        uses: seanmiddleditch/gha-setup-vsdevenv@cf96bf5b227cac6af28c04c4a4e69286ea444163 # v5
 
       - name: Installera Swift
-        uses: compnerd/gha-setup-swift@v0.3.0
+        uses: compnerd/gha-setup-swift@eeda069c5bc95ac8a9ac5cea7d4f588ae5420ca5 # v0.4.0
         with:
           branch: swift-6.1-release
           tag: 6.1-RELEASE
