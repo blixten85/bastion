@@ -36,9 +36,12 @@ Två vägar, och de utesluter inte varandra:
    (iCloud Drive, Dropbox, Syncthing, Git). Inget OAuth i appen, funkar direkt.
 2. **Kontointegration (Dropbox klar, Google/OneDrive samma mönster):** logga in
    mot Dropbox via OAuth2 + PKCE (`ASWebAuthenticationSession`) och skriv filen
-   direkt via deras API, mot en app-scopad mapp (aldrig hela kontot). På Apple
-   behövs ingen inloggning för iCloud — appen använder det redan inloggade
-   kontot (ubiquity-container/CloudKit).
+   direkt via deras API, mot en app-scopad mapp (aldrig hela kontot).
+
+iCloud har ingen egen kod än — det fungerar redan i dag via väg 1 (peka
+"Synkad mapp" på iCloud Drive-mappen), men kräver att användaren själv hittar
+och pekar ut den. En native CloudKit/ubiquity-container-integration (slipper
+peka ut mappen manuellt) är en möjlig framtida förbättring, inte byggd.
 
 Oavsett väg är nyttolasten E2E-krypterad, så leverantören är bara dum lagring.
 
