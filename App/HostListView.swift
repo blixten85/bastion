@@ -112,8 +112,9 @@ struct HostListView: View {
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
     /// case-insensitive); tomma sektioner (ingen träff i gruppen) faller bort.
     private var filteredGroups: [(tag: String, hosts: [Host])] {
-        guard !searchText.isEmpty else { return model.groups }
-        let needle = searchText.lowercased()
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return model.groups }
+        let needle = trimmed.lowercased()
         return model.groups.compactMap { group in
             let hosts = group.hosts.filter { host in
                 host.alias.lowercased().contains(needle)

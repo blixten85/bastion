@@ -14,8 +14,9 @@ struct ContentView: View {
     @State private var searchText = ""
 
     private var filteredHosts: [Host] {
-        guard !searchText.isEmpty else { return model.hosts }
-        let needle = searchText.lowercased()
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return model.hosts }
+        let needle = trimmed.lowercased()
         return model.hosts.filter { host in
             host.alias.lowercased().contains(needle)
                 || host.hostName.lowercased().contains(needle)
