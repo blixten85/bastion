@@ -12,11 +12,18 @@ struct BastionApp: App {
                 HostListView()
                 if lock.isEnabled && !lock.isUnlocked {
                     AppLockView(manager: lock)
+                } else if lock.isEnabled && lock.isObscured {
+                    PrivacyCoverView()
                 }
             }
         }
         .onChange(of: scenePhase) { newPhase in
-            if newPhase == .background { lock.lock() }
+            switch newPhase {
+            case .inactive: lock.obscure()
+            case .background: lock.lock()
+            case .active: if lock.isUnlocked { lock.reveal() }
+            @unknown default: break
+            }
         }
     }
 }

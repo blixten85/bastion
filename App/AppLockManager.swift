@@ -12,22 +12,50 @@ enum AppLockKeys {
 /// någon som plockar upp den olåsta telefonen rakt av ser host-listan.
 @MainActor
 final class AppLockManager: ObservableObject {
-    @Published var isUnlocked = true
+    // Startvärdet läses ur det sparade läget — inte bara `true` — annars
+    // renderas host-listan olåst under ett ögonblick vid varje KALLSTART
+    // (force-quit + omstart), eftersom lock() bara körs vid .background och
+    // aldrig hinner köras innan första body-renderingen (CodeRabbit-fynd,
+    // säkerhetskritiskt).
+    @Published var isUnlocked: Bool
+    /// Sant så fort scenen blir `.inactive` — tidigare och säkrare tidpunkt
+    /// att dölja innehåll på än `.background`, eftersom iOS tar App Switcher-
+    /// ögonblicksbilden strax efter att scenen blir bakgrundad men startar
+    /// övergången redan vid `.inactive` (CodeRabbit-fynd). Kräver inte en ny
+    /// autentisering i sig — bara ett visuellt lock tills appen är aktiv igen.
+    @Published var isObscured = false
 
     var isEnabled: Bool {
         UserDefaults.standard.bool(forKey: AppLockKeys.enabled)
     }
 
-    /// Anropas när appen går till bakgrunden — nästa gång den blir aktiv
-    /// krävs autentisering igen (om påslaget).
+    init() {
+        isUnlocked = !UserDefaults.standard.bool(forKey: AppLockKeys.enabled)
+    }
+
+    /// Anropas vid `.inactive` — döljer innehållet direkt (se `isObscured`).
+    func obscure() {
+        guard isEnabled else { return }
+        isObscured = true
+    }
+
+    /// Anropas vid `.background` — nästa gång appen blir aktiv krävs
+    /// autentisering igen (om påslaget).
     func lock() {
         guard isEnabled else { return }
         isUnlocked = false
     }
 
+    /// Anropas vid `.active` om appen ALDRIG hann låsas (t.ex. en kort
+    /// `.inactive`-blink från Kontrollcenter/ett systemlarm) — då krävs ingen
+    /// ny autentisering, bara att ta bort skyddet igen.
+    func reveal() {
+        isObscured = false
+    }
+
     @discardableResult
     func authenticate() async -> Bool {
-        guard isEnabled else { isUnlocked = true; return true }
+        guard isEnabled else { isUnlocked = true; isObscured = false; return true }
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
@@ -35,17 +63,32 @@ final class AppLockManager: ObservableObject {
             // hellre än att låsa ute permanent (t.ex. en simulator utan
             // Face ID/passcode konfigurerat).
             isUnlocked = true
+            isObscured = false
             return true
         }
         do {
             let success = try await context.evaluatePolicy(
                 .deviceOwnerAuthentication, localizedReason: "Lås upp Bastion")
             isUnlocked = success
+            if success { isObscured = false }
             return success
         } catch {
             isUnlocked = false
             return false
         }
+    }
+}
+
+/// Enkelt, icke-interaktivt skydd mot att känsligt innehåll syns i App
+/// Switcher-ögonblicksbilden — visas direkt vid `.inactive`, ingen
+/// autentisering krävs för att den ska försvinna igen (se `reveal()`).
+struct PrivacyCoverView: View {
+    var body: some View {
+        Image(systemName: "lock.shield")
+            .font(.system(size: 48))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.regularMaterial)
     }
 }
 
