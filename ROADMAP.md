@@ -164,8 +164,9 @@ Inget nytt att bygga, bara verifiera/lansera:
 - **Face ID/Touch ID-app-lås** — Keychain finns redan för hemligheter, men
   inget lager som låser SJÄLVA appen vid start/bakgrund.
 - **Snippets med variabler** — inte påbörjat.
-- **Favoriter/färgkodning i host-listan** — taggar finns (`Host.swift`),
-  men ingen favorit-flagga eller färgmarkering.
+- **Favoriter/färgkodning i host-listan** — ✅ klart i App/ (`Host.isFavorite`/
+  `colorTag` i SSHCore, `HostColorPicker`, egen "★ Favoriter"-sektion).
+  Inte gjort i LinuxApp än.
 - **Sök i host-listan** — ✅ klart, både LinuxApp (`ContentView.swift`) och
   App/ (`HostListView.swift`, native `.searchable()`). Filtrerar alias/
   hostname/user/taggar i båda.
