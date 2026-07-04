@@ -36,7 +36,10 @@ let package = Package(
         ),
         .testTarget(
             name: "SSHCoreTests",
-            dependencies: ["SSHCore"]
+            dependencies: [
+                "SSHCore",
+                .product(name: "NIOEmbedded", package: "swift-nio"),
+            ]
         ),
     ]
 )
