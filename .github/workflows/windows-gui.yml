@@ -46,6 +46,12 @@ jobs:
         run: swift --version
 
       - name: Bygg bastion-gui
+        # -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH: windows-latest-runnerns
+        # MSVC-STL (14.51, VS 2026) kräver Clang 20+ i sina headers, men
+        # Swift 6.1-RELEASE bundlar Clang 19 — swift-cryptos C++-beroende
+        # (CCryptoBoringSSL) kraschar annars med "error STL1000: Unexpected
+        # compiler version". Detta är MSVC STL:s egen, avsedda escape-hatch
+        # för kända men versionsolika verktygskedjor, inte en risk-flagga.
         run: |
           cd WindowsApp
-          swift build --product bastion-gui
+          swift build --product bastion-gui -Xcc -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
