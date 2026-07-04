@@ -1,0 +1,51 @@
+name: Windows-GUI-bygge
+
+# Bygger WindowsApp/ (bastion-gui, SwiftCrossUI/WinUIBackend) — eget paket,
+# se WindowsApp/Package.swift för varför. Ingen lokal Windows-maskin att
+# testa på ännu, så CI är den enda verifieringen. Setup-stegen (gha-setup-
+# vsdevenv + gha-setup-swift) speglar exakt swift-cross-ui:s egen CI-jobb
+# "windows", som bygger WinUIBackend framgångsrikt med samma kombination.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: windows-gui-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windowsapp-build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        # bash saknas i praktiken för Swift-utveckling på Windows, se
+        # compnerd/gha-setup-swift#18.
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v6
+        with:
+          persist-credentials: false
+
+      - name: Sätt upp VS-devmiljö (MSVC-verktyg som Swift-linker behöver)
+        uses: seanmiddleditch/gha-setup-vsdevenv@v5
+
+      - name: Installera Swift
+        uses: compnerd/gha-setup-swift@v0.3.0
+        with:
+          branch: swift-6.1-release
+          tag: 6.1-RELEASE
+
+      - name: Visa Swift-version
+        run: swift --version
+
+      - name: Bygg bastion-gui
+        run: |
+          cd WindowsApp
+          swift build --product bastion-gui

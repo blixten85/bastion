@@ -134,6 +134,10 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   SnippetEditView.swift  Lägg till/ändra ett snippet — motsvarar App/SnippetEditView.swift
   CommandLibraryView.swift Bläddra referensbiblioteket — motsvarar App/CommandLibraryView.swift
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
+WindowsApp/            EGET SwiftPM-paket, samma mönster som LinuxApp/ — WinUIBackend istället för GtkBackend
+  Package.swift          .package(path: "..") mot roten för SSHCore, + SwiftCrossUI/WinUIBackend
+  Sources/bastion-gui/   Windows-GUI, SwiftCrossUI (WinUIBackend) — medvetet minimal första version
+  BastionGUIApp.swift    @main + en enkel ContentView (visar antal sparade värdar) — bevisar pipelinen, riktiga vyerna porteras hit senare
 ```
 
 ## Bygga & testa (Linux eller macOS)
@@ -195,6 +199,24 @@ systemvitt):
 ```sh
 LD_LIBRARY_PATH=/path/to/compat-libs swift build --product bastion-gui
 ```
+
+## Bygg Windows-GUI:t (`bastion-gui`, i `WindowsApp/`)
+
+Eget SwiftPM-paket, samma mönster/skäl som `LinuxApp/`. Använder
+`WinUIBackend` istället för `GtkBackend`. Medvetet minimal första version
+(`ContentView` visar bara antal sparade värdar) — verifieras hittills
+bara via CI (`.github/workflows/windows-gui.yml`, `windows-latest`-runnern),
+ingen lokal Windows-maskin att bygga/köra på ännu.
+
+```powershell
+cd WindowsApp
+swift build --product bastion-gui
+```
+
+Kräver [Swift för Windows](https://www.swift.org/install/windows/) samt
+WinUIBackends beroenden (Windows SDK 10.0.17763 vid kompilering,
+WindowsAppSDK-runtime vid körning) — se SwiftCrossUIs egen
+["Setting up a development environment on Windows"](https://swiftpackageindex.com/stackotter/swift-cross-ui/documentation/swiftcrossui/windows-development)-guide.
 
 ## Bygg appen (på en Mac)
 

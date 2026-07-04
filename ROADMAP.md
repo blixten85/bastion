@@ -58,7 +58,13 @@ delvis andra, av konkreta skäl:
 2. **Få appen på en riktig iPhone** — ingen Mac tillgänglig, så det kräver antingen
    ett Apple Developer-konto (TestFlight via CI) eller en lånad Mac för en
    gratis 7-dagars sideload.
-3. Windows-GUI via `WinUIBackend` — otestad, ingen Windows-miljö tillgänglig här.
+3. **Windows-GUI via `WinUIBackend`** — påbörjad. `WindowsApp/` (eget SwiftPM-
+   paket, samma mönster som `LinuxApp/`) med en medvetet minimal första
+   version, verifierad via `.github/workflows/windows-gui.yml`
+   (`windows-latest`-runnern) eftersom ingen lokal Windows-miljö fanns när
+   den skrevs. En Windows Server-VPS är på väg (användaren hyr en) — när
+   inloggning finns porteras de riktiga vyerna från `LinuxApp/Sources/
+   bastion-gui/` hit och testas på riktigt, inte bara CI-kompilering.
 4. Riktig rå tangentbordsinmatning i Linux-terminalen (kräver att gå under
    SwiftCrossUI mot GTK:s event-controllers direkt — se "Uppskjutet med avsikt").
 

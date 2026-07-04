@@ -4,8 +4,9 @@ import SwiftCrossUI
 /// Linux-motsvarigheten till `App/` (iOS/macOS). Samma `SSHCore`, samma
 /// host-databas (`~/.bastion/hosts.json`) — bara UI-lagret är bytt mot
 /// SwiftCrossUI (GTK4). Beror på `GtkBackend` direkt, inte `DefaultBackend`
-/// — se kommentaren i `Package.swift`. En Windows-version via WinUIBackend
-/// är ett eget, separat steg som inte testats här.
+/// — se kommentaren i `Package.swift`. Windows-motsvarigheten (`WindowsApp/`,
+/// WinUIBackend) är ett eget paket med en medvetet minimal första version —
+/// se WindowsApp/Sources/bastion-gui/BastionGUIApp.swift.
 @main
 struct BastionGUIApp: App {
     var body: some Scene {
