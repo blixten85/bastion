@@ -13,7 +13,10 @@ final class DockerModel: ObservableObject {
     @Published var containers: [DockerContainer] = []
     @Published var errorMessage: String?
     @Published var loading = false
-    @Published var busyName: String?
+    // Set, inte en enda String? — annars kan en åtgärd på container B som
+    // avslutas rensa "upptagen"-indikatorn för container A medan A:s egen
+    // åtgärd fortfarande pågår (om användaren hinner starta båda i tur och ordning).
+    @Published var busyNames: Set<String> = []
     private let host: Host
     private let password: String?
     private var session: SSHSession?
@@ -69,8 +72,8 @@ final class DockerModel: ObservableObject {
 
     func act(_ kind: DockerAction, on name: String) async {
         guard let s = await ensureSession() else { return }
-        busyName = name
-        defer { busyName = nil }
+        busyNames.insert(name)
+        defer { busyNames.remove(name) }
         do {
             switch kind {
             case .start: try await DockerService.start(name, over: s)
@@ -154,7 +157,7 @@ struct DockerView: View {
                 Circle().fill(c.isRunning ? Color.green : Color.gray).frame(width: 10, height: 10)
                 Text(c.name).emphasized()
                 Spacer()
-                if model.busyName == c.name { ProgressView() }
+                if model.busyNames.contains(c.name) { ProgressView() }
             }
             Text("\(c.image) — \(c.status)").foregroundColor(.gray)
             HStack(spacing: 6) {
