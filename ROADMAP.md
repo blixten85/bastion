@@ -58,13 +58,25 @@ delvis andra, av konkreta skäl:
 2. **Få appen på en riktig iPhone** — ingen Mac tillgänglig, så det kräver antingen
    ett Apple Developer-konto (TestFlight via CI) eller en lånad Mac för en
    gratis 7-dagars sideload.
-3. **Windows-GUI via `WinUIBackend`** — påbörjad. `WindowsApp/` (eget SwiftPM-
-   paket, samma mönster som `LinuxApp/`) med en medvetet minimal första
-   version, verifierad via `.github/workflows/windows-gui.yml`
-   (`windows-latest`-runnern) eftersom ingen lokal Windows-miljö fanns när
-   den skrevs. En Windows Server-VPS är på väg (användaren hyr en) — när
-   inloggning finns porteras de riktiga vyerna från `LinuxApp/Sources/
-   bastion-gui/` hit och testas på riktigt, inte bara CI-kompilering.
+3. **Windows-GUI via `WinUIBackend`** — påbörjad, men **blockerad av en
+   olöst uppströms-bugg i swift-nio**, inte något i Bastions egen kod.
+   `WindowsApp/` (eget SwiftPM-paket, samma mönster som `LinuxApp/`) finns
+   och CI:t (`.github/workflows/windows-gui.yml`, `windows-latest`) kom
+   förbi en första MSVC-STL/Clang-versionskrock (löst med
+   `-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH`), men fastnar nu i
+   `swift-nio`s egen Windows-kod: `ThreadOpsWindows.ThreadHandle` (`HANDLE`,
+   dvs. `UnsafeMutableRawPointer`) kan inte göras `Sendable`-kompatibel med
+   Swift 6.1:s strikta concurrency-krav — se
+   [apple/swift-nio#2065](https://github.com/apple/swift-nio/issues/2065)
+   (öppen, ingen release med fix ännu, oberoende bekräftat via
+   [#3460](https://github.com/apple/swift-nio/issues/3460)). Kräver antingen
+   att swift-nio-projektet fixar det uppströms, eller att vi forkar/patchar
+   swift-nio själva (`ThreadHandle` skulle behöva wrappas i en egen
+   `@unchecked Sendable`-struct) — ett tyngre underhållsbeslut, inte gjort
+   ännu. En Windows Server-VPS finns (`WindowsApp/` kan alltså testas
+   lokalt om buggen löses uppströms eller vi bestämmer oss för att patcha),
+   men används tills vidare för Tailscale/WireGuard-testning istället (se
+   Fas C), som inte är beroende av detta.
 4. Riktig rå tangentbordsinmatning i Linux-terminalen (kräver att gå under
    SwiftCrossUI mot GTK:s event-controllers direkt — se "Uppskjutet med avsikt").
 
