@@ -141,15 +141,47 @@ delvis andra, av konkreta skäl:
 Interaktiv shell finns i kärnan (`SSHSession.openShell`) och driver både
 `App/TerminalView.swift` (SwiftTerm) och `LinuxApp`s `TerminalSessionView`.
 
-## Ännu inte påbörjat (från VISION.md)
+## Backlog, fasindelad (uppdaterad 2026-07-04 efter konkurrentanalys)
 
-Funktioner ur den ursprungliga visionen som inte har någon kod alls än:
+Se [VISION.md](VISION.md) "Tillägg efter den ursprungliga visionen" för
+bakgrunden (konkurrentlandskap: Termius/Tabby/Termix/Magic Term/Conduit).
+Strategin: UX-paritet med Termius väger tyngre än nya SSH-protokollfunktioner
+för sin egen skull — det är UX:en folk betalar för, inte protokollet.
 
+**Juridiskt:** undvik visuell/varumärkeslikhet med Termius i design — se
+VISION.md "Design".
+
+### Fas A — Få ut det som redan är byggt
+Inget nytt att bygga, bara verifiera/lansera:
+- Verifiera kontointegrationen i Xcode (Dropbox/Google Drive/OneDrive) med
+  ett riktigt klient-ID.
+- Få appen på en riktig iPhone (Apple Developer-konto för TestFlight, eller
+  en lånad Mac för en gratis 7-dagars sideload).
+
+### Fas B — UX-paritet med Termius (det folk betalar för idag)
+- **Port Forwarding** (lokal `-L`, fjärr `-R`, dynamisk `-D`) — saknas helt,
+  trots att det är en Termius-huvudfunktion.
+- **Face ID/Touch ID-app-lås** — Keychain finns redan för hemligheter, men
+  inget lager som låser SJÄLVA appen vid start/bakgrund.
+- **Snippets med variabler** — inte påbörjat.
+- **Favoriter/färgkodning i host-listan** — taggar finns (`Host.swift`),
+  men ingen favorit-flagga eller färgmarkering.
+- **Sök i host-listan** — inte påbörjat.
+- **Flera samtidiga sessioner / Split View** — appen hanterar en session åt
+  gången idag.
+
+### Fas C — Differentiatorer bortom Termius
+- Docker-hantering ✅ redan klart (App + LinuxApp).
+- Systemstatus/dashboard ✅ redan klart.
+- **Tailscale-stöd** (nytt, från konkurrentanalysen) — inte påbörjat.
+- **WireGuard-profiler** (nytt) — inte påbörjat.
+- **Command Library** (Docker/Linux/Git/Cloudflare/Tailscale/WireGuard/
+  systemd, med beskrivning/exempel/dokumentation per kommando) — inte påbörjat.
+
+### Fas D — De stora bitarna (ingen ändring i prioritet)
 - SFTP-filhanterare (Drag & Drop, Zip/Tar, chmod/chown, förhandsvisning, textredigering)
 - Inbyggd editor med syntax highlighting
-- Snippets med variabler
-- Command Library (Docker/Linux/Git/Cloudflare/Tailscale/WireGuard/systemd)
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - ProxyJump, Agent Forwarding, PKCS11, YubiKey, Passkeys
-- Face ID/Touch ID + Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
-- Färgteman/True Color/Ligatures, flera flikar/Split View, musstöd i terminalen
+- Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
+- Färgteman/True Color/Ligatures, musstöd i terminalen
