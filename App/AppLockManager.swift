@@ -110,6 +110,10 @@ struct PrivacyCoverView: View {
             // fortfarande läcka host-listan i App Switcher-ögonblicksbilden,
             // som är hela poängen med den här vyn (CodeRabbit-fynd).
             .background(Color(white: 0.05))
+            // Tvingar mörkt färgschema så .secondary/ikonen faktiskt syns mot
+            // den fasta mörka bakgrunden — annars följer de systemets läge
+            // och blir oläsliga i ljust läge (CodeRabbit-fynd).
+            .environment(\.colorScheme, .dark)
     }
 }
 
@@ -136,6 +140,7 @@ struct AppLockView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(white: 0.05))
+        .environment(\.colorScheme, .dark)
         .task { await manager.authenticate() }
     }
 }
