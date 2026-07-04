@@ -71,6 +71,8 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   SSHKeyParser.swift     OpenSSH-privatnyckelparser (~/.ssh/id_ed25519)
   SSHShell.swift         Interaktiv PTY-shell: send/resize + strömmad utdata
   ExecHandler.swift      Barnkanal: ByteBuffer <-> SSHChannelData, strömmar utdata
+  PortForward.swift      Lokal portvidarebefordran (ssh -L) — direct-tcpip-kanaler
+  GlueHandler.swift      Bryggar två Channel-pipelines rakt igenom (från swift-nio-ssh:s exempel)
   HostKeyValidator.swift TOFU-validering + SHA256-fingeravtryck
   KnownHosts.swift       Lagring av sedda värdnycklar (MITM-skydd)
   SSHConfig.swift        ~/.ssh/config-parser (alias, jokertecken, IdentityFile)

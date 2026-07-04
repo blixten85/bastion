@@ -9,14 +9,16 @@ public final class SSHSession {
     private let target: SSHTarget
     private let auth: SSHAuth
     private let knownHosts: KnownHosts
-    private let group: MultiThreadedEventLoopGroup
+    // internal (inte private) — PortForward.swifts SSHSession-extension i
+    // samma modul behöver nå dem.
+    let group: MultiThreadedEventLoopGroup
     // Bär ett fatalt fel som inträffar tyst under handshaken (NIOSSH stänger inte
     // alltid anslutningen vid misslyckad auth eller avvisad värdnyckel). När den
     // fullbordas avslutas pågående strömmar i stället för att hänga för evigt.
     private let fatal: EventLoopPromise<Error>
     private let fatalLock = NIOLock()
     private var fatalResolved = false
-    private var channel: Channel?
+    var channel: Channel?
 
     public init(target: SSHTarget, auth: SSHAuth, knownHosts: KnownHosts = KnownHosts()) {
         self.target = target
