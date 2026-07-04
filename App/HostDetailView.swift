@@ -6,6 +6,12 @@ import SSHCore
 struct HostDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let request: ConnectRequest
+    /// Stänger (kopplar från) den här sessionen helt — skiljer sig från
+    /// "Klar" (`dismiss()`), som bara tar bort den ur sikte och lämnar den
+    /// ansluten i bakgrunden. `nil` när vyn inte ingår i en flikväxlare
+    /// (bör inte hända i praktiken efter multisession-omskrivningen, men
+    /// låter oss ändå inte kräva en anropare för varje instansiering).
+    var onClose: (() -> Void)? = nil
     @State private var showTerminal = false
     @State private var reloadToken = UUID()
 
@@ -37,6 +43,11 @@ struct HostDetailView: View {
                             }
                             NavigationLink { CommandLibraryView(request: request) } label: {
                                 Label("Kommandobibliotek", systemImage: "books.vertical")
+                            }
+                            if let onClose {
+                                Button(role: .destructive) { onClose() } label: {
+                                    Label("Stäng session", systemImage: "xmark.circle")
+                                }
                             }
                         } label: {
                             Image(systemName: "ellipsis.circle")
