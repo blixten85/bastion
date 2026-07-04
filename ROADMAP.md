@@ -197,8 +197,12 @@ Inget nytt att bygga, bara verifiera/lansera:
 - Systemstatus/dashboard ✅ redan klart.
 - **Tailscale-stöd** (nytt, från konkurrentanalysen) — inte påbörjat.
 - **WireGuard-profiler** (nytt) — inte påbörjat.
-- **Command Library** (Docker/Linux/Git/Cloudflare/Tailscale/WireGuard/
-  systemd, med beskrivning/exempel/dokumentation per kommando) — inte påbörjat.
+- **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
+  `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
+  till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
+  (Docker/Linux/Git/Cloudflare/Tailscale/WireGuard/systemd), var och en med
+  beskrivning + valfritt exempel/dokumentationslänk. Kör ett kommando
+  återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
 - SFTP-filhanterare (Drag & Drop, Zip/Tar, chmod/chown, förhandsvisning, textredigering)

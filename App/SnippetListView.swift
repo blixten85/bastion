@@ -70,16 +70,24 @@ struct SnippetListView: View {
     }
 }
 
-/// Fyll i variabler (om snippet har några) innan den skickas.
-private struct SnippetRunView: View {
+/// Fyll i variabler (om snippet har några) innan den skickas. Delas med
+/// `CommandLibraryView` (samma flöde för ett bibliotekskommando, via
+/// `CommandLibraryEntry.asSnippet`) — inte `private` längre.
+struct SnippetRunView: View {
     let snippet: Snippet
     let onRun: (String) -> Void
     let onCancel: () -> Void
+    /// Extra kontext att visa (t.ex. exempel/dokumentationslänk för ett
+    /// kommandobibliotekskommando) — `nil` för vanliga sparade snippets.
+    var detail: String? = nil
     @State private var values: [String: String] = [:]
 
     var body: some View {
         NavigationStack {
             Form {
+                if let detail {
+                    Section { Text(detail).font(.footnote).foregroundStyle(.secondary) }
+                }
                 if snippet.variableNames.isEmpty {
                     Section {
                         Text(snippet.template).font(.system(.body, design: .monospaced))

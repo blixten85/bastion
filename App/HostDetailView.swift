@@ -28,13 +28,18 @@ struct HostDetailView: View {
                         Button("Klar") { dismiss() }
                     }
                     ToolbarItem(placement: .primaryAction) {
-                        NavigationLink { DockerView(request: request) } label: {
-                            Image(systemName: "shippingbox")
-                        }
-                    }
-                    ToolbarItem(placement: .primaryAction) {
-                        NavigationLink { SnippetListView(request: request) } label: {
-                            Image(systemName: "text.badge.checkmark")
+                        Menu {
+                            NavigationLink { DockerView(request: request) } label: {
+                                Label("Docker", systemImage: "shippingbox")
+                            }
+                            NavigationLink { SnippetListView(request: request) } label: {
+                                Label("Snippets", systemImage: "text.badge.checkmark")
+                            }
+                            NavigationLink { CommandLibraryView(request: request) } label: {
+                                Label("Kommandobibliotek", systemImage: "books.vertical")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
                         }
                     }
                     ToolbarItem(placement: .primaryAction) {

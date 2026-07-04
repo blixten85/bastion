@@ -80,6 +80,7 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   HostStore.swift        Persistent host-databas (JSON, trådsäker)
   Snippet.swift          Sparat kommando med {{variabler}} + rendering
   SnippetStore.swift     Persistent snippet-databas (JSON, ingen sync ännu)
+  CommandLibrary.swift   Statiskt referensbibliotek (Docker/Linux/Git/Cloudflare/Tailscale/WireGuard/systemd)
   SystemProbe.swift      Dashboard: ett SSH-kommando -> SystemSnapshot (parser testad)
   DockerService.swift    Docker: lista/start/stopp/omstart/logg (injektionssäkert)
   SyncEngine.swift       Deterministisk merge (LWW + gravstenar) för sync
@@ -100,6 +101,7 @@ App/                   XCODE-ONLY: iOS+macOS-appen (SwiftUI, delad kod) + XcodeG
   DockerView.swift       Containerlista med start/stopp/omstart/logg/shell
   SnippetListView.swift  Sparade snippets — kör en (fyll i variabler) som startkommando
   SnippetEditView.swift  Lägg till/ändra ett snippet, visar upptäckta {{variabler}} live
+  CommandLibraryView.swift Bläddra referensbiblioteket, kör via samma variabelifyllning som Snippets
   SessionView.swift      Aktiv session → terminalvyn (valfritt startkommando)
   TerminalView.swift     SwiftTerm kopplad till SSHCore.SSHShell (UIViewRepresentable/NSViewRepresentable)
   AuthResolver.swift     Delad SSHAuth-uppbyggnad
@@ -130,6 +132,7 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   DockerView.swift       Docker: lista/start/stopp/omstart/logg/shell — motsvarar App/DockerView.swift
   SnippetListView.swift  Sparade snippets — motsvarar App/SnippetListView.swift
   SnippetEditView.swift  Lägg till/ändra ett snippet — motsvarar App/SnippetEditView.swift
+  CommandLibraryView.swift Bläddra referensbiblioteket — motsvarar App/CommandLibraryView.swift
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
 ```
 
