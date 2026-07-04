@@ -15,8 +15,8 @@ eller när du undrar "är X satt här också?".
 - `.github/ISSUE_TEMPLATE/config.yml` + `bug_report.yml` + `feature_request.yml`
 - `.github/labeler.yml`
 - `.github/FUNDING.yml` (github-sponsors + PayPal)
-- `renovate.json` (`config:best-practices`, daglig schedule, semantic commits,
-  separata major-releases, auto-rebase, patch-automerge, GHA-gruppering)
+- `.github/renovate.json` (`config:best-practices`, daglig schedule, semantic
+  commits, separata major-releases, auto-rebase, patch-automerge, GHA-gruppering)
 
 ## Workflows (`.github/workflows/`)
 
@@ -96,3 +96,14 @@ programmatiskt (inget REST/GraphQL-fält hittades) eller är inte satt någonsta
 Om du vill ha någon av dessa satta måste det göras manuellt via
 repo-inställningssidan på github.com — jag har inte ett verktyg som kan
 bekräfta eller ändra dem tillförlitligt.
+
+## Övrigt verifierat (redan i linje, inget att fixa)
+
+- **Repo-topics**: tomt överallt, inte en del av guldstandarden.
+- **Actions default workflow permissions**: `read` + `can_approve_pull_request_reviews: false`
+  identiskt överallt (workflows som behöver skrivrättigheter deklarerar det
+  explicit i sin egen YAML, t.ex. `contents: write` i `auto-release.yml`).
+- **Private vulnerability reporting**: på, identiskt överallt.
+- **CONTRIBUTING.md / CODE_OF_CONDUCT.md**: inte universella — `scraper` har
+  en egen `CONTRIBUTING.md`, `routines-relay`/bastion har det inte. Projekt-
+  specifikt, inte en del av guldstandarden.
