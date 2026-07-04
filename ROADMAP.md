@@ -175,7 +175,13 @@ Inget nytt att bygga, bara verifiera/lansera:
   standard). `NSFaceIDUsageDescription` tillagd i Info.plist (krävs av iOS,
   annars kraschar appen vid första anropet). LinuxApp/Windows: ingen
   motsvarighet — plattformsspecifikt Apple-API.
-- **Snippets med variabler** — inte påbörjat.
+- **Snippets med variabler** — ✅ klart, både App/ och LinuxApp. `Snippet`/
+  `SnippetStore` i SSHCore (`{{namn}}`-variabler, testat inkl. en fångad
+  regression: extraherad variabel trimmades men ersättningen letade efter
+  den otrimmade nyckeln, så `{{ mellanslag }}` aldrig matchade). UI: knapp
+  i värddetaljvyn, fyll i variabler, kör som startkommando i en ny terminal
+  (samma `ConnectRequest.running(_:)`/`initialCommand`-mönster som Docker-
+  shell). Ingen sync av snippets mellan enheter än (medvetet, v1).
 - **Favoriter/färgkodning i host-listan** — ✅ klart, både App/ (`Host.isFavorite`/
   `colorTag` i SSHCore, `HostColorPicker`, egen "★ Favoriter"-sektion) och
   LinuxApp (samma fält, favoriter sorterade överst, "☆/★ Favorit"-knapp
