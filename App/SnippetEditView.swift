@@ -39,8 +39,8 @@ struct SnippetEditView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { onCancel() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Spara") { onSave(draft) }
-                        .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty
-                                  || draft.template.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                  || draft.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }

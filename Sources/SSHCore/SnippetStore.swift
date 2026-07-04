@@ -59,7 +59,7 @@ public final class SnippetStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let data = try? encoder.encode(Array(byID.values).sorted { $0.name < $1.name }) {
-            try? data.write(to: URL(fileURLWithPath: path))
+            try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
         }
     }
 }
