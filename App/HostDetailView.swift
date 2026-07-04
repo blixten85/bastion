@@ -33,6 +33,11 @@ struct HostDetailView: View {
                         }
                     }
                     ToolbarItem(placement: .primaryAction) {
+                        NavigationLink { SnippetListView(request: request) } label: {
+                            Image(systemName: "text.badge.checkmark")
+                        }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
                         Button { reloadToken = UUID() } label: { Image(systemName: "arrow.clockwise") }
                     }
                 }

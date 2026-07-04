@@ -78,6 +78,8 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   SSHConfig.swift        ~/.ssh/config-parser (alias, jokertecken, IdentityFile)
   Host.swift             Sparad värd (metadata + taggar, inga hemligheter)
   HostStore.swift        Persistent host-databas (JSON, trådsäker)
+  Snippet.swift          Sparat kommando med {{variabler}} + rendering
+  SnippetStore.swift     Persistent snippet-databas (JSON, ingen sync ännu)
   SystemProbe.swift      Dashboard: ett SSH-kommando -> SystemSnapshot (parser testad)
   DockerService.swift    Docker: lista/start/stopp/omstart/logg (injektionssäkert)
   SyncEngine.swift       Deterministisk merge (LWW + gravstenar) för sync
@@ -96,6 +98,8 @@ App/                   XCODE-ONLY: iOS+macOS-appen (SwiftUI, delad kod) + XcodeG
   HostDetailView.swift   Dashboard vid öppning + knapp till terminal
   DashboardView.swift    Renderar SystemSnapshot (last, minne, disk, Docker)
   DockerView.swift       Containerlista med start/stopp/omstart/logg/shell
+  SnippetListView.swift  Sparade snippets — kör en (fyll i variabler) som startkommando
+  SnippetEditView.swift  Lägg till/ändra ett snippet, visar upptäckta {{variabler}} live
   SessionView.swift      Aktiv session → terminalvyn (valfritt startkommando)
   TerminalView.swift     SwiftTerm kopplad till SSHCore.SSHShell (UIViewRepresentable/NSViewRepresentable)
   AuthResolver.swift     Delad SSHAuth-uppbyggnad
@@ -124,6 +128,8 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   TerminalGridView.swift Renderar buffern som hopslagna Text-körningar (ingen Canvas i SwiftCrossUI)
   TerminalSessionView.swift Bestående PTY-shell + radvis input + kontrollknappar (piltangenter/Home/End/PgUp/PgDn/Ctrl+C/Tab/Esc)
   DockerView.swift       Docker: lista/start/stopp/omstart/logg/shell — motsvarar App/DockerView.swift
+  SnippetListView.swift  Sparade snippets — motsvarar App/SnippetListView.swift
+  SnippetEditView.swift  Lägg till/ändra ett snippet — motsvarar App/SnippetEditView.swift
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
 ```
 
