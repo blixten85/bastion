@@ -159,8 +159,16 @@ Inget nytt att bygga, bara verifiera/lansera:
   en lånad Mac för en gratis 7-dagars sideload).
 
 ### Fas B — UX-paritet med Termius (det folk betalar för idag)
-- **Port Forwarding** (lokal `-L`, fjärr `-R`, dynamisk `-D`) — saknas helt,
-  trots att det är en Termius-huvudfunktion.
+- **Port Forwarding**: 🧩 **lokal (`-L`) klar i SSHCore** —
+  `SSHSession.openLocalPortForward(bindHost:bindPort:targetHost:targetPort:)`,
+  en lokal TCP-lyssnare som bryggar varje ansluten klient till en egen
+  `direct-tcpip`-SSH-kanal (`GlueHandler`, kopierad från swift-nio-ssh:s eget
+  exempel — inte del av det publika biblioteket). Testad end-to-end mot
+  loopback-testservern (riktig TCP-socket → SSH-kanal → eko → tillbaka).
+  **Kvar**: fjärr (`-R`) och dynamisk (`-D`, SOCKS) inte påbörjat; ingen
+  CLI-/UI-koppling än (varken `bastion-cli`, App/ eller LinuxApp) — kärnan
+  går att anropa programmatiskt men har ingen yta att starta/stoppa en
+  tunnel från än.
 - **Face ID/Touch ID-app-lås** — Keychain finns redan för hemligheter, men
   inget lager som låser SJÄLVA appen vid start/bakgrund.
 - **Snippets med variabler** — inte påbörjat.

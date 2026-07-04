@@ -65,6 +65,21 @@ final class ServerExecHandler: ChannelDuplexHandler {
     }
 }
 
+/// Server-sidans direct-tcpip-handler för test: ekar bara tillbaka precis vad
+/// den tar emot, oavsett vilken targetHost/targetPort klienten bad om. Räcker
+/// för att bevisa hela portvidarebefordrings-vägen (lokal TCP -> SSH-kanal ->
+/// tillbaka) utan att behöva ett riktigt nätverksmål.
+final class ServerDirectTCPIPEchoHandler: ChannelDuplexHandler {
+    typealias InboundIn = SSHChannelData
+    typealias InboundOut = SSHChannelData
+    typealias OutboundIn = SSHChannelData
+    typealias OutboundOut = SSHChannelData
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        context.writeAndFlush(data, promise: nil)
+    }
+}
+
 struct LoopbackServer {
     let group: MultiThreadedEventLoopGroup
     let channel: Channel
@@ -81,8 +96,13 @@ struct LoopbackServer {
                             hostKeys: [hostKey],
                             userAuthDelegate: ServerAuth(password: password))),
                         allocator: channel.allocator,
-                        inboundChildChannelInitializer: { child, _ in
-                            child.pipeline.addHandler(ServerExecHandler())
+                        inboundChildChannelInitializer: { child, channelType in
+                            switch channelType {
+                            case .directTCPIP:
+                                return child.pipeline.addHandler(ServerDirectTCPIPEchoHandler())
+                            default:
+                                return child.pipeline.addHandler(ServerExecHandler())
+                            }
                         }))
             }
         let channel = try bootstrap.bind(host: "127.0.0.1", port: 0).wait()
