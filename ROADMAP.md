@@ -221,18 +221,29 @@ Inget nytt att bygga, bara verifiera/lansera:
   återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
-- **SFTP-filhanterare** — påbörjad. `Sources/SSHCore/SFTPProtocol.swift`:
-  trådformatet (SSH_FXP_*, SFTP version 3 — den OpenSSH faktiskt talar)
-  kodat/avkodat rent (inget kanal-I/O än): INIT/VERSION, OPEN/CLOSE/READ/
-  WRITE, OPENDIR/READDIR, REALPATH/STAT/LSTAT/MKDIR/RMDIR/REMOVE/RENAME,
-  STATUS/HANDLE/DATA/NAME/ATTRS-svar. 20 rena round-trip-/byte-exakta
-  tester (`SFTPProtocolTests.swift`), ingen server behövs för det här
-  lagret. **Kvar**: `SFTPClient` (subsystem-kanal på en `SSHSession` +
-  INIT-handskakning + pending-request-tabell för att matcha svar mot
-  förfrågningar via id), testad mot riktiga `sftp-server` (finns på
-  `/usr/lib/openssh/sftp-server` — riktig protokollverifiering, inte
-  bara en egen mock) — sedan UI (Drag & Drop, Zip/Tar, chmod/chown,
-  förhandsvisning, textredigering) i ett tredje steg.
+- **SFTP-filhanterare** — kärnan klar (App/LinuxApp-UI kvar).
+  `SFTPProtocol.swift`: SFTP version 3-trådformatet (SSH_FXP_*), rent
+  kodat/avkodat. `SFTPClient.swift`: öppnar en "sftp"-subsystem-kanal på
+  en `SSHSession` (samma `DirectTCPIPWrapperHandler`-mönster som
+  portvidarebefordran återanvänds för ByteBuffer<->SSHChannelData),
+  INIT/VERSION-handskakning, id-baserad pending-request-tabell (en
+  Swift-aktör — flera samtidiga förfrågningar över samma kanal är säkert).
+  API: `realpath`/`stat`/`listDirectory`/`mkdir`/`rmdir`/`remove`/`rename`/
+  `readFile`/`writeFile` (chunkad läsning/skrivning) + lägre nivå
+  `openFile`/`read`/`write`/`closeFile`.
+  30 tester totalt (20 rena protokoll-round-trip + 10 end-to-end mot en
+  testserver backad av ett riktigt temp-directory — `FileManager`/
+  `FileHandle`, inte bara protokolleko), inklusive ett samtidighetstest
+  (10 parallella läsningar, verifierar att id-matchningen inte blandar
+  ihop svar). **Ej gjort**: verifiering mot det RIKTIGA `sftp-server`-
+  binärprogrammet (`/usr/lib/openssh/sftp-server` finns på den här
+  maskinen) — testservern är min egen Swift-implementation av protokollet,
+  inte OpenSSHs C-kod; att brygga ett riktigt underprocess-`sftp-server`
+  via NIOPipeBootstrap + Foundation.Process är fragilt (dubbel fd-ägande
+  mellan Foundation.Pipe och NIO) och sparat som ett eget, separat steg
+  om djupare protokollkompatibilitet någonsin behöver verifieras.
+  **Kvar**: UI (Drag & Drop, Zip/Tar, chmod/chown, förhandsvisning,
+  textredigering) i App/ och LinuxApp.
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - ProxyJump, Agent Forwarding, PKCS11, YubiKey, Passkeys
