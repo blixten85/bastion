@@ -82,6 +82,7 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   SnippetStore.swift     Persistent snippet-databas (JSON, ingen sync ännu)
   CommandLibrary.swift   Statiskt referensbibliotek (Docker/Linux/Git/Cloudflare/Tailscale/WireGuard/systemd)
   SystemProbe.swift      Dashboard: ett SSH-kommando -> SystemSnapshot (parser testad)
+  SFTPProtocol.swift     SFTP-trådformat (SSH_FXP_*, version 3) — kodning/avkodning, inget kanal-I/O än
   DockerService.swift    Docker: lista/start/stopp/omstart/logg (injektionssäkert)
   SyncEngine.swift       Deterministisk merge (LWW + gravstenar) för sync
   SyncProvider.swift     Synktransport (mapp/iCloud/Dropbox/Syncthing/Git)

@@ -221,7 +221,18 @@ Inget nytt att bygga, bara verifiera/lansera:
   återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
-- SFTP-filhanterare (Drag & Drop, Zip/Tar, chmod/chown, förhandsvisning, textredigering)
+- **SFTP-filhanterare** — påbörjad. `Sources/SSHCore/SFTPProtocol.swift`:
+  trådformatet (SSH_FXP_*, SFTP version 3 — den OpenSSH faktiskt talar)
+  kodat/avkodat rent (inget kanal-I/O än): INIT/VERSION, OPEN/CLOSE/READ/
+  WRITE, OPENDIR/READDIR, REALPATH/STAT/LSTAT/MKDIR/RMDIR/REMOVE/RENAME,
+  STATUS/HANDLE/DATA/NAME/ATTRS-svar. 20 rena round-trip-/byte-exakta
+  tester (`SFTPProtocolTests.swift`), ingen server behövs för det här
+  lagret. **Kvar**: `SFTPClient` (subsystem-kanal på en `SSHSession` +
+  INIT-handskakning + pending-request-tabell för att matcha svar mot
+  förfrågningar via id), testad mot riktiga `sftp-server` (finns på
+  `/usr/lib/openssh/sftp-server` — riktig protokollverifiering, inte
+  bara en egen mock) — sedan UI (Drag & Drop, Zip/Tar, chmod/chown,
+  förhandsvisning, textredigering) i ett tredje steg.
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - ProxyJump, Agent Forwarding, PKCS11, YubiKey, Passkeys
