@@ -125,7 +125,14 @@ public actor SFTPClient {
     private func dispatch(_ payload: inout ByteBuffer) {
         guard let rawType: UInt8 = payload.readInteger(), let type = SFTPMessageType(rawValue: rawType),
               let response = try? SFTPResponse.decode(type: type, from: &payload)
-        else { return }
+        else {
+            // Ett paket vi inte kan tolka betyder att strömmen är ur synk —
+            // det finns inget säkert sätt att veta vilket pending-id det
+            // SKULLE ha matchat. Utan detta skulle den väntande continuation
+            // hänga för evigt (CodeRabbit-fynd, PR #38).
+            failAllPending(SFTPClientError.protocolViolation("kunde inte avkoda serversvar"))
+            return
+        }
 
         if case .version = response {
             versionContinuation?.resume(returning: response)
@@ -205,24 +212,43 @@ public actor SFTPClient {
         }
 
         var entries: [SFTPNameEntry] = []
-        readLoop: while true {
-            let readID = nextID()
-            let readResponse = try await request(SFTPRequest.readdir(id: readID, handle: handle), id: readID)
-            switch readResponse {
-            case .name(_, let batch):
-                entries.append(contentsOf: batch)
-            case .status(_, .eof, _):
-                break readLoop
-            case .status(_, let code, let message):
-                throw SFTPStatusError(code: code, message: message)
-            default:
-                throw SFTPClientError.protocolViolation("oväntat svar på readdir")
+        do {
+            readLoop: while true {
+                let readID = nextID()
+                let readResponse = try await request(SFTPRequest.readdir(id: readID, handle: handle), id: readID)
+                switch readResponse {
+                case .name(_, let batch):
+                    entries.append(contentsOf: batch)
+                case .status(_, .eof, _):
+                    break readLoop
+                case .status(_, let code, let message):
+                    throw SFTPStatusError(code: code, message: message)
+                default:
+                    throw SFTPClientError.protocolViolation("oväntat svar på readdir")
+                }
             }
+        } catch {
+            // Stäng handtaget även när loopen kastar — annars läcker det på
+            // serversidan för resten av kanalens livstid (CodeRabbit-fynd).
+            await closeHandleBestEffort(handle)
+            throw error
         }
 
-        let closeID = nextID()
-        _ = try await request(SFTPRequest.close(id: closeID, handle: handle), id: closeID)
+        try await closeFileHandle(handle)
         return entries
+    }
+
+    /// Stänger ett SFTP-handtag utan att kasta — används i felvägar där vi
+    /// redan är på väg att kasta det ursprungliga felet och inte vill dölja
+    /// det bakom ett sekundärt close-fel.
+    private func closeHandleBestEffort(_ handle: [UInt8]) async {
+        let id = nextID()
+        _ = try? await request(SFTPRequest.close(id: id, handle: handle), id: id)
+    }
+
+    private func closeFileHandle(_ handle: [UInt8]) async throws {
+        let id = nextID()
+        _ = try await request(SFTPRequest.close(id: id, handle: handle), id: id)
     }
 
     public func mkdir(_ path: String) async throws {
@@ -299,13 +325,23 @@ public actor SFTPClient {
 
     /// Läser en hel fil i bitar av `chunkSize` (32 KiB som standard).
     public func readFile(_ path: String, chunkSize: UInt32 = 32768) async throws -> [UInt8] {
+        // chunkSize: 0 skulle aldrig avancera (read() med length: 0 hänger
+        // eller loopar för evigt beroende på serverns svar) — CodeRabbit-fynd.
+        guard chunkSize > 0 else {
+            throw SFTPClientError.protocolViolation("chunkSize måste vara större än 0")
+        }
         let handle = try await openFile(path, flags: .read)
         var result: [UInt8] = []
         var offset: UInt64 = 0
-        while let chunk = try await read(handle, offset: offset, length: chunkSize) {
-            result.append(contentsOf: chunk)
-            offset += UInt64(chunk.count)
-            if chunk.isEmpty { break }  // undviker oändlig loop mot en server som svarar tom DATA i stället för EOF
+        do {
+            while let chunk = try await read(handle, offset: offset, length: chunkSize) {
+                result.append(contentsOf: chunk)
+                offset += UInt64(chunk.count)
+                if chunk.isEmpty { break }  // undviker oändlig loop mot en server som svarar tom DATA i stället för EOF
+            }
+        } catch {
+            try? await closeFile(handle)
+            throw error
         }
         try await closeFile(handle)
         return result
@@ -313,14 +349,25 @@ public actor SFTPClient {
 
     /// Skriver en hel fil i bitar (skapar/trunkerar).
     public func writeFile(_ path: String, data: [UInt8], chunkSize: Int = 32768) async throws {
+        // chunkSize <= 0: prefix(0)/dropFirst(0) avancerar aldrig -> oändlig
+        // loop (CodeRabbit-fynd). Negativa värden kan dessutom trappa i
+        // ArraySlice.prefix(_:).
+        guard chunkSize > 0 else {
+            throw SFTPClientError.protocolViolation("chunkSize måste vara större än 0")
+        }
         let handle = try await openFile(path, flags: [.write, .create, .truncate])
         var offset: UInt64 = 0
         var remaining = data[...]
-        while !remaining.isEmpty {
-            let chunk = Array(remaining.prefix(chunkSize))
-            try await write(handle, offset: offset, data: chunk)
-            offset += UInt64(chunk.count)
-            remaining = remaining.dropFirst(chunk.count)
+        do {
+            while !remaining.isEmpty {
+                let chunk = Array(remaining.prefix(chunkSize))
+                try await write(handle, offset: offset, data: chunk)
+                offset += UInt64(chunk.count)
+                remaining = remaining.dropFirst(chunk.count)
+            }
+        } catch {
+            try? await closeFile(handle)
+            throw error
         }
         try await closeFile(handle)
     }

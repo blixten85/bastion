@@ -153,6 +153,83 @@ final class SFTPClientTests: XCTestCase {
         await session.close()
     }
 
+    func testPathTraversalOutsideSandboxIsBlocked() async throws {
+        // Regressionstest för CodeRabbit-fyndet i testserverns diskPath(for:):
+        // "../"-segment fick tidigare lämna sandlådan (server.sftpRoot) och
+        // nå riktiga filer på testmaskinen. Ett skadligt/buggigt klientanrop
+        // ska svaras som "hittades inte", inte lyckas läsa något utanför roten.
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+        let session = try await connectedSession(server)
+        let sftp = try await SFTPClient.open(on: session)
+
+        do {
+            _ = try await sftp.readFile("../../../../../../etc/passwd")
+            XCTFail("skulle ha kastat — sökvägen ligger utanför sandlådan")
+        } catch let error as SFTPStatusError {
+            XCTAssertEqual(error.code, .noSuchFile)
+        }
+
+        await sftp.close()
+        await session.close()
+    }
+
+    func testWriteFileRejectsZeroChunkSize() async throws {
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+        let session = try await connectedSession(server)
+        let sftp = try await SFTPClient.open(on: session)
+
+        do {
+            try await sftp.writeFile("x.txt", data: [1, 2, 3], chunkSize: 0)
+            XCTFail("skulle ha kastat — chunkSize: 0 avancerar aldrig")
+        } catch is SFTPClientError {
+            // förväntat
+        }
+
+        await sftp.close()
+        await session.close()
+    }
+
+    func testReadFileRejectsZeroChunkSize() async throws {
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+        let session = try await connectedSession(server)
+        let sftp = try await SFTPClient.open(on: session)
+
+        try await sftp.writeFile("x.txt", data: [1, 2, 3])
+        do {
+            _ = try await sftp.readFile("x.txt", chunkSize: 0)
+            XCTFail("skulle ha kastat")
+        } catch is SFTPClientError {
+            // förväntat
+        }
+
+        await sftp.close()
+        await session.close()
+    }
+
+    func testListDirectoryClosesHandleEvenWhenReaddirFails() async throws {
+        // Regressionstest för CodeRabbit-fyndet: en handle som läcker på
+        // serversidan om readdir-loopen kastar. Vi kan inte tvinga fram ett
+        // riktigt readdir-fel utan att ändra testservern, men vi verifierar
+        // åtminstone att en efterföljande, orelaterad operation fortfarande
+        // fungerar normalt (dvs. att klienten/kanalen inte hamnar i ett
+        // trasigt tillstånd av det normala, lyckade fallet).
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+        let session = try await connectedSession(server)
+        let sftp = try await SFTPClient.open(on: session)
+
+        _ = try await sftp.listDirectory(".")
+        try await sftp.writeFile("still-works.txt", data: Array("ok".utf8))
+        let readBack = try await sftp.readFile("still-works.txt")
+        XCTAssertEqual(readBack, Array("ok".utf8))
+
+        await sftp.close()
+        await session.close()
+    }
+
     func testConcurrentRequestsOnSameConnectionAreMatchedByID() async throws {
         // Flera samtidiga anrop över samma SFTP-kanal ska matchas rätt via
         // SFTP:s eget id-fält, inte råka blanda ihop svar (aktören

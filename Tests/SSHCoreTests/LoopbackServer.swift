@@ -105,9 +105,20 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
         self.rootPath = rootPath
     }
 
+    /// Håller sökvägar innanför `rootPath` — utan detta kunde en `../`
+    /// eller absolut sökväg fly sandlådan och mutera godtyckliga filer
+    /// testprocessen har åtkomst till (CodeRabbit-fynd, PR #38). En
+    /// icke-existerande sökväg (`__blocked__`) gör att alla efterföljande
+    /// filsystemsanrop svarar "hittades inte" på ett säkert sätt, utan att
+    /// göra den här (icke-kastande) funktionen throwing.
     private func diskPath(for sftpPath: String) -> String {
         let trimmed = sftpPath.hasPrefix("/") ? String(sftpPath.dropFirst()) : sftpPath
-        return trimmed.isEmpty || trimmed == "." ? rootPath : rootPath + "/" + trimmed
+        let candidate = trimmed.isEmpty || trimmed == "." ? rootPath : rootPath + "/" + trimmed
+        let standardized = (candidate as NSString).standardizingPath
+        guard standardized == rootPath || standardized.hasPrefix(rootPath + "/") else {
+            return rootPath + "/__blocked_path_traversal__"
+        }
+        return standardized
     }
 
     private func allocateHandle(_ handle: Handle) -> [UInt8] {
@@ -117,9 +128,14 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
         return withUnsafeBytes(of: id.bigEndian, Array.init)
     }
 
+    /// Bygger UInt64 byte-för-byte istället för `withUnsafeBytes { $0.load(as:) }`
+    /// — den senare kan trappa på en `[UInt8]` vars underliggande lagring
+    /// inte råkar vara 8-byte-alignad (CodeRabbit-fynd, PR #38).
     private func handleID(from bytes: [UInt8]) -> UInt64? {
         guard bytes.count == 8 else { return nil }
-        return bytes.withUnsafeBytes { $0.load(as: UInt64.self).bigEndian }
+        var value: UInt64 = 0
+        for byte in bytes { value = (value << 8) | UInt64(byte) }
+        return value
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -198,10 +214,14 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
             sendHandle(id: id, handle: handle, context: context)
 
         case .readdir:
-            guard let id: UInt32 = payload.readInteger(), let handleBytes = try? payload.readSFTPBytes(),
+            // id läses ut separat FÖRST så en ogiltig handle-referens ändå
+            // kan besvaras med rätt id — annars väntar klienten på den
+            // pending-continuationen för evigt (CodeRabbit-fynd, PR #38).
+            guard let id: UInt32 = payload.readInteger() else { return }
+            guard let handleBytes = try? payload.readSFTPBytes(),
                   let hid = handleID(from: handleBytes), case .directory(let remaining) = handles[hid]
             else {
-                sendStatus(id: 0, code: .failure, context: context)
+                sendStatus(id: id, code: .failure, context: context)
                 return
             }
             guard !remaining.isEmpty else {
@@ -222,9 +242,12 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
             send(packet, context: context)
 
         case .close:
-            guard let id: UInt32 = payload.readInteger(), let handleBytes = try? payload.readSFTPBytes(),
-                  let hid = handleID(from: handleBytes)
-            else { return }
+            guard let id: UInt32 = payload.readInteger() else { return }
+            guard let handleBytes = try? payload.readSFTPBytes(), let hid = handleID(from: handleBytes)
+            else {
+                sendStatus(id: id, code: .failure, context: context)
+                return
+            }
             if case .file(let fh) = handles[hid] { try? fh.close() }
             handles.removeValue(forKey: hid)
             sendStatus(id: id, code: .ok, context: context)
@@ -256,10 +279,14 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
             sendHandle(id: id, handle: handle, context: context)
 
         case .read:
-            guard let id: UInt32 = payload.readInteger(), let handleBytes = try? payload.readSFTPBytes(),
+            guard let id: UInt32 = payload.readInteger() else { return }
+            guard let handleBytes = try? payload.readSFTPBytes(),
                   let hid = handleID(from: handleBytes), let offset: UInt64 = payload.readInteger(),
                   let length: UInt32 = payload.readInteger(), case .file(let fh) = handles[hid]
-            else { return }
+            else {
+                sendStatus(id: id, code: .failure, context: context)
+                return
+            }
             try? fh.seek(toOffset: offset)
             let data = (try? fh.read(upToCount: Int(length))) ?? nil
             guard let data, !data.isEmpty else {
@@ -273,10 +300,14 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
             send(packet, context: context)
 
         case .write:
-            guard let id: UInt32 = payload.readInteger(), let handleBytes = try? payload.readSFTPBytes(),
+            guard let id: UInt32 = payload.readInteger() else { return }
+            guard let handleBytes = try? payload.readSFTPBytes(),
                   let hid = handleID(from: handleBytes), let offset: UInt64 = payload.readInteger(),
                   let bytes = try? payload.readSFTPBytes(), case .file(let fh) = handles[hid]
-            else { return }
+            else {
+                sendStatus(id: id, code: .failure, context: context)
+                return
+            }
             try? fh.seek(toOffset: offset)
             try? fh.write(contentsOf: Data(bytes))
             sendStatus(id: id, code: .ok, context: context)
