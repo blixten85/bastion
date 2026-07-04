@@ -8,11 +8,20 @@ struct HostDetailView: View {
     @State private var password = ""
     @State private var connected = false
     @State private var resolvedPassword: String?
+    @State private var showDocker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(host.alias.isEmpty ? host.hostName : host.alias).font(.title2)
-            Text("\(host.user)@\(host.hostName):\(host.port)").foregroundColor(.gray)
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(host.alias.isEmpty ? host.hostName : host.alias).font(.title2)
+                    Text("\(host.user)@\(host.hostName):\(host.port)").foregroundColor(.gray)
+                }
+                Spacer()
+                if connected || !needsPassword {
+                    Button("Docker") { showDocker = true }
+                }
+            }
 
             if needsPassword && !connected {
                 passwordGate
@@ -25,6 +34,9 @@ struct HostDetailView: View {
             }
         }
         .padding()
+        .sheet(isPresented: $showDocker) {
+            DockerView(host: host, password: resolvedPassword)
+        }
     }
 
     private var needsPassword: Bool {

@@ -9,6 +9,10 @@ UI-lagret är plattformsspecifikt. All affärslogik ligger i den testade kärnan
 > "Docker-stöd" = appen hanterar Docker-containrar på dina *fjärrservrar* via SSH.
 > Appen själv körs aldrig i en container.
 
+Se [VISION.md](VISION.md) för den fulla visionen (målgrupp, arkitektur,
+funktionslista, utvecklingsplan) och [ROADMAP.md](ROADMAP.md) för aktuell
+status mot den — den här filen är bara "hur man bygger och kör".
+
 ## Cross-platform & sync
 
 | Plattform | Kärna | UI |
@@ -36,9 +40,12 @@ Två vägar, och de utesluter inte varandra:
    (iCloud Drive, Dropbox, Syncthing, Git). Inget OAuth i appen, funkar direkt.
 2. **Kontointegration (Dropbox klar, Google/OneDrive samma mönster):** logga in
    mot Dropbox via OAuth2 + PKCE (`ASWebAuthenticationSession`) och skriv filen
-   direkt via deras API, mot en app-scopad mapp (aldrig hela kontot). På Apple
-   behövs ingen inloggning för iCloud — appen använder det redan inloggade
-   kontot (ubiquity-container/CloudKit).
+   direkt via deras API, mot en app-scopad mapp (aldrig hela kontot).
+
+iCloud har ingen egen kod än — det fungerar redan i dag via väg 1 (peka
+"Synkad mapp" på iCloud Drive-mappen), men kräver att användaren själv hittar
+och pekar ut den. En native CloudKit/ubiquity-container-integration (slipper
+peka ut mappen manuellt) är en möjlig framtida förbättring, inte byggd.
 
 Oavsett väg är nyttolasten E2E-krypterad, så leverantören är bara dum lagring.
 
@@ -54,37 +61,6 @@ det kan inte kodas i förväg:
 
 Klistra in respektive klient-ID i `App/OAuthProviders.swift` (t.ex.
 `OAuthProviders.dropbox.clientID`) — inget annat behöver ändras.
-
-## Status
-
-| Del | Läge |
-|-----|------|
-| SSH-transport + handshake | ✅ (NIOSSH) |
-| Lösenordsauth | ✅ testad end-to-end |
-| Ed25519-auth (rått frö + OpenSSH-nyckelfil) | ✅ testad end-to-end |
-| OpenSSH-nyckelfilsparser (`~/.ssh/id_ed25519`, okrypterad) | ✅ testad, autoupptäcks av CLI |
-| Krypterad nyckel (lösenfras) + RSA/ECDSA | ⬜ nästa steg (kastar tydligt fel nu) |
-| Exec + strömmad stdout/stderr | ✅ testad |
-| Exitkod-hantering | ✅ |
-| Misslyckad auth utan att hänga | ✅ testad |
-| Interaktiv shell + PTY (stdin/stdout, resize) | ✅ testad end-to-end |
-| known_hosts / TOFU (SHA256-fingeravtryck, MITM-skydd) | ✅ testad, `~/.bastion/known_hosts` |
-| ssh-config-parsing (`Host`-alias, jokertecken, `IdentityFile`) | ✅ testad, CLI slår upp alias |
-| Host-databas (JSON, taggar, CRUD) | ✅ testad, `~/.bastion/hosts.json` |
-| Dashboard-data (last/minne/disk/uptime/OS/Docker via SSH) | ✅ parser testad, ett kommando |
-| Docker-åtgärder (lista/start/stopp/omstart/logg) | ✅ testad, injektionssäker referens |
-| Sync mellan enheter (LWW-merge + gravstenar, mapp-transport) | ✅ testad, konvergens bevisad |
-| E2E-krypterad sync (AES-256-GCM + PBKDF2, testvektorer) | ✅ testad, chiffertext läcker inget |
-| Importera `~/.ssh/config` → host-DB | ✅ testad (parser + dedup) |
-| Docker-shell-kommando (`docker exec -it`, injektionssäkert) | ✅ testad |
-| Kontoinloggning (OAuth2 + PKCE, Dropbox/Google Drive/OneDrive) | ✅ PKCE-kärna testad mot RFC 7636; alla tre `SyncProvider`-implementationer klara, kräver eget klient-ID (se "Konton") |
-| iOS-app (host-lista, dashboard, Docker+shell, sync, import) | 🧩 `App/`, byggs i Xcode via XcodeGen |
-| SwiftTerm-terminalvy | 🧩 `App/TerminalView.swift`, byggs i Xcode |
-| macOS-target | ✅ `Bastion-macOS` i `project.yml`, `Platform.swift` bär plattformsskillnaderna, `TerminalView` villkorad på `UIViewRepresentable`/`NSViewRepresentable` |
-| Nyckelimport i appen (Keychain) | 🧩 `HostEditView` klistra-in + validering, `HostAuth.keychainKey`, städas vid borttagning |
-| Auto-poll av dashboard | 🧩 `DashboardModel.startPolling()`, 15 s intervall, behåller data vid övergående fel |
-| Linux-GUI (`bastion-gui`, SwiftCrossUI/GTK4) | ✅ byggd och körd (Xvfb) — se toolchain-kravet under "Bygg Linux-GUI:t" |
-| Linux-terminal (VT100/ANSI-tolk, bestående PTY-shell) | ✅ 17 fristående parser-tester gröna, körd (Xvfb) — radvis input (ingen rå key-API i SwiftCrossUI) |
 
 ## Layout
 
@@ -144,7 +120,8 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   DashboardView.swift    Samma auto-poll-modell som App/, SwiftCrossUI-vyer
   TerminalBuffer.swift   Egen VT100/ANSI-tolk (markör, SGR-färg, radering) — testad, se nedan
   TerminalGridView.swift Renderar buffern som hopslagna Text-körningar (ingen Canvas i SwiftCrossUI)
-  TerminalSessionView.swift Bestående PTY-shell + radvis input + kontrollknappar (piltangenter/Ctrl+C/Tab/Esc)
+  TerminalSessionView.swift Bestående PTY-shell + radvis input + kontrollknappar (piltangenter/Home/End/PgUp/PgDn/Ctrl+C/Tab/Esc)
+  DockerView.swift       Docker: lista/start/stopp/omstart/logg/shell — motsvarar App/DockerView.swift
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
 ```
 
@@ -228,7 +205,7 @@ SSHCore dras in automatiskt som paketberoenden till båda targeten.
 
 ### Väg till App Store
 1. Byt `PRODUCT_BUNDLE_IDENTIFIER` i `project.yml` till ditt eget (t.ex. `se.dittnamn.bastion`).
-2. Sätt signeringsteam, lägg till app-ikon och en riktig launch screen.
+2. Sätt signeringsteam (app-ikon och launch screen finns redan, se `Assets.xcassets`).
 3. Höj `MARKETING_VERSION`, arkivera (**Product → Archive**) och ladda upp via Organizer.
 4. Öppen källkod-appar godkänns — se bara till att licens (MIT/Apache) och ev.
    tredjepartslicenser (SwiftNIO, SwiftTerm) listas i appen.
@@ -244,81 +221,9 @@ paketberoende i ett Xcode-app-target — den byggs inte av SwiftPM på Linux (kr
 UIKit/AppKit). En interaktiv shell använder en PTY-kanal (backlog); vyn visar
 exec-utdata idag för att bevisa datavägen till skärmen.
 
-## Nästa steg (i ordning)
-
-1. **Verifiera kontointegrationen i Xcode** — `OAuthAccountManager` och alla tre
-   `SyncProvider`-implementationerna (Dropbox/Google Drive/OneDrive) är skrivna
-   men aldrig byggda (Xcode-only, kan inte kompileras på Linux). Kräver ett
-   registrerat klient-ID per leverantör (se "Konton" ovan) för att testas på riktigt.
-2. App-ikon + launch screen (manuellt i Xcode-assets).
-3. Windows-GUI via `WinUIBackend` — otestad, ingen Windows-miljö tillgänglig här.
-4. Riktig rå tangentbordsinmatning i Linux-terminalen (kräver att gå under
-   SwiftCrossUI mot GTK:s event-controllers direkt — se "Uppskjutet med avsikt").
-
-### Klart
-- **macOS-target**: `Bastion-macOS` i `project.yml` (App Sandbox + utgående nätverk),
-  terminalvyn plattformsvillkorad (`UIViewRepresentable`/`NSViewRepresentable`),
-  app-guards `canImport(SwiftUI)`, `typealias Host = SSHCore.Host` i `Platform.swift`
-  (undviker krock med `Foundation.Host` på macOS).
-- **Auto-poll av dashboard**: `DashboardModel.startPolling()` hämtar direkt och
-  sedan var 15:e sekund tills vyn stängs (`.task`-avbrott). Övergående fel under
-  en periodisk uppdatering ersätter inte redan visad data — bara den första
-  hämtningen kan visa felskärmen. UI visar senaste uppdateringstid + spinner.
-- **Nyckelimport i appen**: `HostEditView` har ett "Importera nyckel"-läge —
-  klistra in en OpenSSH-privatnyckel, den valideras direkt (`OpenSSHPrivateKey.parse`)
-  och sparas i Keychain (aldrig i host-DB:n som synkas). Ny `HostAuth.keychainKey(id)`,
-  löses upp i `AuthResolver`. Städas ur Keychain när värden tas bort eller
-  auth-metoden byts bort.
-- **Linux-GUI** (`bastion-gui`, SwiftCrossUI/GTK4): värdlista, dashboard med
-  auto-poll, nyckelfil/lösenord/agent-auth, ssh-config-import.
-  Byggd och startad (Xvfb) med en Swift 6.5-dev-snapshot — se "Bygg Linux-GUI:t"
-  ovan för varför stabila 6.1.3 inte funkar än.
-- **Linux-terminal** (`TerminalBuffer`/`TerminalGridView`/`TerminalSessionView`):
-  bestående PTY-shell (miljö/cwd bevaras mellan kommandon, olikt engångs-`execute()`)
-  med en egenskriven VT100/ANSI-tolk — markörflytt (CUU/CUD/CUF/CUB/CUP), radering
-  (ED/EL), SGR-färg (16-färgspalett + bold), OSC-sekvenser (fönstertitel) sväljs
-  utan att synas. 17 fristående tester (utan SwiftCrossUI-länkning) verifierar
-  parsern, inklusive en verklig bugg som hittades under verifieringen: Swift
-  grupperar `"\r\n"` till EN grafemkluster-`Character`, så tolkning måste ske
-  per `Unicode.Scalar`, inte per `Character` — annars matchar CR/LF aldrig.
-  SwiftCrossUI saknar rå tangentbords-API, så inmatning är radvis via
-  `TextField` + Enter; piltangenter/Tab/Esc/Ctrl+C/Ctrl+D finns som knappar och
-  skickas som rå bytes direkt (navigering i t.ex. `htop`/`less` fungerar,
-  löpande texttangenttryckning gör det inte). Fast 100×30 storlek — ingen
-  fönsterstorleks-driven `resize()` mot PTY:n än.
-- **Kontointegration, PKCE-kärna + Dropbox/Google Drive/OneDrive**: `OAuthPKCE`
-  (SSHCore, plattformsoberoende) genererar verifier/challenge enligt RFC 7636
-  — testad mot RFC:ns egen vektor (fångade ett eget transkriptionsfel i testet
-  självt: `dbjftJeZ…` vs. rätta `dBjftJeZ…`, versalskillnad). `OAuthAccountManager`
-  sköter den interaktiva inloggningen (`ASWebAuthenticationSession`),
-  `OAuthTokenStore` Keychain-lagring + tyst förnyelse via `refresh_token`.
-  Tre färdiga `SyncProvider`-implementationer (samma `SyncCrypto`-kryptering
-  som `EncryptedFolderSyncProvider` — molntjänsten ser bara chiffertext):
-  Dropbox (path-baserad), OneDrive (path-baserad via Graph), Google Drive
-  (sök-först + multipart-upload mot `appDataFolder`, ingen path-API där).
-  `SyncSettingsView` har transportval (mapp/Dropbox/Google Drive/OneDrive) +
-  in-/utloggning per leverantör. **OBS**: allt utom PKCE-kärnan är Xcode-only
-  och därför obyggt/otestat här — kräver ett riktigt klient-ID per leverantör
-  (se "Konton" ovan) för att verifieras.
-
-### Uppskjutet med avsikt
-- **Krypterade nycklar (lösenfras) + RSA/ECDSA.** OpenSSH krypterar med
-  `bcrypt_pbkdf` (Blowfish-baserad) + `aes256-ctr`. Varken bcrypt_pbkdf eller
-  AES-CTR finns i swift-cryptos publika API, så det kräver egna implementationer
-  av Blowfish + bcrypt_pbkdf + AES-CTR — säkerhetskritisk kod som förtjänar en
-  egen genomgång med testvektorer, inte en snabb iteration. Parsern kastar
-  `SSHKeyError.encrypted` tydligt tills dess.
-- **Rå tangentbordsinmatning i Linux-terminalen.** SwiftCrossUI har ingen
-  key-event-API alls. En riktigt interaktiv terminal (piltangenter/Ctrl+C
-  live, som SwiftTerm) skulle kräva en egen Cairo-ritad GTK-widget med GTK:s
-  event-controllers direkt, utanför SwiftCrossUIs `View`-träd — större jobb,
-  och strukturellt oklart hur den skulle hänga in i trädet. Radvis input +
-  kontrollknappar täcker det mesta (se "Klart" ovan) tills vidare.
-
-Interaktiv shell finns i kärnan (`SSHSession.openShell`) och driver både
-`App/TerminalView.swift` (SwiftTerm) och `LinuxApp`s `TerminalSessionView`.
+Se [ROADMAP.md](ROADMAP.md) för status, nästa steg och avsiktligt uppskjutna delar.
 
 ## Licens
 
-Föreslagen: MIT eller Apache 2.0. Alla valda beroenden (SwiftNIO, SwiftNIO SSH,
-swift-crypto, SwiftTerm) är Apache 2.0 / MIT — kompatibla.
+MIT (se `LICENSE`). Alla valda beroenden (SwiftNIO, SwiftNIO SSH, swift-crypto,
+SwiftCrossUI, SwiftTerm) är Apache 2.0 / MIT — kompatibla.

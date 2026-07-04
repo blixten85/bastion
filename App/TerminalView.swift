@@ -130,6 +130,7 @@ struct BastionTerminal: TerminalRepresentable {
         func scrolled(source: TerminalView, position: Double) {}
         func clipboardCopy(source: TerminalView, content: Data) {}
         func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
+        func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
     }
 }
 #endif

@@ -9,27 +9,45 @@ final class DockerModel: ObservableObject {
     @Published var containers: [DockerContainer] = []
     @Published var errorMessage: String?
     @Published var loading = false
-    @Published var busyRef: String?
+    // Set, inte en enda String? — annars kan en åtgärd på en container som
+    // avslutas rensa "upptagen"-indikatorn för en annan medan dess egen
+    // åtgärd fortfarande pågår (om användaren hinner starta båda i tur och ordning).
+    @Published var busyRefs: Set<String> = []
     private let request: ConnectRequest
     private var session: SSHSession?
+    // Cachar det pågående anslutningsförsöket så samtidiga anrop (t.ex.
+    // refresh() och act() strax efter varandra, innan connect() svarat) väntar
+    // in samma försök i stället för att skapa varsin SSHSession var.
+    private var connectingTask: Task<SSHSession?, Never>?
 
     init(request: ConnectRequest) { self.request = request }
 
     private func ensureSession() async -> SSHSession? {
         if let s = session { return s }
-        guard let auth = resolveAuth(for: request.host, password: request.password) else {
-            errorMessage = "Kan inte autentisera värden."
-            return nil
+        if let connectingTask { return await connectingTask.value }
+
+        // Skapad inifrån en @MainActor-metod (inte .detached), så den ärver
+        // MainActor-isoleringen — säkert att sätta errorMessage direkt här.
+        let task = Task<SSHSession?, Never> { [weak self] in
+            guard let self else { return nil }
+            guard let auth = resolveAuth(for: self.request.host, password: self.request.password) else {
+                self.errorMessage = "Kan inte autentisera värden."
+                return nil
+            }
+            let s = SSHSession(target: self.request.host.target, auth: auth)
+            do {
+                try await s.connect()
+                return s
+            } catch {
+                self.errorMessage = "\(error)"
+                return nil
+            }
         }
-        let s = SSHSession(target: request.host.target, auth: auth)
-        do {
-            try await s.connect()
-            session = s
-            return s
-        } catch {
-            errorMessage = "\(error)"
-            return nil
-        }
+        connectingTask = task
+        let result = await task.value
+        connectingTask = nil
+        session = result
+        return result
     }
 
     func refresh() async {
@@ -46,8 +64,8 @@ final class DockerModel: ObservableObject {
 
     func act(_ kind: DockerAction, on ref: String) async {
         guard let s = await ensureSession() else { return }
-        busyRef = ref
-        defer { busyRef = nil }
+        busyRefs.insert(ref)
+        defer { busyRefs.remove(ref) }
         do {
             switch kind {
             case .start: try await DockerService.start(ref, over: s)
@@ -125,7 +143,7 @@ struct DockerView: View {
                 Text(c.status).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer()
-            if model.busyRef == c.name {
+            if model.busyRefs.contains(c.name) {
                 ProgressView()
             } else {
                 Menu {
