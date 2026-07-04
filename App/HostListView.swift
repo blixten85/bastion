@@ -16,6 +16,11 @@ final class HostListModel: ObservableObject {
         store.delete(host.id)
         reload()
     }
+    func toggleFavorite(_ host: Host) {
+        var h = host
+        h.isFavorite.toggle()
+        save(h)
+    }
 
     @discardableResult
     func importConfig(_ text: String) -> Int {
@@ -62,15 +67,21 @@ final class HostListModel: ObservableObject {
         }
     }
 
-    /// Grupperad efter tagg; otaggade hamnar under "Övriga".
+    /// Grupperad efter tagg; otaggade hamnar under "Övriga". Favoriter får en
+    /// egen sektion allra först och plockas ur sin vanliga taggsektion (annars
+    /// skulle samma Host-id förekomma två gånger i samma List/ForEach, vilket
+    /// SwiftUI inte diffar tillförlitligt).
     var groups: [(tag: String, hosts: [Host])] {
         var byTag: [String: [Host]] = [:]
-        for h in hosts {
+        for h in hosts where !h.isFavorite {
             let tags = h.tags.isEmpty ? ["Övriga"] : h.tags
             for t in tags { byTag[t, default: []].append(h) }
         }
-        return byTag.keys.sorted { $0.lowercased() < $1.lowercased() }
-            .map { ($0, byTag[$0]!.sorted { $0.alias.lowercased() < $1.alias.lowercased() }) }
+        let tagged = byTag.keys.sorted { $0.lowercased() < $1.lowercased() }
+            .map { (tag: $0, hosts: byTag[$0]!.sorted { $0.alias.lowercased() < $1.alias.lowercased() }) }
+        let favorites = hosts.filter(\.isFavorite).sorted { $0.alias.lowercased() < $1.alias.lowercased() }
+        guard !favorites.isEmpty else { return tagged }
+        return [(tag: "★ Favoriter", hosts: favorites)] + tagged
     }
 }
 
@@ -181,6 +192,12 @@ struct HostListView: View {
                                     Label("Ändra", systemImage: "pencil")
                                 }.tint(.blue)
                             }
+                            .swipeActions(edge: .leading) {
+                                Button { model.toggleFavorite(host) } label: {
+                                    Label(host.isFavorite ? "Ta bort favorit" : "Favorit",
+                                          systemImage: host.isFavorite ? "star.slash" : "star")
+                                }.tint(.yellow)
+                            }
                     }
                 }
             }
@@ -200,6 +217,9 @@ struct HostRow: View {
     let host: Host
     var body: some View {
         HStack(spacing: 12) {
+            if let color = HostColorPalette.color(for: host.colorTag) {
+                Circle().fill(color).frame(width: 10, height: 10)
+            }
             Image(systemName: "terminal")
                 .foregroundStyle(.secondary)
                 .frame(width: 28)
@@ -210,6 +230,9 @@ struct HostRow: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            if host.isFavorite {
+                Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption)
+            }
         }
         .contentShape(Rectangle())
     }
