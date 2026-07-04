@@ -166,7 +166,8 @@ Inget nytt att bygga, bara verifiera/lansera:
 - **Snippets med variabler** — inte påbörjat.
 - **Favoriter/färgkodning i host-listan** — taggar finns (`Host.swift`),
   men ingen favorit-flagga eller färgmarkering.
-- **Sök i host-listan** — inte påbörjat.
+- **Sök i host-listan** — ✅ klart i LinuxApp (`ContentView.swift`, filtrerar
+  alias/hostname/user/taggar). Inte gjort i iOS/macOS-appen än.
 - **Flera samtidiga sessioner / Split View** — appen hanterar en session åt
   gången idag.
 
