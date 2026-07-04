@@ -226,7 +226,51 @@ Det håller kärnan lätt, samtidigt som projektet kan växa med bidrag från an
 
 ---
 
-Det här dokumentet är den ursprungliga visionen, bevarad orört som historisk
-referens. Faktiska tekniska val (som avviker en del — se
-[ROADMAP.md](ROADMAP.md) "Tekniska avsteg från visionen") och status mot
-punkterna ovan finns i [ROADMAP.md](ROADMAP.md).
+Det här dokumentet ovanför den här linjen är den ursprungliga visionen,
+bevarad orört som historisk referens. Faktiska tekniska val (som avviker en
+del — se [ROADMAP.md](ROADMAP.md) "Tekniska avsteg från visionen") och
+status mot punkterna ovan finns i [ROADMAP.md](ROADMAP.md).
+
+---
+
+## Tillägg efter den ursprungliga visionen (2026-07-04)
+
+Följande identifierades i en uppföljande konkurrentanalys — inte en del av
+originalvisionen ovan, men bygger vidare på samma grundtes.
+
+### Konkurrentlandskap
+
+Termius har gradvis låst grundfunktioner (synk, snippets, bättre host-
+hantering) bakom ett Pro-abonnemang — precis den frustrationen Bastion
+adresserar.
+
+| Klient | Styrka | Svaghet |
+|---|---|---|
+| Termius | Mycket genomarbetad UX, mogen på alla plattformar | Grundfunktioner bakom Pro-prenumeration |
+| Tabby | Fri, öppen källkod, kompetent på desktop | Ingen mobilklient |
+| Termix | Aktivt projekt, self-hosting-vänligt | Fokuserar på self-hosting-hantering, inte en förstklassig native iOS-upplevelse |
+| Magic Term | Gratis, E2E-krypterad synk, uttalat en Termius-ersättare | Ungt projekt, omoget |
+| Conduit | Fri, öppen källkod, native iOS | Ungt, inte lika moget som Termius |
+
+**Bastions nisch:** fri för alltid + native iOS/macOS-först (inte React
+Native/Flutter) + samma kärna på alla plattformar. Ingen av konkurrenterna
+ovan täcker exakt den kombinationen idag.
+
+**Positionering:** det som gör att folk betalar för Termius är UX (hostlista,
+färgkodning, favoriter, snabb sök, split view, biometrisk upplåsning, bra
+tangentbord), inte SSH-protokollet i sig. Målet är UX-paritet med Termius,
+inte fler protokollfunktioner för sin egen skull.
+
+**Juridiskt:** bygg inte något som visuellt eller varumärkesmässigt kan
+uppfattas som en kopia av Termius — se "Design"-avsnittet ovan (redan i
+originalvisionen: "Inte kopiera Termius").
+
+### Nya funktionsidéer (inte i originalvisionen)
+
+- **Port Forwarding** (lokal `-L`, fjärr `-R`, dynamisk `-D`) — en av
+  Termius huvudfunktioner, saknas explicit i SSH-listan ovan (som bara
+  nämner ProxyJump/Agent Forwarding).
+- **Tailscale-stöd** — koppla mot Tailscale-nätverk för värdar.
+- **WireGuard-profiler** — hantera WireGuard-konfigurationer i appen.
+
+Se [ROADMAP.md](ROADMAP.md) för hur dessa är prioriterade in i backloggen.
