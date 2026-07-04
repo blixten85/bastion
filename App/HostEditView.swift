@@ -57,6 +57,10 @@ struct HostEditView: View {
                     TextField("prod, homelab, …", text: $tagsText)
                         .noAutocap().autocorrectionDisabled()
                 }
+                Section("Favorit & färg") {
+                    Toggle("Favorit", isOn: $draft.isFavorite)
+                    HostColorPicker(selection: $draft.colorTag)
+                }
                 Section("Autentisering") {
                     Picker("Metod", selection: $authKind) {
                         ForEach(AuthKind.allCases) { Text($0.rawValue).tag($0) }

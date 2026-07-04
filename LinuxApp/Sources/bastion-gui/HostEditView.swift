@@ -77,6 +77,9 @@ struct HostEditView: View {
             TextField("Port", text: $portText)
             TextField("Taggar (prod, homelab, …)", text: $tagsText)
 
+            Toggle("Favorit", isOn: $draft.isFavorite)
+            HostColorPicker(selection: $draft.colorTag)
+
             Text("Autentisering").font(.subheadline)
             Picker(of: pickerOptions, selection: authKindBinding)
             if authKind == .key {

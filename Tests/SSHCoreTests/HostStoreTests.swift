@@ -52,4 +52,30 @@ final class HostStoreTests: XCTestCase {
         XCTAssertEqual(loaded, stored)                // full round-trip inkl. auth + tidsstämpel
         XCTAssertEqual(loaded?.target.port, 2200)
     }
+
+    func testFavoriteAndColorTagRoundTrip() throws {
+        var h = Host(alias: "prod-db", hostName: "10.0.0.9", user: "admin")
+        h.isFavorite = true
+        h.colorTag = "red"
+        let data = try JSONEncoder().encode(h)
+        let decoded = try JSONDecoder().decode(Host.self, from: data)
+        XCTAssertEqual(decoded.isFavorite, true)
+        XCTAssertEqual(decoded.colorTag, "red")
+    }
+
+    /// Gammal host.json (sparad innan isFavorite/colorTag fanns) ska fortfarande
+    /// gå att läsa in — nycklarna saknas helt, avkodningen faller tillbaka på
+    /// stored-property-defaults (false/nil) istället för att kasta.
+    func testDecodesOldHostWithoutFavoriteOrColorFields() throws {
+        let h = Host(alias: "legacy", hostName: "10.0.0.1", user: "root")
+        var obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(h)) as! [String: Any]
+        obj.removeValue(forKey: "isFavorite")
+        obj.removeValue(forKey: "colorTag")
+        let oldStyleData = try JSONSerialization.data(withJSONObject: obj)
+
+        let decoded = try JSONDecoder().decode(Host.self, from: oldStyleData)
+        XCTAssertEqual(decoded.isFavorite, false)
+        XCTAssertNil(decoded.colorTag)
+        XCTAssertEqual(decoded.alias, "legacy")
+    }
 }

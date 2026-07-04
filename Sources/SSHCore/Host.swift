@@ -19,6 +19,8 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
     public var port: Int
     public var tags: [String]
     public var auth: HostAuth
+    public var isFavorite: Bool
+    public var colorTag: String?
     /// När värden senast ändrades. Styr sync-mergen (nyaste ändringen vinner).
     public var modifiedAt: Date
 
@@ -30,6 +32,8 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         port: Int = 22,
         tags: [String] = [],
         auth: HostAuth = .agentDefault,
+        isFavorite: Bool = false,
+        colorTag: String? = nil,
         modifiedAt: Date = Date()
     ) {
         self.id = id
@@ -39,7 +43,31 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         self.port = port
         self.tags = tags
         self.auth = auth
+        self.isFavorite = isFavorite
+        self.colorTag = colorTag
         self.modifiedAt = modifiedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, modifiedAt
+    }
+
+    /// Egen init(from:) — isFavorite/colorTag tillkom efter att fältet fanns i
+    /// sparade host.json-filer. `decodeIfPresent` gör dem valfria vid avkodning
+    /// (default false/nil) istället för att synteterad Decodable kastar på
+    /// saknad nyckel.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        alias = try c.decode(String.self, forKey: .alias)
+        hostName = try c.decode(String.self, forKey: .hostName)
+        user = try c.decode(String.self, forKey: .user)
+        port = try c.decode(Int.self, forKey: .port)
+        tags = try c.decode([String].self, forKey: .tags)
+        auth = try c.decode(HostAuth.self, forKey: .auth)
+        isFavorite = try c.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+        colorTag = try c.decodeIfPresent(String.self, forKey: .colorTag)
+        modifiedAt = try c.decode(Date.self, forKey: .modifiedAt)
     }
 
     /// Anslutningsmål för `SSHSession`.

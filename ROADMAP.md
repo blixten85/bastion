@@ -164,10 +164,13 @@ Inget nytt att bygga, bara verifiera/lansera:
 - **Face ID/Touch ID-app-lås** — Keychain finns redan för hemligheter, men
   inget lager som låser SJÄLVA appen vid start/bakgrund.
 - **Snippets med variabler** — inte påbörjat.
-- **Favoriter/färgkodning i host-listan** — taggar finns (`Host.swift`),
-  men ingen favorit-flagga eller färgmarkering.
-- **Sök i host-listan** — ✅ klart i LinuxApp (`ContentView.swift`, filtrerar
-  alias/hostname/user/taggar). Inte gjort i iOS/macOS-appen än.
+- **Favoriter/färgkodning i host-listan** — ✅ klart, både App/ (`Host.isFavorite`/
+  `colorTag` i SSHCore, `HostColorPicker`, egen "★ Favoriter"-sektion) och
+  LinuxApp (samma fält, favoriter sorterade överst, "☆/★ Favorit"-knapp
+  eftersom SwiftCrossUI saknar swipe-actions).
+- **Sök i host-listan** — ✅ klart, både LinuxApp (`ContentView.swift`) och
+  App/ (`HostListView.swift`, native `.searchable()`). Filtrerar alias/
+  hostname/user/taggar i båda.
 - **Flera samtidiga sessioner / Split View** — appen hanterar en session åt
   gången idag.
 

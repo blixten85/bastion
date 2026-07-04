@@ -16,6 +16,11 @@ final class HostListModel: ObservableObject {
         store.delete(host.id)
         reload()
     }
+    func toggleFavorite(_ host: Host) {
+        var h = host
+        h.isFavorite.toggle()
+        save(h)
+    }
 
     @discardableResult
     func importConfig(_ text: String) -> Int {
@@ -62,15 +67,21 @@ final class HostListModel: ObservableObject {
         }
     }
 
-    /// Grupperad efter tagg; otaggade hamnar under "Övriga".
+    /// Grupperad efter tagg; otaggade hamnar under "Övriga". Favoriter får en
+    /// egen sektion allra först och plockas ur sin vanliga taggsektion (annars
+    /// skulle samma Host-id förekomma två gånger i samma List/ForEach, vilket
+    /// SwiftUI inte diffar tillförlitligt).
     var groups: [(tag: String, hosts: [Host])] {
         var byTag: [String: [Host]] = [:]
-        for h in hosts {
+        for h in hosts where !h.isFavorite {
             let tags = h.tags.isEmpty ? ["Övriga"] : h.tags
             for t in tags { byTag[t, default: []].append(h) }
         }
-        return byTag.keys.sorted { $0.lowercased() < $1.lowercased() }
-            .map { ($0, byTag[$0]!.sorted { $0.alias.lowercased() < $1.alias.lowercased() }) }
+        let tagged = byTag.keys.sorted { $0.lowercased() < $1.lowercased() }
+            .map { (tag: $0, hosts: byTag[$0]!.sorted { $0.alias.lowercased() < $1.alias.lowercased() }) }
+        let favorites = hosts.filter(\.isFavorite).sorted { $0.alias.lowercased() < $1.alias.lowercased() }
+        guard !favorites.isEmpty else { return tagged }
+        return [(tag: "★ Favoriter", hosts: favorites)] + tagged
     }
 }
 
@@ -96,6 +107,24 @@ struct HostListView: View {
     @State private var passwordInput = ""
     @State private var showSettings = false
     @State private var showImport = false
+    @State private var searchText = ""
+
+    /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
+    /// case-insensitive); tomma sektioner (ingen träff i gruppen) faller bort.
+    private var filteredGroups: [(tag: String, hosts: [Host])] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return model.groups }
+        let needle = trimmed.lowercased()
+        return model.groups.compactMap { group in
+            let hosts = group.hosts.filter { host in
+                host.alias.lowercased().contains(needle)
+                    || host.hostName.lowercased().contains(needle)
+                    || host.user.lowercased().contains(needle)
+                    || host.tags.contains { $0.lowercased().contains(needle) }
+            }
+            return hosts.isEmpty ? nil : (group.tag, hosts)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -108,6 +137,7 @@ struct HostListView: View {
                 }
             }
             .navigationTitle("Värdar")
+            .searchable(text: $searchText, prompt: "Sök värd, användare eller tagg")
             .task { _ = await model.syncNow() }
             .toolbar {
                 ToolbarItem(placement: .navigation) {
@@ -151,7 +181,7 @@ struct HostListView: View {
 
     private var hostList: some View {
         List {
-            ForEach(model.groups, id: \.tag) { group in
+            ForEach(filteredGroups, id: \.tag) { group in
                 Section(group.tag) {
                     ForEach(group.hosts) { host in
                         Button { start(host) } label: { HostRow(host: host) }
@@ -162,6 +192,12 @@ struct HostListView: View {
                                 Button { editing = host } label: {
                                     Label("Ändra", systemImage: "pencil")
                                 }.tint(.blue)
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button { model.toggleFavorite(host) } label: {
+                                    Label(host.isFavorite ? "Ta bort favorit" : "Favorit",
+                                          systemImage: host.isFavorite ? "star.slash" : "star")
+                                }.tint(.yellow)
                             }
                     }
                 }
@@ -182,6 +218,9 @@ struct HostRow: View {
     let host: Host
     var body: some View {
         HStack(spacing: 12) {
+            if let color = HostColorPalette.color(for: host.colorTag) {
+                Circle().fill(color).frame(width: 10, height: 10)
+            }
             Image(systemName: "terminal")
                 .foregroundStyle(.secondary)
                 .frame(width: 28)
@@ -192,6 +231,9 @@ struct HostRow: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            if host.isFavorite {
+                Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption)
+            }
         }
         .contentShape(Rectangle())
     }
