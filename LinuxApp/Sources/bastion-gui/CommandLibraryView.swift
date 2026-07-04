@@ -31,6 +31,12 @@ struct CommandLibraryView: View {
             }
         }
         .padding()
+        // CodeRabbit-fynd (PR #33): variableValues delades mellan olika
+        // entries (keyad bara på variabelnamn) — ett värde ifyllt för ett
+        // kommando kunde smyga med som förifyllt i ett annat, orelaterat
+        // kommando med samma variabelnamn. onChange fångar även direkt
+        // omval i listan, inte bara Avbryt/Kör-knapparna.
+        .onChange(of: selectedID) { variableValues = [:] }
         .sheet(isPresented: Binding(get: { runCommand != nil }, set: { if !$0 { runCommand = nil } })) {
             TerminalSessionView(host: host, password: password, initialCommand: runCommand)
         }

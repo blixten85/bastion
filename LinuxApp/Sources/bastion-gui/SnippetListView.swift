@@ -77,6 +77,11 @@ struct SnippetListView: View {
                 )
             }
         }
+        // Samma CodeRabbit-fynd som CommandLibraryView.swift (PR #33): rensa
+        // variableValues vid varje nytt radval, inte bara via Avbryt/Kör —
+        // annars kan ett ifyllt värde smyga med till ett annat snippet med
+        // samma variabelnamn.
+        .onChange(of: selectedSnippetID) { variableValues = [:] }
         .sheet(isPresented: Binding(get: { runCommand != nil }, set: { if !$0 { runCommand = nil } })) {
             TerminalSessionView(host: host, password: password, initialCommand: runCommand)
         }
