@@ -221,7 +221,13 @@ Inget nytt att bygga, bara verifiera/lansera:
   återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
-- **SFTP-filhanterare** — kärnan klar (App/LinuxApp-UI kvar).
+- **SFTP-filhanterare** — ✅ grundfunktionerna klara, både App/ och
+  LinuxApp (`SFTPBrowserView`/`SFTPBrowserModel`): bläddra, navigera
+  in/upp, ny mapp, döp om, ta bort. Mapp/fil skiljs via
+  `SFTPFileAttributes.isDirectory` (läser POSIX-filtypsbitarna
+  S_IFDIR/S_IFREG ur `permissions`-fältet — la till det efter att ha
+  insett att den ursprungliga testservern bara satte behörighetsbitarna,
+  inte typen, vilket hade gjort mapp/fil-särskiljning opålitlig).
   `SFTPProtocol.swift`: SFTP version 3-trådformatet (SSH_FXP_*), rent
   kodat/avkodat. `SFTPClient.swift`: öppnar en "sftp"-subsystem-kanal på
   en `SSHSession` (samma `DirectTCPIPWrapperHandler`-mönster som
@@ -242,6 +248,8 @@ Inget nytt att bygga, bara verifiera/lansera:
   via NIOPipeBootstrap + Foundation.Process är fragilt (dubbel fd-ägande
   mellan Foundation.Pipe och NIO) och sparat som ett eget, separat steg
   om djupare protokollkompatibilitet någonsin behöver verifieras.
+  **Kvar**: Drag & Drop, Zip/Tar, chmod/chown, förhandsvisning,
+  textredigering.
   **Kvar**: UI (Drag & Drop, Zip/Tar, chmod/chown, förhandsvisning,
   textredigering) i App/ och LinuxApp.
 - Inbyggd editor med syntax highlighting

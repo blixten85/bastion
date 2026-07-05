@@ -106,6 +106,8 @@ App/                   XCODE-ONLY: iOS+macOS-appen (SwiftUI, delad kod) + XcodeG
   SnippetListView.swift  Sparade snippets — kör en (fyll i variabler) som startkommando
   SnippetEditView.swift  Lägg till/ändra ett snippet, visar upptäckta {{variabler}} live
   CommandLibraryView.swift Bläddra referensbiblioteket, kör via samma variabelifyllning som Snippets
+  SFTPBrowserModel.swift SFTP-anslutningens livscykel (lazy connect, samma mönster som DockerModel)
+  SFTPBrowserView.swift  Bläddra/navigera/ny mapp/döp om/ta bort över SFTP
   SessionView.swift      Aktiv session → terminalvyn (valfritt startkommando)
   TerminalView.swift     SwiftTerm kopplad till SSHCore.SSHShell (UIViewRepresentable/NSViewRepresentable)
   AuthResolver.swift     Delad SSHAuth-uppbyggnad
@@ -137,6 +139,7 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   SnippetListView.swift  Sparade snippets — motsvarar App/SnippetListView.swift
   SnippetEditView.swift  Lägg till/ändra ett snippet — motsvarar App/SnippetEditView.swift
   CommandLibraryView.swift Bläddra referensbiblioteket — motsvarar App/CommandLibraryView.swift
+  SFTPBrowserView.swift  SFTP-filhanterare (modell + vy i samma fil) — motsvarar App/SFTPBrowser{Model,View}.swift
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
 WindowsApp/            EGET SwiftPM-paket, samma mönster som LinuxApp/ — WinUIBackend istället för GtkBackend
   Package.swift          .package(path: "..") mot roten för SSHCore, + SwiftCrossUI/WinUIBackend

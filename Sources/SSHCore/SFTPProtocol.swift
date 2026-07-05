@@ -156,6 +156,23 @@ public struct SFTPFileAttributes: Equatable, Sendable {
         }
         return attrs
     }
+
+    // POSIX st_mode-filtypsbitar — riktiga SFTP-servrar (inte bara
+    // behörighetsbitarna) inkluderar dem i `permissions`-fältet, så en
+    // klient kan skilja mapp från fil utan ett extra STAT-anrop per post.
+    private static let typeMask: UInt32 = 0o170000
+    private static let directoryType: UInt32 = 0o040000
+    private static let symlinkType: UInt32 = 0o120000
+
+    public var isDirectory: Bool {
+        guard let permissions else { return false }
+        return (permissions & Self.typeMask) == Self.directoryType
+    }
+
+    public var isSymbolicLink: Bool {
+        guard let permissions else { return false }
+        return (permissions & Self.typeMask) == Self.symlinkType
+    }
 }
 
 public struct SFTPNameEntry: Equatable, Sendable {
