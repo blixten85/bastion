@@ -178,8 +178,13 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path) else { return SFTPFileAttributes() }
         let size = (attrs[.size] as? NSNumber)?.uint64Value
         let isDir = (attrs[.type] as? FileAttributeType) == .typeDirectory
-        let permissions = (attrs[.posixPermissions] as? NSNumber)?.uint32Value ?? (isDir ? 0o755 : 0o644)
-        return SFTPFileAttributes(size: size, permissions: permissions)
+        let posixBits = (attrs[.posixPermissions] as? NSNumber)?.uint32Value ?? (isDir ? 0o755 : 0o644)
+        // Riktiga SFTP-servrar lägger filtypen (S_IFDIR/S_IFREG) i samma
+        // permissions-fält, inte bara de nio låga behörighetsbitarna —
+        // annars kan en klient inte skilja mapp från fil utan ett extra
+        // STAT-anrop per post.
+        let typeBits: UInt32 = isDir ? 0o040000 : 0o100000
+        return SFTPFileAttributes(size: size, permissions: posixBits | typeBits)
     }
 
     private func process(_ payload: inout ByteBuffer, context: ChannelHandlerContext) {

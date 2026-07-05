@@ -11,6 +11,7 @@ struct HostDetailView: View {
     @State private var showDocker = false
     @State private var showSnippets = false
     @State private var showCommandLibrary = false
+    @State private var showSFTPBrowser = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -24,6 +25,7 @@ struct HostDetailView: View {
                     Button("Docker") { showDocker = true }
                     Button("Snippets") { showSnippets = true }
                     Button("Bibliotek") { showCommandLibrary = true }
+                    Button("Filer") { showSFTPBrowser = true }
                 }
             }
 
@@ -46,6 +48,9 @@ struct HostDetailView: View {
         }
         .sheet(isPresented: $showCommandLibrary) {
             CommandLibraryView(host: host, password: resolvedPassword)
+        }
+        .sheet(isPresented: $showSFTPBrowser) {
+            SFTPBrowserView(host: host, password: resolvedPassword)
         }
     }
 

@@ -67,6 +67,17 @@ final class SFTPProtocolTests: XCTestCase {
         XCTAssertNil(decoded.permissions)
     }
 
+    func testIsDirectoryReadsPOSIXTypeBits() {
+        XCTAssertTrue(SFTPFileAttributes(permissions: 0o040755).isDirectory)
+        XCTAssertFalse(SFTPFileAttributes(permissions: 0o100644).isDirectory)
+        XCTAssertFalse(SFTPFileAttributes(permissions: nil).isDirectory)
+    }
+
+    func testIsSymbolicLinkReadsPOSIXTypeBits() {
+        XCTAssertTrue(SFTPFileAttributes(permissions: 0o120777).isSymbolicLink)
+        XCTAssertFalse(SFTPFileAttributes(permissions: 0o040755).isSymbolicLink)
+    }
+
     // MARK: - Request-kodning (byte-exakt mot spec, SSH_FXP_* enligt draft-ietf-secsh-filexfer-02 §3)
 
     func testInitMessageWireFormat() {

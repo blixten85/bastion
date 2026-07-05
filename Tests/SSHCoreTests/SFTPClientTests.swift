@@ -66,6 +66,30 @@ final class SFTPClientTests: XCTestCase {
 
         XCTAssertEqual(Set(entries.map(\.filename)), ["a.txt", "b.txt"])
         XCTAssertTrue(entries.allSatisfy { $0.attributes.size != nil })
+        XCTAssertTrue(entries.allSatisfy { !$0.attributes.isDirectory })
+
+        await sftp.close()
+        await session.close()
+    }
+
+    func testListDirectoryDistinguishesFilesFromDirectories() async throws {
+        // Regressionstest: testserverns attributes(atDiskPath:) måste sätta
+        // POSIX-filtypsbitarna (S_IFDIR/S_IFREG), inte bara behörighets-
+        // bitarna — annars kan en klient (SFTPBrowserView) inte skilja mapp
+        // från fil utan ett extra STAT-anrop per post.
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+        let session = try await connectedSession(server)
+        let sftp = try await SFTPClient.open(on: session)
+
+        try await sftp.mkdir("adir")
+        try await sftp.writeFile("afile.txt", data: Array("x".utf8))
+        let entries = try await sftp.listDirectory(".")
+
+        let dir = entries.first { $0.filename == "adir" }
+        let file = entries.first { $0.filename == "afile.txt" }
+        XCTAssertEqual(dir?.attributes.isDirectory, true)
+        XCTAssertEqual(file?.attributes.isDirectory, false)
 
         await sftp.close()
         await session.close()

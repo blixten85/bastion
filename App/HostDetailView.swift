@@ -44,6 +44,9 @@ struct HostDetailView: View {
                             NavigationLink { CommandLibraryView(request: request) } label: {
                                 Label("Kommandobibliotek", systemImage: "books.vertical")
                             }
+                            NavigationLink { SFTPBrowserView(request: request) } label: {
+                                Label("Filer (SFTP)", systemImage: "folder")
+                            }
                             if let onClose {
                                 Button(role: .destructive) { onClose() } label: {
                                     Label("Stäng session", systemImage: "xmark.circle")
