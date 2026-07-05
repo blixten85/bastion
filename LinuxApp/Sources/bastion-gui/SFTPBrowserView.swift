@@ -51,6 +51,16 @@ final class SFTPBrowserModel: ObservableObject {
             do {
                 try await s.connect()
                 let client = try await SFTPClient.open(on: s)
+                // disconnect() kan ha körts (vyn stängd) medan vi väntade på
+                // connect()/open — utan den här kollen skulle vi återuppliva
+                // self.session/self.sftp EFTER att disconnect() redan städat,
+                // och den nya anslutningen skulle aldrig stängas (CodeRabbit-
+                // fynd, PR #48).
+                guard !Task.isCancelled else {
+                    await client.close()
+                    await s.close()
+                    return nil
+                }
                 self.session = s
                 return client
             } catch {
@@ -133,6 +143,10 @@ final class SFTPBrowserModel: ObservableObject {
     }
 
     func disconnect() {
+        // Avbryter en ev. pågående anslutning — annars kan den hinna klart
+        // EFTER städningen nedan och skriva tillbaka ett levande session/
+        // sftp som aldrig stängs (CodeRabbit-fynd, PR #48).
+        connectingTask?.cancel()
         let s = session
         let c = sftp
         session = nil
