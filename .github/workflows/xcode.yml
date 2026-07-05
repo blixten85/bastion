@@ -14,7 +14,7 @@ jobs:
   xcodegen-and-build:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Visa Xcode-version
         run: xcodebuild -version
@@ -44,7 +44,7 @@ jobs:
   swiftpm-macos:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: swift build (SSHCore + bastion-cli)
         run: swift build
       - name: swift test (SSHCore)
