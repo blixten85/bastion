@@ -255,5 +255,19 @@ Inget nytt att bygga, bara verifiera/lansera:
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - ProxyJump, Agent Forwarding, PKCS11, YubiKey, Passkeys
+- **OpenSSH-certifikatautentisering** (nytt, 2026-07-05) — stöd för
+  `ssh-keygen`-signerade/externt utfärdade SSH-certifikat som en egen
+  `HostAuth`-variant, inte bara rå nyckel. De stora molnleverantörerna har
+  konvergerat mot exakt den här modellen (identitetsleverantör utfärdar
+  ett kortlivat cert efter inloggning, istället för statisk nyckel):
+  Cloudflare Access (kortlivade SSH-cert via en app-specifik eller
+  konto-CA — kräver `TrustedUserCAKeys` på målservern), Google Cloud
+  (OS Login med certifikatbaserad autentisering, `gcloud compute ssh`),
+  Microsoft Entra ID (SSH-certifikatautentisering efter inloggning) och
+  AWS EC2 Instance Connect (kortlivad — ~60 s — nyckel push till
+  instansmetadata; inte riktigt samma CA-cert-mekanism men samma
+  grundidé om engångs-/kortlivad autentisering istället för en
+  permanent nyckel). Ett generellt OpenSSH-certifikatstöd i SSHCore
+  fångar alla fyra utan plattformsspecifik kod.
 - Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
 - Färgteman/True Color/Ligatures, musstöd i terminalen
