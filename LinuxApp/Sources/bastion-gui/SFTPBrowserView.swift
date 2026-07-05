@@ -54,6 +54,11 @@ final class SFTPBrowserModel: ObservableObject {
                 self.session = s
                 return client
             } catch {
+                // Samma läcka som i App/SFTPBrowserModel.swift: om connect()
+                // lyckades men SFTPClient.open(on:) kastade sattes
+                // self.session aldrig — stäng den öppna anslutningen explicit
+                // (CodeRabbit-fynd, PR #47).
+                await s.close()
                 self.errorMessage = "\(error)"
                 return nil
             }
@@ -226,5 +231,9 @@ struct SFTPBrowserView: View {
         // "vald post" — samma buggklass som CodeRabbit fann i Snippets/
         // Kommandobiblioteket (PR #34), fixad proaktivt här direkt.
         .onChange(of: model.currentPath) { selectedFilename = nil }
+        // Samma mönster som DockerView.swift — utan detta stängs aldrig den
+        // underliggande SSH/SFTP-anslutningen när arket stängs (CodeRabbit-
+        // fynd, PR #47).
+        .onDisappear { model.disconnect() }
     }
 }

@@ -47,6 +47,12 @@ final class SFTPBrowserModel: ObservableObject {
                 self.session = s
                 return client
             } catch {
+                // Om connect() lyckades men SFTPClient.open(on:) kastade
+                // (t.ex. subsystemet avvisat) sattes self.session aldrig —
+                // stäng den öppna anslutningen explicit, annars läcker den
+                // tyst vid varje misslyckat SFTP-öppningsförsök (CodeRabbit-
+                // fynd, PR #47).
+                await s.close()
                 self.errorMessage = "\(error)"
                 return nil
             }
