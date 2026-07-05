@@ -16,6 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+      # macos-26-imagens standard-Xcode kan bytas ut under oss vid en framtida
+      # runner-uppdatering (CodeRabbit-fynd på PR #46) — pinnar explicit till
+      # den version som är verifierad fungera med den här koden.
+      - name: Välj Xcode 26.4.1
+        uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: "26.4.1"
+
       - name: Visa Xcode-version
         run: xcodebuild -version
 
@@ -45,6 +53,10 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Välj Xcode 26.4.1
+        uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: "26.4.1"
       - name: swift build (SSHCore + bastion-cli)
         run: swift build
       - name: swift test (SSHCore)
