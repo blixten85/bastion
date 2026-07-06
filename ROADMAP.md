@@ -142,13 +142,22 @@ delvis andra, av konkreta skäl:
     (bakåtkompatibel avkodning — gamla `host.json`-filer utan fältet faller
     tillbaka på `.posix`, samma mönster som `isFavorite`/`colorTag`). Egen
     `Picker` i `LinuxApp/HostEditView.swift` ("Fjärrsystem").
-  - **Kvar**: generera/importera/exportera-knappar, "byt ut lösenord mot
-    nyckel"-flödet (deploy + tyst verifiering + checkbox/toggle för att ta
-    bort lösenordet ur Bastions EGEN lagring, aldrig fjärrserverns faktiska
-    auth-konfiguration — se [[feedback_password_removal_scope]] för
-    resonemanget) i App/LinuxApp, samt Keychain-borttagningen av det gamla
-    lösenordet efter grönt ljus (iOS/macOS-specifikt — LinuxApp har ingen
-    Keychain-motsvarighet, se `AuthResolver.swift`).
+  - **LinuxApp-flödet klart** (2026-07-06, `KeyDeployView.swift`): ny
+    "SSH-nyckel"-knapp i `HostDetailView`. Generera → deploya (`platform`
+    läses från host-profilen) → tyst verifiera, i tur och ordning — checkbox
+    "Byt till nyckel-auth" visas ENDAST efter lyckad verifiering (opt-in,
+    aldrig automatiskt, matchar [[feedback_password_removal_scope]]).
+    Bekräftelse skriver nyckeln till `~/.bastion/keys/<host-id>_ed25519`
+    (0600) och byter `host.auth` till `.keyFile(path)` — LinuxApp har ingen
+    Keychain (se `AuthResolver.swift`), så "ta bort lösenordet" betyder här
+    bara att sluta FRÅGA efter det (`.askPassword` → `.keyFile`); LinuxApp
+    sparade aldrig själva lösenordsvärdet till att börja med. Byggd + körd
+    (Xvfb), rent utan krasch.
+  - **Kvar**: samma flöde i `App/` (iOS/macOS, Xcode-only) — där finns en
+    riktig Keychain-hemlighet att faktiskt radera efter grönt ljus, till
+    skillnad från LinuxApp. Ingen import/export-UI (nyckelgenerering/-export
+    finns bara som SSHCore-API än, ingen "klistra in befintlig nyckel och
+    deploya den"-knapp).
 - **App-ikon + launch screen**: `App/Assets.xcassets` (genererad från en SVG med
   `rsvg-convert`, opak PNG utan alfakanal enligt Apples krav — alla iOS- och
   macOS-storlekar) + en mörk `LaunchBackground`-färg som matchar ikonen.

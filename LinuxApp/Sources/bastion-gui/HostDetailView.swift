@@ -5,6 +5,7 @@ import SwiftCrossUI
 /// annars dashboard + kommandokörning. Motsvarar `App/HostDetailView.swift`.
 struct HostDetailView: View {
     let host: Host
+    var onHostUpdated: (Host) -> Void = { _ in }
     @State private var password = ""
     @State private var connected = false
     @State private var resolvedPassword: String?
@@ -13,6 +14,7 @@ struct HostDetailView: View {
     @State private var showCommandLibrary = false
     @State private var showSFTPBrowser = false
     @State private var showPortForward = false
+    @State private var showKeyDeploy = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -28,6 +30,7 @@ struct HostDetailView: View {
                     Button("Bibliotek") { showCommandLibrary = true }
                     Button("Filer") { showSFTPBrowser = true }
                     Button("Tunnlar") { showPortForward = true }
+                    Button("SSH-nyckel") { showKeyDeploy = true }
                 }
             }
 
@@ -56,6 +59,12 @@ struct HostDetailView: View {
         }
         .sheet(isPresented: $showPortForward) {
             PortForwardView(host: host, password: resolvedPassword)
+        }
+        .sheet(isPresented: $showKeyDeploy) {
+            KeyDeployView(host: host, password: resolvedPassword) { updated in
+                onHostUpdated(updated)
+                showKeyDeploy = false
+            }
         }
     }
 
