@@ -21,6 +21,11 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
     public var auth: HostAuth
     public var isFavorite: Bool
     public var colorTag: String?
+    /// Vilken sorts fjärrsystem den här värden är — styr bara hur
+    /// `deployPublicKey` bygger sitt kommando (POSIX-skal vs. Windows
+    /// PowerShell, admin- vs. standardkonto). Påverkar ingenting annat;
+    /// `.posix` (default) fungerar precis som innan fältet fanns.
+    public var platform: RemotePlatform
     /// När värden senast ändrades. Styr sync-mergen (nyaste ändringen vinner).
     public var modifiedAt: Date
 
@@ -34,6 +39,7 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         auth: HostAuth = .agentDefault,
         isFavorite: Bool = false,
         colorTag: String? = nil,
+        platform: RemotePlatform = .posix,
         modifiedAt: Date = Date()
     ) {
         self.id = id
@@ -45,17 +51,18 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         self.auth = auth
         self.isFavorite = isFavorite
         self.colorTag = colorTag
+        self.platform = platform
         self.modifiedAt = modifiedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, modifiedAt
+        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, platform, modifiedAt
     }
 
-    /// Egen init(from:) — isFavorite/colorTag tillkom efter att fältet fanns i
-    /// sparade host.json-filer. `decodeIfPresent` gör dem valfria vid avkodning
-    /// (default false/nil) istället för att synteterad Decodable kastar på
-    /// saknad nyckel.
+    /// Egen init(from:) — isFavorite/colorTag/platform tillkom efter att
+    /// fältet fanns i sparade host.json-filer. `decodeIfPresent` gör dem
+    /// valfria vid avkodning (default false/nil/.posix) istället för att
+    /// synteterad Decodable kastar på saknad nyckel.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -67,6 +74,7 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         auth = try c.decode(HostAuth.self, forKey: .auth)
         isFavorite = try c.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
         colorTag = try c.decodeIfPresent(String.self, forKey: .colorTag)
+        platform = try c.decodeIfPresent(RemotePlatform.self, forKey: .platform) ?? .posix
         modifiedAt = try c.decode(Date.self, forKey: .modifiedAt)
     }
 
