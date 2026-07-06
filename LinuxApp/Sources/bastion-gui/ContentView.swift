@@ -30,7 +30,7 @@ struct ContentView: View {
             sidebar
         } detail: {
             if let host = model.hosts.first(where: { $0.id == selectedHostID }) {
-                HostDetailView(host: host)
+                HostDetailView(host: host, onHostUpdated: { model.save($0) })
             } else {
                 ContentUnavailableView {
                     Text("Ingen värd vald")
