@@ -405,9 +405,17 @@ Inget nytt att bygga, bara verifiera/lansera:
   SETSTAT — utökad till att faktiskt köra `chmod` på den riktiga bakomliggande
   filen, verifierat i testet genom att läsa tillbaka det RIKTIGA filläget
   från disk (`FileManager.attributesOfItem`), inte bara att servern svarade OK.
+  **Textredigering** (2026-07-06, LinuxApp): ✅ klart — "Redigera"-knapp för
+  filer (döljs för mappar), läser innehållet via befintlig `readFile`,
+  visar i SwiftCrossUIs `TextEditor`, sparar via befintlig `writeFile`. Ingen
+  ny SFTP-protokollkod behövdes — bara UI-orkestrering ovanpå redan testad
+  läs/skriv-väg. En enkel giltighetskontroll (kodar tillbaka till UTF-8 och
+  jämför bytelängd) vägrar öppna binärfiler som text istället för att visa
+  korrupt/ersatt innehåll (`U+FFFD`) utan varning.
   **Kvar**: Drag & Drop, Zip/Tar, chown (kräver numeriska UID/GID servern
   måste känna till — inte byggt, se `SFTPClient.setPermissions`s doc-kommentar),
-  förhandsvisning, textredigering — i både App/ och LinuxApp.
+  förhandsvisning (t.ex. bilder), textredigering i App/ (bara LinuxApp klart
+  hittills), syntax highlighting (se separat post nedan).
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - ProxyJump, Agent Forwarding, PKCS11, YubiKey, Passkeys

@@ -167,6 +167,37 @@ final class SFTPBrowserModel: ObservableObject {
         }
     }
 
+    /// `nil` betyder antingen att läsningen misslyckades (se `errorMessage`)
+    /// ELLER att innehållet inte är giltig UTF-8 (binärfil) — `String(decoding:as:)`
+    /// kan i teorin lyckas ändå (ersätter ogiltiga byte-sekvenser med
+    /// U+FFFD), så en enkel round-trip-koll (kodar tillbaka och jämför
+    /// bytelängd) avgör om filen är säker att öppna som text.
+    func loadFileContent(_ entry: SFTPNameEntry) async -> String? {
+        guard let client = await ensureClient() else { return nil }
+        do {
+            let bytes = try await client.readFile(joined(entry.filename))
+            let text = String(decoding: bytes, as: UTF8.self)
+            guard Array(text.utf8).count == bytes.count else {
+                errorMessage = "Filen verkar inte vara text (ogiltig UTF-8) — öppnas inte som redigerbar text."
+                return nil
+            }
+            return text
+        } catch {
+            errorMessage = "\(error)"
+            return nil
+        }
+    }
+
+    func saveFileContent(_ entry: SFTPNameEntry, content: String) async {
+        guard let client = await ensureClient() else { return }
+        do {
+            try await client.writeFile(joined(entry.filename), data: Array(content.utf8))
+            errorMessage = nil
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
     func disconnect() {
         // Avbryter en ev. pågående anslutning — annars kan den hinna klart
         // EFTER städningen nedan och skriva tillbaka ett levande session/
@@ -192,6 +223,9 @@ struct SFTPBrowserView: View {
     @State private var renameText = ""
     @State private var showChmod = false
     @State private var chmodText = ""
+    @State private var showEditor = false
+    @State private var editorText = ""
+    @State private var editorFilename: String?
 
     init(host: Host, password: String?) {
         self._model = State(wrappedValue: SFTPBrowserModel(host: host, password: password))
@@ -269,6 +303,15 @@ struct SFTPBrowserView: View {
                     HStack {
                         if selected.attributes.isDirectory {
                             Button("Öppna") { Task { await model.open(selected) } }
+                        } else {
+                            Button("Redigera") {
+                                Task {
+                                    guard let content = await model.loadFileContent(selected) else { return }
+                                    editorFilename = selected.filename
+                                    editorText = content
+                                    showEditor = true
+                                }
+                            }
                         }
                         Button("Döp om") { renameText = selected.filename; showRename = true }
                         Button("chmod") { chmodText = ""; showChmod = true }
@@ -278,6 +321,24 @@ struct SFTPBrowserView: View {
             }
         }
         .padding()
+        .sheet(isPresented: $showEditor) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(editorFilename ?? "").font(.headline)
+                TextEditor(text: $editorText)
+                HStack {
+                    Button("Spara") {
+                        guard let filename = editorFilename,
+                              let entry = model.entries.first(where: { $0.filename == filename })
+                        else { showEditor = false; return }
+                        let content = editorText
+                        showEditor = false
+                        Task { await model.saveFileContent(entry, content: content) }
+                    }
+                    Button("Avbryt") { showEditor = false }
+                }
+            }
+            .padding()
+        }
         .task { await model.refresh() }
         // Utan detta kan ett filnamn från FÖREGÅENDE mapp råka matcha ett
         // likadant namn i den nya mappen efter navigering och visa fel
