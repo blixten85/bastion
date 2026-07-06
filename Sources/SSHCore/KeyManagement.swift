@@ -37,7 +37,7 @@ func shellQuoted(_ s: String) -> String {
 /// och Bastion har ingen tillförlitlig, riskfri fjärrdetektion av det här —
 /// därför ett explicit fält på host-profilen (`Host.platform`) istället för
 /// att gissa via en sond.
-public enum RemotePlatform: String, Codable, Sendable, CaseIterable {
+public enum RemotePlatform: String, Codable, Sendable, CaseIterable, CustomStringConvertible {
     /// Linux/macOS — standard `~/.ssh/authorized_keys`.
     case posix
     /// Windows, konto i Administrators-gruppen. Win32-OpenSSH IGNORERAR
@@ -50,6 +50,14 @@ public enum RemotePlatform: String, Codable, Sendable, CaseIterable {
     /// Windows, vanligt (icke-admin) konto — `%USERPROFILE%\.ssh\authorized_keys`,
     /// inga särskilda ACL-krav.
     case windowsStandard
+
+    public var description: String {
+        switch self {
+        case .posix: return "Linux/macOS"
+        case .windowsAdmin: return "Windows (adminkonto)"
+        case .windowsStandard: return "Windows (standardkonto)"
+        }
+    }
 }
 
 /// Bygger kommandot som lägger till `publicKeyLine` i `~/.ssh/authorized_keys`

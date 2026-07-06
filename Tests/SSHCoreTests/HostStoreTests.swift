@@ -78,4 +78,25 @@ final class HostStoreTests: XCTestCase {
         XCTAssertNil(decoded.colorTag)
         XCTAssertEqual(decoded.alias, "legacy")
     }
+
+    func testPlatformRoundTrip() throws {
+        var h = Host(alias: "win-vps", hostName: "10.0.0.9", user: "Administrator")
+        h.platform = .windowsAdmin
+        let data = try JSONEncoder().encode(h)
+        let decoded = try JSONDecoder().decode(Host.self, from: data)
+        XCTAssertEqual(decoded.platform, .windowsAdmin)
+    }
+
+    /// Samma bakåtkompatibilitetsresonemang som favorit/färg-testet ovan —
+    /// `platform` tillkom ännu senare, så en host.json från innan DET fältet
+    /// fanns (men EFTER isFavorite/colorTag) måste också gå att läsa.
+    func testDecodesOldHostWithoutPlatformField() throws {
+        let h = Host(alias: "legacy2", hostName: "10.0.0.1", user: "root")
+        var obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(h)) as! [String: Any]
+        obj.removeValue(forKey: "platform")
+        let oldStyleData = try JSONSerialization.data(withJSONObject: obj)
+
+        let decoded = try JSONDecoder().decode(Host.self, from: oldStyleData)
+        XCTAssertEqual(decoded.platform, .posix)
+    }
 }

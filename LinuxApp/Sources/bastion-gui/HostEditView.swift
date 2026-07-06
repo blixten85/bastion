@@ -45,6 +45,10 @@ struct HostEditView: View {
         Binding(get: { authKind }, set: { if let v = $0 { authKind = v } })
     }
 
+    private var platformBinding: Binding<RemotePlatform?> {
+        Binding(get: { draft.platform }, set: { if let v = $0 { draft.platform = v } })
+    }
+
     init(host: Host, onSave: @escaping (Host) -> Void, onCancel: @escaping () -> Void) {
         self._draft = State(wrappedValue: host)
         self._portText = State(wrappedValue: String(host.port))
@@ -85,6 +89,9 @@ struct HostEditView: View {
             if authKind == .key {
                 TextField("Sökväg till privatnyckel", text: $keyPath)
             }
+
+            Text("Fjärrsystem").font(.subheadline)
+            Picker(of: RemotePlatform.allCases, selection: platformBinding)
 
             HStack {
                 Button("Avbryt") { onCancel() }

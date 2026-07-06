@@ -137,15 +137,18 @@ delvis andra, av konkreta skäl:
     `verifyKeyAuthWorks`) kört i ett svep mot en riktig Windows Server 2025-
     VPS, autentiserade rent utan lösenord. Testnycklarna städades bort
     efteråt.
-  - **Kvar**: App/LinuxApp-yta helt saknas — generera/importera/exportera-
-    knappar, plattformsval (POSIX/Windows-admin/Windows-standard) på
-    host-profilen, "byt ut lösenord mot nyckel"-flödet (deploy + tyst
-    verifiering + checkbox/toggle för att ta bort lösenordet ur Bastions
-    EGEN lagring, aldrig fjärrserverns faktiska auth-konfiguration — se
-    [[feedback_password_removal_scope]] för resonemanget), samt Keychain-
-    borttagningen av det gamla lösenordet efter grönt ljus. `Host`-modellen
-    behöver även ett `platform: RemotePlatform`-fält för att App-lagret ska
-    kunna spara valet per host.
+  - **`Host.platform`-fält** (2026-07-06): ✅ klart. `RemotePlatform`
+    (`.posix`/`.windowsAdmin`/`.windowsStandard`) sparas nu per host-profil
+    (bakåtkompatibel avkodning — gamla `host.json`-filer utan fältet faller
+    tillbaka på `.posix`, samma mönster som `isFavorite`/`colorTag`). Egen
+    `Picker` i `LinuxApp/HostEditView.swift` ("Fjärrsystem").
+  - **Kvar**: generera/importera/exportera-knappar, "byt ut lösenord mot
+    nyckel"-flödet (deploy + tyst verifiering + checkbox/toggle för att ta
+    bort lösenordet ur Bastions EGEN lagring, aldrig fjärrserverns faktiska
+    auth-konfiguration — se [[feedback_password_removal_scope]] för
+    resonemanget) i App/LinuxApp, samt Keychain-borttagningen av det gamla
+    lösenordet efter grönt ljus (iOS/macOS-specifikt — LinuxApp har ingen
+    Keychain-motsvarighet, se `AuthResolver.swift`).
 - **App-ikon + launch screen**: `App/Assets.xcassets` (genererad från en SVG med
   `rsvg-convert`, opak PNG utan alfakanal enligt Apples krav — alla iOS- och
   macOS-storlekar) + en mörk `LaunchBackground`-färg som matchar ikonen.
