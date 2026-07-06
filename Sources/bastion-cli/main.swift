@@ -5,6 +5,7 @@ import SSHCore
 //
 //   bastion-cli <user@host[:port]> "<kommando>"
 //   bastion-cli -L [bindHost:]bindPort:targetHost:targetPort <user@host[:port]>
+//   bastion-cli -R [bindHost:]bindPort:targetHost:targetPort <user@host[:port]>
 //
 // Lösenord läses från miljövariabeln BASTION_PASSWORD (annars frågas det via
 // stdin). Ed25519-nyckel (rått 32-byte frö, hex) kan ges via BASTION_ED25519_HEX.
@@ -19,8 +20,8 @@ func fail(_ msg: String) -> Never {
     exit(2)
 }
 
-/// `ssh -L`-syntax: `[bindHost:]bindPort:targetHost:targetPort`. `bindHost`
-/// är valfri (default 127.0.0.1) — särskiljs från `targetHost` genom att
+/// `ssh -L`/`-R`-syntax (samma strängformat för båda): `[bindHost:]bindPort:targetHost:targetPort`.
+/// `bindHost` är valfri (default 127.0.0.1) — särskiljs från `targetHost` genom att
 /// räkna `:`-delade segment bakifrån, eftersom `targetHost` (men aldrig
 /// `bindHost`/portarna) kan innehålla ytterligare kolon (IPv6) i teorin;
 /// v1 stödjer bara den vanliga 3- eller 4-delade formen.
@@ -64,16 +65,19 @@ struct LocalForwardSpec {
 
 var cliArgs = Array(CommandLine.arguments.dropFirst())
 var localForward: LocalForwardSpec?
-if cliArgs.first == "-L" {
+var remoteForward: LocalForwardSpec?
+if cliArgs.first == "-L" || cliArgs.first == "-R" {
+    let flag = cliArgs[0]
     guard cliArgs.count >= 3, let spec = LocalForwardSpec(cliArgs[1]) else {
-        fail("Användning: bastion-cli -L [bindHost:]bindPort:targetHost:targetPort <[user@]host[:port]>")
+        fail("Användning: bastion-cli \(flag) [bindHost:]bindPort:targetHost:targetPort <[user@]host[:port]>")
     }
-    localForward = spec
+    if flag == "-L" { localForward = spec } else { remoteForward = spec }
     cliArgs.removeFirst(2)
 }
+let anyForward = localForward != nil || remoteForward != nil
 
 let args = cliArgs
-guard args.count >= (localForward != nil ? 1 : 2) else {
+guard args.count >= (anyForward ? 1 : 2) else {
     fail("Användning: bastion-cli <[user@]host-eller-alias[:port]> \"<kommando>\"")
 }
 
@@ -98,7 +102,7 @@ let port = explicitPort ?? cfg.port
 guard let username = explicitUser ?? cfg.user else {
     fail("Ingen användare: ange user@host eller sätt User för \(token) i ~/.ssh/config")
 }
-let command = localForward == nil ? args[1] : ""
+let command = anyForward ? "" : args[1]
 
 // Autentisering. Ordning: uttrycklig nyckelfil > rått frö > lösenord >
 // IdentityFile ur ssh-config > standardnyckel (~/.ssh/id_ed25519) > lösenordsfråga.
@@ -147,6 +151,22 @@ do {
         FileHandle.standardError.write(Data("""
         Vidarebefordrar \(spec.bindHost):\(forward.actualBindPort) -> \
         \(spec.targetHost):\(spec.targetPort) via \(hostPart):\(port). Ctrl+C avslutar.\n
+        """.utf8))
+        while interrupted == 0 {
+            try await Task.sleep(nanoseconds: 200_000_000)
+        }
+        await forward.close()
+        await session.close()
+        exit(0)
+    }
+    if let spec = remoteForward {
+        signal(SIGINT) { _ in interrupted = 1 }
+        let forward = try await session.openRemotePortForward(
+            bindHost: spec.bindHost, bindPort: spec.bindPort,
+            targetHost: spec.targetHost, targetPort: spec.targetPort)
+        FileHandle.standardError.write(Data("""
+        Fjärrvidarebefordrar \(hostPart):\(forward.actualBindPort) -> \
+        \(spec.targetHost):\(spec.targetPort) (lokalt) via \(hostPart):\(port). Ctrl+C avslutar.\n
         """.utf8))
         while interrupted == 0 {
             try await Task.sleep(nanoseconds: 200_000_000)
