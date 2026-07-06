@@ -12,9 +12,9 @@ on:
 
 jobs:
   xcodegen-and-build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Visa Xcode-version
         run: xcodebuild -version
@@ -42,9 +42,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
   swiftpm-macos:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: swift build (SSHCore + bastion-cli)
         run: swift build
       - name: swift test (SSHCore)
