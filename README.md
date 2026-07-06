@@ -266,7 +266,7 @@ Kräver ett aktivt Apple Developer Program-medlemskap och fyra secrets under
 | `APP_STORE_CONNECT_TEAM_ID` | Developer-portalen → Membership (10 tecken) |
 | `APP_STORE_CONNECT_KEY_ID` | App Store Connect → Users and Access → Integrations → App Store Connect API (skapa en nyckel med minst "App Manager"-roll) |
 | `APP_STORE_CONNECT_ISSUER_ID` | Samma sida som ovan |
-| `APP_STORE_CONNECT_KEY_CONTENT` | Den nedladdade `.p8`-filens innehåll, base64-kodat: `base64 -i AuthKey_XXXXXXXXXX.p8 \| pbcopy` |
+| `APP_STORE_CONNECT_KEY_CONTENT` | Den nedladdade `.p8`-filens innehåll, base64-kodat: `cat AuthKey_XXXXXXXXXX.p8 \| base64` (fungerar likadant på macOS och Linux, till skillnad från `pbcopy`) — klistra in utskriften som secret-värdet |
 
 Kör sedan workflowet manuellt (fliken **Actions** → *TestFlight-uppladdning* →
 **Run workflow**). Byggnumret hämtas automatiskt från senaste TestFlight-build
