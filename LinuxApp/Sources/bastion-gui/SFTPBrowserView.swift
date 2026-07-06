@@ -168,16 +168,18 @@ final class SFTPBrowserModel: ObservableObject {
     }
 
     /// `nil` betyder antingen att läsningen misslyckades (se `errorMessage`)
-    /// ELLER att innehållet inte är giltig UTF-8 (binärfil) — `String(decoding:as:)`
-    /// kan i teorin lyckas ändå (ersätter ogiltiga byte-sekvenser med
-    /// U+FFFD), så en enkel round-trip-koll (kodar tillbaka och jämför
-    /// bytelängd) avgör om filen är säker att öppna som text.
+    /// ELLER att innehållet inte är giltig UTF-8 (binärfil). `String(bytes:
+    /// encoding:)` (till skillnad från `String(decoding:as:)`, som ALLTID
+    /// "lyckas" genom att ersätta ogiltiga sekvenser med U+FFFD) ger `nil`
+    /// vid minsta ogiltiga byte — den korrekta kollen. En tidigare version
+    /// försökte detta med en round-trip-längdjämförelse istället, men det
+    /// missar det ovanliga fallet där en ogiltig flerbytesekvens råkar
+    /// avkodas+återkodas till exakt lika många byte som originalet.
     func loadFileContent(_ entry: SFTPNameEntry) async -> String? {
         guard let client = await ensureClient() else { return nil }
         do {
             let bytes = try await client.readFile(joined(entry.filename))
-            let text = String(decoding: bytes, as: UTF8.self)
-            guard Array(text.utf8).count == bytes.count else {
+            guard let text = String(bytes: bytes, encoding: .utf8) else {
                 errorMessage = "Filen verkar inte vara text (ogiltig UTF-8) — öppnas inte som redigerbar text."
                 return nil
             }
