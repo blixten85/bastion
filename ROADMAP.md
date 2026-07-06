@@ -270,4 +270,16 @@ Inget nytt att bygga, bara verifiera/lansera:
   permanent nyckel). Ett generellt OpenSSH-certifikatstöd i SSHCore
   fångar alla fyra utan plattformsspecifik kod.
 - Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
-- Färgteman/True Color/Ligatures, musstöd i terminalen
+- **256-färg + True Color i Linux-terminalen** — ✅ klart. `TerminalBuffer.applySGR`
+  hanterade tidigare bara 16-färgspaletten (`SGR 30-37/40-47/90-97/100-107`).
+  `SGR 38;5;n`/`48;5;n` (256-färgspaletten: 0-15 standard/ljusa, 16-231 en
+  6×6×6-RGB-kub, 232-255 en gråskale-ramp) och `38;2;r;g;b`/`48;2;r;g;b`
+  (True Color) tillagt. Krävde att `applySGR` skrevs om från en enkel
+  `for`-loop till indexbaserad iteration, eftersom dessa koder konsumerar
+  flera efterföljande parametrar atomiskt. Ingen dedikerad testfil finns
+  för `TerminalBuffer` (upptäckt under arbetet — en tidigare sammanfattning
+  påstod felaktigt 17 testfall; verifierat inte sant), så färgmatematiken
+  verifierades manuellt (xterm-referensvärden: 196=röd, 46=grön, 21=blå,
+  232/255=gråskale-ändpunkter) + byggd/körd (Xvfb) utan krasch. **Kvar**:
+  Ligatures, musstöd. Terminalfärger i App/ (SwiftTerm) är opåverkade —
+  SwiftTerm har redan eget stöd för det här.
