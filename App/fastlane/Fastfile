@@ -1,0 +1,44 @@
+default_platform(:ios)
+
+# TestFlight-uppladdning. Körs manuellt (workflow_dispatch, se
+# .github/workflows/testflight.yml) — inte på varje push, eftersom varje körning
+# konsumerar ett byggnummer hos Apple. Signering är helt automatisk (ingen
+# fastlane match/manuellt certifikat att underhålla) — Xcode skapar/hanterar
+# certifikat och provisioning profile själv via App Store Connect API-nyckeln,
+# så länge nyckeln har "App Manager"-rollen eller högre.
+platform :ios do
+  desc "Bygg och ladda upp till TestFlight"
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+      key_content: ENV.fetch("APP_STORE_CONNECT_KEY_CONTENT"),
+      is_key_content_base64: true,
+      in_house: false,
+    )
+
+    # Nästa lediga byggnummer hos Apple, inte bara +1 på det som råkar stå i
+    # projektfilen — annars kolliderar en lokal CURRENT_PROJECT_VERSION lätt
+    # med ett nummer som redan laddats upp av en tidigare körning.
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: "se.denied.bastion",
+    )
+    increment_build_number(
+      build_number: latest + 1,
+      xcodeproj: "Bastion.xcodeproj",
+    )
+
+    build_app(
+      project: "Bastion.xcodeproj",
+      scheme: "Bastion",
+      export_method: "app-store",
+      xcargs: "-allowProvisioningUpdates",
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+    )
+  end
+end

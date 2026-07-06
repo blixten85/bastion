@@ -1,0 +1,51 @@
+name: TestFlight-uppladdning
+
+# Manuell knapp, INTE på varje push/PR — varje körning konsumerar ett
+# byggnummer hos Apple och laddar upp en riktig build till TestFlight.
+# Signering är helt automatisk via App Store Connect API-nyckeln (se
+# App/fastlane/Fastfile) — inget certifikat/provisioning profile att
+# underhålla manuellt.
+#
+# Secrets som krävs (Settings -> Secrets and variables -> Actions):
+#   APP_STORE_CONNECT_TEAM_ID       10-teckens Team ID (Membership-sidan)
+#   APP_STORE_CONNECT_KEY_ID        Key ID från App Store Connect API-nyckeln
+#   APP_STORE_CONNECT_ISSUER_ID     Issuer ID (samma sida)
+#   APP_STORE_CONNECT_KEY_CONTENT   .p8-filens innehåll, base64-kodat
+#                                   (base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy)
+on:
+  workflow_dispatch:
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      # Samma pin som xcode.yml — se den filen för varför.
+      - name: Välj Xcode 26.4.1
+        uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: "26.4.1"
+
+      - name: Installera XcodeGen
+        run: brew install xcodegen
+
+      - name: Generera Xcode-projekt
+        run: cd App && xcodegen generate
+
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1.316.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: App
+
+      - name: fastlane beta
+        working-directory: App
+        env:
+          APP_STORE_CONNECT_TEAM_ID: ${{ secrets.APP_STORE_CONNECT_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+        run: bundle exec fastlane beta

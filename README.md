@@ -250,6 +250,28 @@ SSHCore dras in automatiskt som paketberoenden till båda targeten.
 4. Öppen källkod-appar godkänns — se bara till att licens (MIT/Apache) och ev.
    tredjepartslicenser (SwiftNIO, SwiftTerm) listas i appen.
 
+### TestFlight utan en egen Mac (GitHub Actions)
+
+`.github/workflows/testflight.yml` (manuell knapp, `workflow_dispatch`) bygger,
+signerar och laddar upp till TestFlight direkt från en macOS-runner —
+ingen lokal Mac behövs för det här steget. Signering är helt automatisk
+(App Store Connect API-nyckeln ger Xcode rätt att skapa/hantera certifikat
+och provisioning profile själv, se `App/fastlane/Fastfile`).
+
+Kräver ett aktivt Apple Developer Program-medlemskap och fyra secrets under
+**Settings → Secrets and variables → Actions**:
+
+| Secret | Var det kommer ifrån |
+|---|---|
+| `APP_STORE_CONNECT_TEAM_ID` | Developer-portalen → Membership (10 tecken) |
+| `APP_STORE_CONNECT_KEY_ID` | App Store Connect → Users and Access → Integrations → App Store Connect API (skapa en nyckel med minst "App Manager"-roll) |
+| `APP_STORE_CONNECT_ISSUER_ID` | Samma sida som ovan |
+| `APP_STORE_CONNECT_KEY_CONTENT` | Den nedladdade `.p8`-filens innehåll, base64-kodat: `base64 -i AuthKey_XXXXXXXXXX.p8 \| pbcopy` |
+
+Kör sedan workflowet manuellt (fliken **Actions** → *TestFlight-uppladdning* →
+**Run workflow**). Byggnumret hämtas automatiskt från senaste TestFlight-build
++ 1, ingen manuell versionshantering behövs.
+
 Appens affärslogik ligger i den testade kärnan (`SSHCore`); `App/`-lagret är tunn
 SwiftUI-glue. Så länge kärnan är grön är appen mest layout att putsa i Xcode.
 

@@ -55,9 +55,16 @@ delvis andra, av konkreta skäl:
    `SyncProvider`-implementationerna (Dropbox/Google Drive/OneDrive) är skrivna
    men aldrig byggda (Xcode-only, kan inte kompileras på Linux). Kräver ett
    registrerat klient-ID per leverantör (se README "Konton") för att testas på riktigt.
-2. **Få appen på en riktig iPhone** — ingen Mac tillgänglig, så det kräver antingen
-   ett Apple Developer-konto (TestFlight via CI) eller en lånad Mac för en
-   gratis 7-dagars sideload.
+2. **Få appen på en riktig iPhone** — 🧩 påbörjad, 2026-07-06. Apple Developer
+   Program köpt och ID-verifiering inskickad (väntar på att kontot blir
+   aktivt). CI-vägen förberedd medan verifieringen pågår: `.github/workflows/
+   testflight.yml` (manuell knapp) + `App/fastlane/Fastfile` bygger, signerar
+   helt automatiskt (App Store Connect API-nyckel, inget manuellt certifikat/
+   provisioning profile) och laddar upp till TestFlight — ingen lokal Mac
+   behövs. Se README "TestFlight utan en egen Mac" för de fyra secrets som
+   behöver sättas när kontot är aktivt. Ruby-/fastlane-syntaxen är verifierad
+   (`ruby -c`), men aldrig körd på riktigt än — kräver macOS-runnern +
+   riktiga nycklar för det sista beviset.
 3. **Windows-GUI via `WinUIBackend`** — påbörjad och blockerad av två
    bekräftade uppströmsbuggar, inte något i Bastions egen kod. `WindowsApp/`
    (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs på en riktig
@@ -178,8 +185,8 @@ VISION.md "Design".
 Inget nytt att bygga, bara verifiera/lansera:
 - Verifiera kontointegrationen i Xcode (Dropbox/Google Drive/OneDrive) med
   ett riktigt klient-ID.
-- Få appen på en riktig iPhone (Apple Developer-konto för TestFlight, eller
-  en lånad Mac för en gratis 7-dagars sideload).
+- Få appen på en riktig iPhone — 🧩 påbörjad, se "Nästa steg" ovan (Apple
+  Developer Program köpt, CI-vägen förberedd, väntar på kontoverifiering).
 
 ### Fas B — UX-paritet med Termius (det folk betalar för idag)
 - **Port Forwarding**: 🧩 **lokal (`-L`) klar i SSHCore** —

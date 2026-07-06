@@ -1,0 +1,2 @@
+app_identifier("se.denied.bastion")
+team_id(ENV["APP_STORE_CONNECT_TEAM_ID"])
