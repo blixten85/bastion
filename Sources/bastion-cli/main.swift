@@ -4,17 +4,67 @@ import SSHCore
 // bastion-cli — bevisar SSH-kärnan mot en riktig server.
 //
 //   bastion-cli <user@host[:port]> "<kommando>"
+//   bastion-cli -L [bindHost:]bindPort:targetHost:targetPort <user@host[:port]>
 //
 // Lösenord läses från miljövariabeln BASTION_PASSWORD (annars frågas det via
 // stdin). Ed25519-nyckel (rått 32-byte frö, hex) kan ges via BASTION_ED25519_HEX.
+
+/// `sig_atomic_t`, inte `Bool`/klass — signalhanteraren nedan är en
+/// C-funktionspekare (kan inte fånga kontext) och får bara skriva till
+/// enkla globala/statiska variabler av den här typen på ett säkert sätt.
+nonisolated(unsafe) var interrupted: sig_atomic_t = 0
 
 func fail(_ msg: String) -> Never {
     FileHandle.standardError.write(Data((msg + "\n").utf8))
     exit(2)
 }
 
-let args = Array(CommandLine.arguments.dropFirst())
-guard args.count >= 2 else {
+/// `ssh -L`-syntax: `[bindHost:]bindPort:targetHost:targetPort`. `bindHost`
+/// är valfri (default 127.0.0.1) — särskiljs från `targetHost` genom att
+/// räkna `:`-delade segment bakifrån, eftersom `targetHost` (men aldrig
+/// `bindHost`/portarna) kan innehålla ytterligare kolon (IPv6) i teorin;
+/// v1 stödjer bara den vanliga 3- eller 4-delade formen.
+struct LocalForwardSpec {
+    let bindHost: String
+    let bindPort: Int
+    let targetHost: String
+    let targetPort: Int
+
+    init?(_ spec: String) {
+        let parts = spec.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+        switch parts.count {
+        case 3:
+            guard let bp = Int(parts[0]) else { return nil }
+            bindHost = "127.0.0.1"
+            bindPort = bp
+            targetHost = parts[1]
+            guard let tp = Int(parts[2]) else { return nil }
+            targetPort = tp
+        case 4:
+            guard let bp = Int(parts[1]) else { return nil }
+            bindHost = parts[0]
+            bindPort = bp
+            targetHost = parts[2]
+            guard let tp = Int(parts[3]) else { return nil }
+            targetPort = tp
+        default:
+            return nil
+        }
+    }
+}
+
+var cliArgs = Array(CommandLine.arguments.dropFirst())
+var localForward: LocalForwardSpec?
+if cliArgs.first == "-L" {
+    guard cliArgs.count >= 3, let spec = LocalForwardSpec(cliArgs[1]) else {
+        fail("Användning: bastion-cli -L [bindHost:]bindPort:targetHost:targetPort <[user@]host[:port]>")
+    }
+    localForward = spec
+    cliArgs.removeFirst(2)
+}
+
+let args = cliArgs
+guard args.count >= (localForward != nil ? 1 : 2) else {
     fail("Användning: bastion-cli <[user@]host-eller-alias[:port]> \"<kommando>\"")
 }
 
@@ -39,7 +89,7 @@ let port = explicitPort ?? cfg.port
 guard let username = explicitUser ?? cfg.user else {
     fail("Ingen användare: ange user@host eller sätt User för \(token) i ~/.ssh/config")
 }
-let command = args[1]
+let command = localForward == nil ? args[1] : ""
 
 // Autentisering. Ordning: uttrycklig nyckelfil > rått frö > lösenord >
 // IdentityFile ur ssh-config > standardnyckel (~/.ssh/id_ed25519) > lösenordsfråga.
@@ -76,6 +126,26 @@ let session = SSHSession(target: target, auth: auth)
 
 do {
     try await session.connect()
+    if let spec = localForward {
+        // `signal()`s hanterare är en C-funktionspekare — den kan inte fånga
+        // kontext, bara referera globalt/statiskt tillstånd. Görs bara
+        // jobb-fritt (sätter en flagga); själva stängningen sker i
+        // vänteloopen nedan, som är async-säker.
+        signal(SIGINT) { _ in interrupted = 1 }
+        let forward = try await session.openLocalPortForward(
+            bindHost: spec.bindHost, bindPort: spec.bindPort,
+            targetHost: spec.targetHost, targetPort: spec.targetPort)
+        FileHandle.standardError.write(Data("""
+        Vidarebefordrar \(spec.bindHost):\(forward.actualBindPort) -> \
+        \(spec.targetHost):\(spec.targetPort) via \(hostPart):\(port). Ctrl+C avslutar.\n
+        """.utf8))
+        while interrupted == 0 {
+            try await Task.sleep(nanoseconds: 200_000_000)
+        }
+        await forward.close()
+        await session.close()
+        exit(0)
+    }
     for try await chunk in session.execute(command) {
         let handle = chunk.stream == .stderr ? FileHandle.standardError : FileHandle.standardOutput
         handle.write(Data(chunk.bytes))
