@@ -58,13 +58,30 @@ delvis andra, av konkreta skäl:
 2. **Få appen på en riktig iPhone** — ingen Mac tillgänglig, så det kräver antingen
    ett Apple Developer-konto (TestFlight via CI) eller en lånad Mac för en
    gratis 7-dagars sideload.
-3. **Windows-GUI via `WinUIBackend`** — påbörjad. `WindowsApp/` (eget SwiftPM-
-   paket, samma mönster som `LinuxApp/`) med en medvetet minimal första
-   version, verifierad via `.github/workflows/windows-gui.yml`
-   (`windows-latest`-runnern) eftersom ingen lokal Windows-miljö fanns när
-   den skrevs. En Windows Server-VPS är på väg (användaren hyr en) — när
-   inloggning finns porteras de riktiga vyerna från `LinuxApp/Sources/
-   bastion-gui/` hit och testas på riktigt, inte bara CI-kompilering.
+3. **Windows-GUI via `WinUIBackend`** — påbörjad och blockerad av två
+   bekräftade uppströmsbuggar, inte något i Bastions egen kod. `WindowsApp/`
+   (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs på en riktig
+   Windows Server 2025-VPS (2026-07-06, Swift 6.1-RELEASE + VS 2026 Build
+   Tools installerade manuellt för att matcha `.github/workflows/
+   windows-gui.yml` exakt) — samma två fel som i CI, nu bekräftade på
+   riktig hårdvara, inte bara `windows-latest`-runnern:
+   1. `NIOThread.handle: NIOLockedValueBox<ThreadOpsSystem.ThreadHandle?>`
+      (`ThreadWindows.swift`) kan inte konformera till `Sendable` under
+      Swift 6.1:s strikta concurrency, eftersom `UnsafeMutableRawPointer`
+      har `Sendable`-konformansen explicit omarkerad `unavailable` i
+      standardbiblioteket. Känt, fortfarande öppet uppströms-fel:
+      `apple/swift-nio#2065` (dubbelbekräftat av en separat duplikat-issue
+      `#3460`).
+   2. **Nytt fynd** (upptäckt på riktig hårdvara, syntes inte tydligt i
+      CI-loggarna tidigare): `System.swift:572` —
+      `static let SOL_UDP: CInt = CInt(IPPROTO_UDP)` — `IPPROTO` konformerar
+      inte till `BinaryFloatingPoint`, en typmismatch i swift-nios egen
+      Windows-portering av POSIX-konstanterna. Inte undersökt vidare ännu
+      om det redan finns en uppströms-issue för det.
+   Ingen av dessa går att fixa i Bastions egen kod utan att forka swift-nio.
+   `windowsapp-build` är inte en required check av precis den anledningen.
+   Nästa steg när/om uppströms fixar detta: porta de riktiga vyerna från
+   `LinuxApp/Sources/bastion-gui/` hit och testa på riktigt på VPS:n.
 4. Riktig rå tangentbordsinmatning i Linux-terminalen (kräver att gå under
    SwiftCrossUI mot GTK:s event-controllers direkt — se "Uppskjutet med avsikt").
 
