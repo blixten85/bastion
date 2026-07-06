@@ -9,19 +9,26 @@ import NIOConcurrencyHelpers
 /// låter oss mata in godtyckligt fragmenterade byte-sekvenser och inspektera
 /// exakt vad handlern skriver ut, utan tajming-känslighet.
 final class SOCKSHandshakeHandlerTests: XCTestCase {
-    private func makeChannel() -> (EmbeddedChannel, requests: NIOLockedValueBox<[SOCKSConnectRequest]>, errors: NIOLockedValueBox<[Error]>) {
+    private func makeChannel() -> (
+        EmbeddedChannel, requests: NIOLockedValueBox<[SOCKSConnectRequest]>,
+        errors: NIOLockedValueBox<[Error]>, leftovers: NIOLockedValueBox<[ByteBuffer]>
+    ) {
         let requests = NIOLockedValueBox<[SOCKSConnectRequest]>([])
         let errors = NIOLockedValueBox<[Error]>([])
+        let leftovers = NIOLockedValueBox<[ByteBuffer]>([])
         let handler = SOCKSHandshakeHandler(
-            onRequest: { req in requests.withLockedValue { $0.append(req) } },
+            onRequest: { req, leftover in
+                requests.withLockedValue { $0.append(req) }
+                leftovers.withLockedValue { $0.append(leftover) }
+            },
             onError: { err in errors.withLockedValue { $0.append(err) } }
         )
         let channel = EmbeddedChannel(handler: handler)
-        return (channel, requests, errors)
+        return (channel, requests, errors, leftovers)
     }
 
     func testGreetingRepliesNoAuthSelected() throws {
-        let (channel, _, _) = makeChannel()
+        let (channel, _, _, _) = makeChannel()
         var greeting = channel.allocator.buffer(capacity: 4)
         greeting.writeBytes([0x05, 0x01, 0x00])  // VER=5, NMETHODS=1, METHODS=[no-auth]
         try channel.writeInbound(greeting)
@@ -31,7 +38,7 @@ final class SOCKSHandshakeHandlerTests: XCTestCase {
     }
 
     func testFullConnectRequestIPv4() throws {
-        let (channel, requests, _) = makeChannel()
+        let (channel, requests, _, _) = makeChannel()
         var input = channel.allocator.buffer(capacity: 32)
         input.writeBytes([0x05, 0x01, 0x00])  // greeting
         input.writeBytes([0x05, 0x01, 0x00, 0x01])  // VER CMD=CONNECT RSV ATYP=IPv4
@@ -45,7 +52,7 @@ final class SOCKSHandshakeHandlerTests: XCTestCase {
     }
 
     func testFullConnectRequestDomainName() throws {
-        let (channel, requests, _) = makeChannel()
+        let (channel, requests, _, _) = makeChannel()
         var input = channel.allocator.buffer(capacity: 32)
         input.writeBytes([0x05, 0x01, 0x00])
         let domain = "example.com"
@@ -60,7 +67,7 @@ final class SOCKSHandshakeHandlerTests: XCTestCase {
     }
 
     func testFullConnectRequestIPv6() throws {
-        let (channel, requests, _) = makeChannel()
+        let (channel, requests, _, _) = makeChannel()
         var input = channel.allocator.buffer(capacity: 32)
         input.writeBytes([0x05, 0x01, 0x00])
         input.writeBytes([0x05, 0x01, 0x00, 0x04])
@@ -76,7 +83,7 @@ final class SOCKSHandshakeHandlerTests: XCTestCase {
     /// begäran (och begäran i sig) kommer i godtyckligt många, godtyckligt
     /// små bitar över flera separata `channelRead`-anrop.
     func testFragmentedAcrossManyReads() throws {
-        let (channel, requests, _) = makeChannel()
+        let (channel, requests, _, _) = makeChannel()
         var full = channel.allocator.buffer(capacity: 32)
         full.writeBytes([0x05, 0x01, 0x00])
         full.writeBytes([0x05, 0x01, 0x00, 0x01])
@@ -92,8 +99,26 @@ final class SOCKSHandshakeHandlerTests: XCTestCase {
         XCTAssertEqual(all, [SOCKSConnectRequest(host: "10.0.0.1", port: 8080)])
     }
 
+    /// Enhetsnivå-komplement till E2E-regressionstestet: bevisar direkt att
+    /// `consumeRequest` returnerar exakt de bytes som kommer EFTER begäran,
+    /// inte bara att de råkar dyka upp i slutänden av en full nätverksväg.
+    func testLeftoverBytesAfterRequestArePassedToOnRequest() throws {
+        let (channel, _, _, leftovers) = makeChannel()
+        var input = channel.allocator.buffer(capacity: 32)
+        input.writeBytes([0x05, 0x01, 0x00])
+        input.writeBytes([0x05, 0x01, 0x00, 0x01])
+        input.writeBytes([10, 0, 0, 1])
+        input.writeInteger(UInt16(8080))
+        input.writeString("extra-payload")
+        try channel.writeInbound(input)
+
+        let all = leftovers.withLockedValue { $0 }
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(String(buffer: all[0]), "extra-payload")
+    }
+
     func testUnsupportedVersionErrors() throws {
-        let (channel, _, errors) = makeChannel()
+        let (channel, _, errors, _) = makeChannel()
         var input = channel.allocator.buffer(capacity: 4)
         input.writeBytes([0x04, 0x01, 0x00])  // SOCKS4, inte 5
         try channel.writeInbound(input)
@@ -106,7 +131,7 @@ final class SOCKSHandshakeHandlerTests: XCTestCase {
     }
 
     func testNoAcceptableAuthMethodErrors() throws {
-        let (channel, _, errors) = makeChannel()
+        let (channel, _, errors, _) = makeChannel()
         var input = channel.allocator.buffer(capacity: 4)
         input.writeBytes([0x05, 0x01, 0x02])  // bara username/password (0x02), inget no-auth
         try channel.writeInbound(input)
@@ -118,7 +143,7 @@ final class SOCKSHandshakeHandlerTests: XCTestCase {
     }
 
     func testUnsupportedCommandErrors() throws {
-        let (channel, _, errors) = makeChannel()
+        let (channel, _, errors, _) = makeChannel()
         var input = channel.allocator.buffer(capacity: 8)
         input.writeBytes([0x05, 0x01, 0x00])
         input.writeBytes([0x05, 0x02, 0x00, 0x01])  // CMD=0x02 (BIND), inte CONNECT
@@ -160,6 +185,57 @@ private final class ByteCollectorHandler2: ChannelInboundHandler, @unchecked Sen
 }
 
 final class DynamicPortForwardTests: XCTestCase {
+    /// Regressionstest för CodeRabbit-fyndet på PR #68: CONNECT-begäran OCH
+    /// applikationsdata skickas i EN och samma skrivning (simulerar att TCP
+    /// råkar leverera dem hopklumpade i samma `channelRead`, oavsett vad
+    /// klienten faktiskt kallade `write()` med) — utan `leftover`-vidare-
+    /// befordran i `SOCKSHandshakeHandler` hade de extra bytesen tystats.
+    func testPipelinedPayloadInSameWriteAsRequestIsNotDropped() async throws {
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+
+        let session = SSHSession(
+            target: SSHTarget(host: "127.0.0.1", port: server.port, username: "tester"),
+            auth: .password("hunter2"), knownHosts: KnownHosts(path: nil))
+        try await session.connect()
+
+        let forward = try await session.openDynamicPortForward(bindPort: 0)
+
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let collector = ByteCollectorHandler2()
+        let client = try await ClientBootstrap(group: group)
+            .channelInitializer { channel in channel.pipeline.addHandler(collector) }
+            .connect(host: "127.0.0.1", port: forward.actualBindPort)
+            .get()
+
+        var greeting = client.allocator.buffer(capacity: 3)
+        greeting.writeBytes([0x05, 0x01, 0x00])
+        try await client.writeAndFlush(greeting).get()
+        try await waitForBytes(collector, count: 2)
+
+        // CONNECT-begäran + payload i EN buffer, EN writeAndFlush.
+        var combined = client.allocator.buffer(capacity: 32)
+        combined.writeBytes([0x05, 0x01, 0x00, 0x03])
+        combined.writeInteger(UInt8("127.0.0.1".utf8.count))
+        combined.writeString("127.0.0.1")
+        combined.writeInteger(UInt16(9999))
+        combined.writeString("pipelinerad-data")
+        try await client.writeAndFlush(combined).get()
+
+        var text = ""
+        for _ in 0..<50 {
+            text = await collector.text()
+            if text.contains("pipelinerad-data") { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        try? await client.close().get()
+        try? await group.shutdownGracefully()
+        await forward.close()
+        await session.close()
+
+        XCTAssertTrue(text.contains("pipelinerad-data"), "fick: \(text.debugDescription)")
+    }
+
     /// End-to-end: en riktig SOCKS5-klient (handrullad, inget bibliotek)
     /// ansluter till den lokala SOCKS-proxyn, förhandlar SOCKS5, begär två
     /// OLIKA mål i tur och ordning — verifierar dels att servern faktiskt

@@ -60,10 +60,10 @@ final class SOCKSHandshakeHandler: ChannelInboundHandler {
 
     private var state: State = .awaitingGreeting
     private var buffer: ByteBuffer!
-    private let onRequest: (SOCKSConnectRequest) -> Void
+    private let onRequest: (SOCKSConnectRequest, ByteBuffer) -> Void
     private let onError: (Error) -> Void
 
-    init(onRequest: @escaping (SOCKSConnectRequest) -> Void, onError: @escaping (Error) -> Void) {
+    init(onRequest: @escaping (SOCKSConnectRequest, ByteBuffer) -> Void, onError: @escaping (Error) -> Void) {
         self.onRequest = onRequest
         self.onError = onError
     }
@@ -96,7 +96,15 @@ final class SOCKSHandshakeHandler: ChannelInboundHandler {
             if state == .awaitingRequest {
                 guard let request = try consumeRequest() else { return }
                 state = .done
-                onRequest(request)
+                // Klienten kan (om än ovanligt — RFC 1928 säger att den ska
+                // vänta på svaret) hinna skicka applikationsdata i SAMMA TCP-
+                // läsning som CONNECT-begäran. `buffer` kan då ha kvarvarande,
+                // oavkodade bytes efter begäran som annars aldrig vidare-
+                // befordras (CodeRabbit-fynd, PR #68) — skickas med till
+                // `onRequest` som skriver dem vidare EFTER att glue-paret
+                // installerats.
+                let leftover = buffer.readSlice(length: buffer.readableBytes) ?? ByteBuffer()
+                onRequest(request, leftover)
             }
         } catch {
             state = .done
@@ -236,9 +244,10 @@ extension SSHSession {
                         activeChannels.withLockedValue { _ = $0.removeValue(forKey: id) }
                     }
                     let handshake = SOCKSHandshakeHandler(
-                        onRequest: { request in
+                        onRequest: { request, leftover in
                             Self.completeSOCKSConnect(
-                                inboundChannel: inboundChannel, request: request, sshHandler: sshHandler)
+                                inboundChannel: inboundChannel, request: request,
+                                leftover: leftover, sshHandler: sshHandler)
                         },
                         onError: { _ in inboundChannel.close(promise: nil) }
                     )
@@ -262,7 +271,7 @@ extension SSHSession {
     /// (samma resonemang som race-fixen i `PortForward.swift`, bara att här
     /// finns aldrig en `await`-brygga att undvika i första taget).
     private static func completeSOCKSConnect(
-        inboundChannel: Channel, request: SOCKSConnectRequest, sshHandler: NIOSSHHandler
+        inboundChannel: Channel, request: SOCKSConnectRequest, leftover: ByteBuffer, sshHandler: NIOSSHHandler
     ) {
         guard let originatorAddress = inboundChannel.remoteAddress else {
             inboundChannel.close(promise: nil)
@@ -305,6 +314,16 @@ extension SSHSession {
                 } catch {
                     inboundChannel.close(promise: nil)
                     return
+                }
+                // Ovanligt, men klienten kan (i strid med RFC 1928, som säger
+                // att den ska vänta på svaret) ha skickat applikationsdata i
+                // SAMMA TCP-läsning som CONNECT-begäran — de bytesen låg kvar
+                // i handskakningshandlerns buffer och hade annars tappats
+                // (CodeRabbit-fynd, PR #68). Nu när glue-paret är på plats,
+                // spela in dem genom pipelinen som om de just anlänt.
+                if leftover.readableBytes > 0 {
+                    inboundChannel.pipeline.fireChannelRead(NIOAny(leftover))
+                    inboundChannel.pipeline.fireChannelReadComplete()
                 }
                 // REP 0x00 (lyckades), ATYP 0x01 (IPv4), BND.ADDR/PORT 0.0.0.0:0
                 // — vi binder ingen egen socket (tunnlar bara), så en meningsfull
