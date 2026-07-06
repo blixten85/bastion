@@ -82,6 +82,73 @@ public final class SSHSession {
         }
     }
 
+    /// Ansluter GENOM en redan uppkopplad session (`ssh -J`/ProxyJump) —
+    /// istället för en ny TCP-anslutning öppnas en `direct-tcpip`-kanal från
+    /// `jump` till DEN HÄR sessionens mål, och en helt egen, oberoende SSH-
+    /// handskakning (egen `NIOSSHHandler`, eget `SSHUserAuth`/TOFU) körs
+    /// direkt ovanpå den kanalen — samma "SSH i SSH"-mönster som en riktig
+    /// `ssh -J` gör på trådnivå. `jump` måste redan vara ansluten.
+    ///
+    /// **Viktigt om stängningsordning**: den här sessionens kanal lever på
+    /// `jump`s event loop-grupp (inte sin egen — `self.group` skapas i
+    /// `init()` men används aldrig här, precis som vanligt är det ofarligt
+    /// att stänga). Stäng DÄRFÖR alltid den här sessionen INNAN `jump`
+    /// stängs — tvärtom (stänga `jump` medan den här sessionen fortfarande
+    /// är öppen) gör att `jump`s event loop-grupp redan är nedstängd när den
+    /// här sessionens `close()` försöker schemalägga sin egen kanalstängning
+    /// på den, vilket hänger/misslyckas tyst (bevisat empiriskt: en tidig
+    /// testversion med fel ordning hängde processen). Motsvarar för övrigt
+    /// exakt hur en riktig `ssh -J` fungerar — dör tunneln (jump), dör allt
+    /// som går genom den.
+    public func connect(via jump: SSHSession) async throws {
+        guard let jumpChannel = jump.channel else {
+            throw SSHError.channelFailed("jump-sessionen är inte ansluten")
+        }
+        let jumpSSHHandler: NIOSSHHandler
+        do {
+            jumpSSHHandler = try await jumpChannel.pipeline.handler(type: NIOSSHHandler.self).get()
+        } catch {
+            throw SSHError.channelFailed(String(describing: error))
+        }
+        guard let originatorAddress = jumpChannel.localAddress else {
+            throw SSHError.channelFailed("okänd lokal adress på jump-sessionen")
+        }
+
+        let userAuth = SSHUserAuth(username: target.username, auth: auth) { [weak self] in
+            self?.signalFatal(SSHError.authenticationFailed)
+        }
+        let validator = TOFUHostKeyValidator(
+            host: target.host, port: target.port, store: knownHosts
+        ) { [weak self] info in
+            self?.signalFatal(SSHError.hostKeyRejected(info))
+        }
+
+        let directTCPIP = SSHChannelType.DirectTCPIP(
+            targetHost: target.host, targetPort: target.port, originatorAddress: originatorAddress)
+        let childPromise = jumpChannel.eventLoop.makePromise(of: Channel.self)
+        jumpSSHHandler.createChannel(childPromise, channelType: .directTCPIP(directTCPIP)) { [weak self] child, channelType in
+            guard case .directTCPIP = channelType else {
+                return jumpChannel.eventLoop.makeFailedFuture(SSHError.channelFailed("fel kanaltyp"))
+            }
+            return child.eventLoop.makeCompletedFuture {
+                try child.pipeline.syncOperations.addHandler(DirectTCPIPWrapperHandler())
+                try child.pipeline.syncOperations.addHandler(NIOSSHHandler(
+                    role: .client(.init(userAuthDelegate: userAuth, serverAuthDelegate: validator)),
+                    allocator: child.allocator,
+                    inboundChildChannelInitializer: { inboundChannel, channelType in
+                        self?.handleInboundForwardedChannel(inboundChannel, channelType: channelType)
+                            ?? inboundChannel.eventLoop.makeFailedFuture(
+                                SSHError.channelFailed("sessionen är borta"))
+                    }))
+            }
+        }
+        do {
+            channel = try await childPromise.futureResult.get()
+        } catch {
+            throw SSHError.connectionFailed(String(describing: error))
+        }
+    }
+
     /// Kör ett kommando och strömmar stdout/stderr allteftersom det kommer.
     /// Kastar `SSHError.remoteExit` om exitkoden är != 0.
     public func execute(_ command: String) -> AsyncThrowingStream<SSHChunk, Error> {

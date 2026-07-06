@@ -403,6 +403,31 @@ final class ServerDirectTCPIPEchoHandler: ChannelDuplexHandler {
     }
 }
 
+/// Server-sidans RIKTIGA direct-tcpip-vidarebefordrare (till skillnad från
+/// `ServerDirectTCPIPEchoHandler` ovan) — öppnar en riktig utgående TCP-
+/// anslutning till klientens begärda `targetHost:targetPort` och bryggar
+/// den mot SSH-kanalen med `GlueHandler`, exakt samma mönster som Bastions
+/// egen klientsida använder för `-L`/`-D`. Behövs för ProxyJump-testet:
+/// en jump-server som bara ekar skulle inte bevisa att kedjningen faktiskt
+/// når en SEPARAT, riktig målserver.
+func makeRealDirectTCPIPForwarder(group: EventLoopGroup) -> (Channel, SSHChannelType) -> EventLoopFuture<Void> {
+    { childChannel, channelType in
+        guard case .directTCPIP(let info) = channelType else {
+            return childChannel.eventLoop.makeFailedFuture(SSHError.channelFailed("fel kanaltyp"))
+        }
+        return ClientBootstrap(group: group)
+            .connect(host: info.targetHost, port: info.targetPort)
+            .flatMap { targetChannel in
+                targetChannel.eventLoop.makeCompletedFuture {
+                    let (ours, theirs) = GlueHandler.matchedPair()
+                    try targetChannel.pipeline.syncOperations.addHandler(ours)
+                    try childChannel.pipeline.syncOperations.addHandler(DirectTCPIPWrapperHandler())
+                    try childChannel.pipeline.syncOperations.addHandler(theirs)
+                }
+            }
+    }
+}
+
 /// Server-sidans stöd för fjärr-portvidarebefordran (`ssh -R`) i test: en
 /// generisk vidarebefordrare (inte en fejk-eko som `ServerDirectTCPIPEchoHandler`
 /// ovan) — binder en riktig lokal lyssnare och bryggar varje accepterad
@@ -499,12 +524,18 @@ struct LoopbackServer {
     let observedDirectTCPIPTargets: NIOLockedValueBox<[(host: String, port: Int)]>
     var port: Int { channel.localAddress?.port ?? 0 }
 
-    static func start(password: String) throws -> LoopbackServer {
+    /// `realDirectTCPIPForwarding`: `false` (default) ekar bara tillbaka
+    /// (räcker för `-L`/`-D`-tester som bara bevisar rundresan genom
+    /// tunneln). `true` öppnar en RIKTIG utgående anslutning till klientens
+    /// begärda mål — krävs för att testa ProxyJump på riktigt (jump-servern
+    /// måste faktiskt nå en separat målserver, inte bara eka).
+    static func start(password: String, realDirectTCPIPForwarding: Bool = false) throws -> LoopbackServer {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let sftpRoot = NSTemporaryDirectory() + "bastion-sftp-test-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: sftpRoot, withIntermediateDirectories: true)
         let observedDirectTCPIPTargets = NIOLockedValueBox<[(host: String, port: Int)]>([])
+        let realForwarder = makeRealDirectTCPIPForwarder(group: group)
         let bootstrap = ServerBootstrap(group: group)
             .childChannelInitializer { channel in
                 channel.pipeline.addHandler(
@@ -519,6 +550,9 @@ struct LoopbackServer {
                             case .directTCPIP(let info):
                                 observedDirectTCPIPTargets.withLockedValue {
                                     $0.append((host: info.targetHost, port: info.targetPort))
+                                }
+                                if realDirectTCPIPForwarding {
+                                    return realForwarder(child, channelType)
                                 }
                                 return child.pipeline.addHandler(ServerDirectTCPIPEchoHandler())
                             default:

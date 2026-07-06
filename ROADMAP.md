@@ -49,6 +49,7 @@ delvis andra, av konkreta skäl:
 | Linux-terminal (VT100/ANSI-tolk, bestående PTY-shell) | ✅ 17 fristående parser-tester gröna, körd (Xvfb) — radvis input (ingen rå key-API i SwiftCrossUI) |
 | Linux-Docker-hantering (`DockerView`) | ✅ lista/start/stopp/omstart/logg/shell — motsvarar `App/DockerView.swift` |
 | Linux-portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa, byggd+körd (Xvfb) — ingen App/-motsvarighet än |
+| ProxyJump (`ssh -J`) | ✅ `SSHSession.connect(via:)`, `bastion-cli` läser `ProxyJump` ur ssh-config automatiskt |
 
 ## Nästa steg (i ordning)
 
@@ -94,6 +95,31 @@ delvis andra, av konkreta skäl:
    SwiftCrossUI mot GTK:s event-controllers direkt — se "Uppskjutet med avsikt").
 
 ## Klart
+
+- **ProxyJump (`ssh -J`)** (2026-07-06, `SSHSession.swift`): `connect(via
+  jump:)` — istället för en ny TCP-anslutning öppnas en `direct-tcpip`-kanal
+  FRÅN en redan uppkopplad jump-session till målet, och en helt egen,
+  oberoende SSH-handskakning (eget `NIOSSHHandler`/`SSHUserAuth`/TOFU) körs
+  direkt ovanpå den kanalen — "SSH i SSH", samma mönster som en riktig
+  `ssh -J` på trådnivå.
+  - `bastion-cli` läser `ProxyJump` ur `~/.ssh/config` automatiskt (fältet
+    parsades redan sedan tidigare, `ResolvedHost.proxyJump`, men var aldrig
+    kopplat till en riktig anslutning förut) — inget eget `-J`-flagg på
+    kommandoraden än. Jump-hoppet återanvänder samma autentisering
+    (miljövariabler/nyckelfråga) som huvudmålet (v1-förenkling).
+  - **Viktig arkitekturbegränsning, dokumenterad i kod**: en session öppnad
+    via `connect(via:)` lever på JUMP-sessionens event loop-grupp, inte sin
+    egen — måste därför stängas INNAN jump-sessionen stängs. Upptäckt
+    empiriskt under testutveckling: fel ordning (stänga jump först) hängde
+    hela testprocessen (`ERROR: Cannot schedule tasks on an EventLoop that
+    has already shut down`), inte bara ett teoretiskt påstående.
+  - 4 tester, inklusive en RIKTIG (inte ekande) test-jump-server som öppnar
+    en genuin utgående anslutning till en separat, oberoende målserver
+    (`makeRealDirectTCPIPForwarder` i `LoopbackServer.swift`) — bevisar att
+    kedjningen faktiskt når ett verkligt, fristående SSH-mål, inte bara
+    tunnlar rå bytes. Täcker: lyckad kedjning, fel lösenord för MÅLET
+    (genom tunneln), oansluten jump kastar direkt, korrekt stängningsordning
+    hänger inte.
 
 - **Nyckelgenerering + export + fjärr-deploy till authorized_keys** (2026-07-06,
   `KeyManagement.swift`/`SSHKeyParser.swift`): kärnan för ett fullständigt
@@ -410,7 +436,7 @@ Inget nytt att bygga, bara verifiera/lansera:
   förhandsvisning, textredigering — i både App/ och LinuxApp.
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
-- ProxyJump, Agent Forwarding, PKCS11, YubiKey, Passkeys
+- Agent Forwarding, PKCS11, YubiKey, Passkeys
 - **OpenSSH-certifikatautentisering** (nytt, 2026-07-05) — stöd för
   `ssh-keygen`-signerade/externt utfärdade SSH-certifikat som en egen
   `HostAuth`-variant, inte bara rå nyckel. De stora molnleverantörerna har
