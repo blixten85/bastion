@@ -49,6 +49,43 @@ final class PortForwardTests: XCTestCase {
 
         XCTAssertTrue(received.contains("hej genom tunneln"), "fick: \(received.debugDescription)")
     }
+
+    /// Regressionstest för CodeRabbit-fyndet (PR #25): close() stängde
+    /// tidigare bara den lokala TCP-lyssnaren, inte redan öppnade tunnlar —
+    /// en aktiv anslutning skulle fortsätta köra tills fjärrsidan/sessionen
+    /// stängdes, trots att doc-kommentaren påstod att close() stängde allt.
+    func testCloseTerminatesActiveTunnelConnection() async throws {
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+
+        let session = SSHSession(
+            target: SSHTarget(host: "127.0.0.1", port: server.port, username: "tester"),
+            auth: .password("hunter2"), knownHosts: KnownHosts(path: nil))
+        try await session.connect()
+
+        let forward = try await session.openLocalPortForward(
+            bindPort: 0, targetHost: "internal-target", targetPort: 9999)
+
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let client = try await ClientBootstrap(group: group)
+            .connect(host: "127.0.0.1", port: forward.actualBindPort)
+            .get()
+
+        // Ge klientkanalen en kort stund att faktiskt bli klar (direct-tcpip-
+        // kanalen öppnas asynkront på fjärrsidan efter TCP-anslutningen).
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(client.isActive, "klientkanalen borde vara aktiv innan close()")
+
+        await forward.close()
+
+        // closeFuture ska fullföljas av close() nu, inte bara vid att
+        // fjärrsidan/sessionen stängs senare.
+        try await client.closeFuture.get()
+        XCTAssertFalse(client.isActive)
+
+        await session.close()
+        try? await group.shutdownGracefully()
+    }
 }
 
 /// Samlar all inkommen text på en klientkanal (för test).
