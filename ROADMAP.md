@@ -223,9 +223,27 @@ Inget nytt att bygga, bara verifiera/lansera:
     med `-L` (samma `[bindHost:]bindPort:targetHost:targetPort`-syntax,
     samma `LocalForwardSpec`-parser återanvänd rakt av). `bastion-cli -R ...`
     öppnar fjärrtunneln, väntar på Ctrl+C, stänger rent.
-  - **Kvar**: dynamisk (`-D`, SOCKS) inte påbörjat; ingen GUI-yta (App/
-    LinuxApp) för `-L`/`-R` än — bara `bastion-cli` kan starta/stoppa en
-    tunnel hittills.
+  - **Dynamisk (`-D`, SOCKS5)** (2026-07-06): ✅ klart, `SOCKSProxy.swift`.
+    En egen SOCKS5-handskakningshandler (RFC 1928, ackumulerar fragmenterade
+    TCP-bytes tills ett helt ramverk kan avkodas) — stödjer IPv4/domännamn/
+    IPv6 som måladress, ingen auth (bara `NO AUTHENTICATION REQUIRED`, lokal
+    trådad tunnel). Målet klienten begär (godtyckligt, PER anslutning — det
+    är hela poängen med "dynamisk" jämfört med `-L`s fasta mål) öppnas som
+    en egen `direct-tcpip`-SSH-kanal, precis som `-L`. CLI: `bastion-cli -D
+    [bindHost:]bindPort <host>`.
+    **En riktig bugg hittad under end-to-end-verifieringen** (skulle inte
+    synts utan ett genuint test — en handrullad SOCKS5-klient som begärde
+    TVÅ olika mål i tur och ordning och verifierade att servern faktiskt
+    fick rätt targetHost/targetPort för VARDERA, inte bara att data ekade):
+    `pipeline.removeHandler(name:)` tar inte effekt omedelbart bara för att
+    den anropas — data som klienten (korrekt, efter att ha läst CONNECT-
+    svaret) skickade omedelbart därefter hann träffa den gamla handskaknings-
+    handlern INNAN borttagningen faktiskt slagit igenom, och sväljdes tyst.
+    Fix: handskakningshandlern vidarebefordrar (`context.fireChannelRead`)
+    istället för att droppa allt som kommer in efter att den en gång blivit
+    klar — oavsett om den formellt redan borttagen ur pipelinen eller inte.
+  - **Kvar**: ingen GUI-yta (App/LinuxApp) för `-L`/`-R`/`-D` än — bara
+    `bastion-cli` kan starta/stoppa en tunnel hittills.
 - **Face ID/Touch ID-app-lås** — ✅ klart i App/. `AppLockManager` (LocalAuthentication,
   `.deviceOwnerAuthentication` — Face ID/Touch ID/lösenkod-fallback), låser vid
   bakgrund (`scenePhase`), egen inställningsyta (menyn i värdlistan, av som

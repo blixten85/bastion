@@ -3,6 +3,7 @@ import Foundation
 import NIOCore
 import NIOPosix
 import NIOSSH
+import NIOConcurrencyHelpers
 @testable import SSHCore
 
 // En minimal SSH-server i processen, enbart för test. Accepterar ett lösenord
@@ -479,6 +480,11 @@ struct LoopbackServer {
     /// Eget temp-directory per server-instans — SFTP-testerna läser/skriver
     /// riktiga filer här, aldrig i den delade systemtemp-mappen direkt.
     let sftpRoot: String
+    /// Varje `direct-tcpip`-begärans faktiska mål, i mottagningsordning —
+    /// `ServerDirectTCPIPEchoHandler` ekar oavsett mål, så det här är enda
+    /// sättet ett test kan bevisa att KLIENTEN (t.ex. `-D`/SOCKS) faktiskt
+    /// begärde rätt targetHost/targetPort, oberoende av vad servern gör med det.
+    let observedDirectTCPIPTargets: NIOLockedValueBox<[(host: String, port: Int)]>
     var port: Int { channel.localAddress?.port ?? 0 }
 
     static func start(password: String) throws -> LoopbackServer {
@@ -486,6 +492,7 @@ struct LoopbackServer {
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let sftpRoot = NSTemporaryDirectory() + "bastion-sftp-test-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: sftpRoot, withIntermediateDirectories: true)
+        let observedDirectTCPIPTargets = NIOLockedValueBox<[(host: String, port: Int)]>([])
         let bootstrap = ServerBootstrap(group: group)
             .childChannelInitializer { channel in
                 channel.pipeline.addHandler(
@@ -497,7 +504,10 @@ struct LoopbackServer {
                         allocator: channel.allocator,
                         inboundChildChannelInitializer: { child, channelType in
                             switch channelType {
-                            case .directTCPIP:
+                            case .directTCPIP(let info):
+                                observedDirectTCPIPTargets.withLockedValue {
+                                    $0.append((host: info.targetHost, port: info.targetPort))
+                                }
                                 return child.pipeline.addHandler(ServerDirectTCPIPEchoHandler())
                             default:
                                 return child.pipeline.addHandler(ServerExecHandler(sftpRoot: sftpRoot))
@@ -505,7 +515,9 @@ struct LoopbackServer {
                         }))
             }
         let channel = try bootstrap.bind(host: "127.0.0.1", port: 0).wait()
-        return LoopbackServer(group: group, channel: channel, sftpRoot: sftpRoot)
+        return LoopbackServer(
+            group: group, channel: channel, sftpRoot: sftpRoot,
+            observedDirectTCPIPTargets: observedDirectTCPIPTargets)
     }
 
     func shutdown() {

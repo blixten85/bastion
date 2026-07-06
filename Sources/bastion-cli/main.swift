@@ -6,6 +6,7 @@ import SSHCore
 //   bastion-cli <user@host[:port]> "<kommando>"
 //   bastion-cli -L [bindHost:]bindPort:targetHost:targetPort <user@host[:port]>
 //   bastion-cli -R [bindHost:]bindPort:targetHost:targetPort <user@host[:port]>
+//   bastion-cli -D [bindHost:]bindPort <user@host[:port]>
 //
 // Lösenord läses från miljövariabeln BASTION_PASSWORD (annars frågas det via
 // stdin). Ed25519-nyckel (rått 32-byte frö, hex) kan ges via BASTION_ED25519_HEX.
@@ -63,9 +64,33 @@ struct LocalForwardSpec {
     }
 }
 
+/// `ssh -D`-syntax: `[bindHost:]bindPort` — inget mål, klienten (SOCKS5) väljer
+/// det per anslutning, till skillnad från `-L`/`-R`s fasta mål.
+struct DynamicForwardSpec {
+    let bindHost: String
+    let bindPort: Int
+
+    init?(_ spec: String) {
+        let parts = spec.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+        switch parts.count {
+        case 1:
+            guard let bp = Int(parts[0]), bp >= 0, bp <= 65_535 else { return nil }
+            bindHost = "127.0.0.1"
+            bindPort = bp
+        case 2:
+            guard !parts[0].isEmpty, let bp = Int(parts[1]), bp >= 0, bp <= 65_535 else { return nil }
+            bindHost = parts[0]
+            bindPort = bp
+        default:
+            return nil
+        }
+    }
+}
+
 var cliArgs = Array(CommandLine.arguments.dropFirst())
 var localForward: LocalForwardSpec?
 var remoteForward: LocalForwardSpec?
+var dynamicForward: DynamicForwardSpec?
 if cliArgs.first == "-L" || cliArgs.first == "-R" {
     let flag = cliArgs[0]
     guard cliArgs.count >= 3, let spec = LocalForwardSpec(cliArgs[1]) else {
@@ -73,8 +98,14 @@ if cliArgs.first == "-L" || cliArgs.first == "-R" {
     }
     if flag == "-L" { localForward = spec } else { remoteForward = spec }
     cliArgs.removeFirst(2)
+} else if cliArgs.first == "-D" {
+    guard cliArgs.count >= 3, let spec = DynamicForwardSpec(cliArgs[1]) else {
+        fail("Användning: bastion-cli -D [bindHost:]bindPort <[user@]host[:port]>")
+    }
+    dynamicForward = spec
+    cliArgs.removeFirst(2)
 }
-let anyForward = localForward != nil || remoteForward != nil
+let anyForward = localForward != nil || remoteForward != nil || dynamicForward != nil
 
 let args = cliArgs
 guard args.count >= (anyForward ? 1 : 2) else {
@@ -167,6 +198,19 @@ do {
         FileHandle.standardError.write(Data("""
         Fjärrvidarebefordrar \(hostPart):\(forward.actualBindPort) -> \
         \(spec.targetHost):\(spec.targetPort) (lokalt) via \(hostPart):\(port). Ctrl+C avslutar.\n
+        """.utf8))
+        while interrupted == 0 {
+            try await Task.sleep(nanoseconds: 200_000_000)
+        }
+        await forward.close()
+        await session.close()
+        exit(0)
+    }
+    if let spec = dynamicForward {
+        signal(SIGINT) { _ in interrupted = 1 }
+        let forward = try await session.openDynamicPortForward(bindHost: spec.bindHost, bindPort: spec.bindPort)
+        FileHandle.standardError.write(Data("""
+        SOCKS5-proxy på \(spec.bindHost):\(forward.actualBindPort) via \(hostPart):\(port). Ctrl+C avslutar.\n
         """.utf8))
         while interrupted == 0 {
             try await Task.sleep(nanoseconds: 200_000_000)
