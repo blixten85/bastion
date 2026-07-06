@@ -171,7 +171,7 @@ delvis andra, av konkreta skäl:
 Interaktiv shell finns i kärnan (`SSHSession.openShell`) och driver både
 `App/TerminalView.swift` (SwiftTerm) och `LinuxApp`s `TerminalSessionView`.
 
-## Backlog, fasindelad (uppdaterad 2026-07-04 efter konkurrentanalys)
+## Backlog, fasindelad (uppdaterad 2026-07-06 — tvOS tillagd)
 
 Se [VISION.md](VISION.md) "Tillägg efter den ursprungliga visionen" för
 bakgrunden (konkurrentlandskap: Termius/Tabby/Termix/Magic Term/Conduit).
@@ -261,6 +261,12 @@ Inget nytt att bygga, bara verifiera/lansera:
 - Systemstatus/dashboard ✅ redan klart.
 - **Tailscale-stöd** (nytt, från konkurrentanalysen) — inte påbörjat.
 - **WireGuard-profiler** (nytt) — inte påbörjat.
+- **tvOS** (nytt, 2026-07-06) — inte påbörjat. Nytt target i `project.yml`,
+  samma SwiftUI-kod som iOS/macOS. Scopas som dashboard-/Docker-vy, inte
+  en fullt interaktiv terminal (fjärrkontroll-tangentbord är ohanterbart
+  för riktig SSH-inmatning). Se VISION.md "Plattformar (tillägg)" för
+  resonemanget bakom att tvOS men inte Android/övriga smart-TV-plattformar
+  prioriteras nu.
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
