@@ -30,22 +30,31 @@ struct LocalForwardSpec {
     let targetHost: String
     let targetPort: Int
 
+    /// `bindPort: 0` betyder "valfri OS-tilldelad port" (giltigt), men
+    /// `targetPort` måste vara en riktig port — `0` där vore aldrig meningsfullt.
+    private static func parsePort(_ value: String, allowZero: Bool) -> Int? {
+        guard let port = Int(value), port >= (allowZero ? 0 : 1), port <= 65_535 else { return nil }
+        return port
+    }
+
     init?(_ spec: String) {
         let parts = spec.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
         switch parts.count {
         case 3:
-            guard let bp = Int(parts[0]) else { return nil }
+            guard let bp = Self.parsePort(parts[0], allowZero: true), !parts[1].isEmpty,
+                  let tp = Self.parsePort(parts[2], allowZero: false)
+            else { return nil }
             bindHost = "127.0.0.1"
             bindPort = bp
             targetHost = parts[1]
-            guard let tp = Int(parts[2]) else { return nil }
             targetPort = tp
         case 4:
-            guard let bp = Int(parts[1]) else { return nil }
+            guard !parts[0].isEmpty, let bp = Self.parsePort(parts[1], allowZero: true), !parts[2].isEmpty,
+                  let tp = Self.parsePort(parts[3], allowZero: false)
+            else { return nil }
             bindHost = parts[0]
             bindPort = bp
             targetHost = parts[2]
-            guard let tp = Int(parts[3]) else { return nil }
             targetPort = tp
         default:
             return nil
