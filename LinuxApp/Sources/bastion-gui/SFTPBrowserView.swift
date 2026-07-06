@@ -61,7 +61,16 @@ final class SFTPBrowserModel: ObservableObject {
                     await s.close()
                     return nil
                 }
+                // self.sftp sätts HÄR, tillsammans med self.session, inte av
+                // anroparen efter att task.value returnerat — annars finns
+                // ett fönster där disconnect() hinner köra (session redan
+                // satt av oss, men sftp fortfarande nil ur anroparens
+                // perspektiv) mellan att tasken returnerar och anroparen
+                // skriver tillbaka sftp, vilket skulle skriva över
+                // disconnect()s städning med en redan stängd klient
+                // (CodeRabbit-fynd, PR #50).
                 self.session = s
+                self.sftp = client
                 return client
             } catch {
                 // Samma läcka som i App/SFTPBrowserModel.swift: om connect()
@@ -76,7 +85,6 @@ final class SFTPBrowserModel: ObservableObject {
         connectingTask = task
         let result = await task.value
         connectingTask = nil
-        sftp = result
         return result
     }
 
