@@ -50,6 +50,7 @@ delvis andra, av konkreta skäl:
 | Linux-Docker-hantering (`DockerView`) | ✅ lista/start/stopp/omstart/logg/shell — motsvarar `App/DockerView.swift` |
 | Linux-portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa, byggd+körd (Xvfb) — ingen App/-motsvarighet än |
 | ProxyJump (`ssh -J`) | ✅ `SSHSession.connect(via:)`, `bastion-cli` läser `ProxyJump` ur ssh-config automatiskt |
+| WireGuard-profiler (parsning/serialisering) | ✅ `WireGuardConfig.swift`, testad mot verifierat `.conf`-format — 🧩 lagring + UI kvar |
 
 ## Nästa steg (i ordning)
 
@@ -380,8 +381,30 @@ Inget nytt att bygga, bara verifiera/lansera:
 ### Fas C — Differentiatorer bortom Termius
 - Docker-hantering ✅ redan klart (App + LinuxApp).
 - Systemstatus/dashboard ✅ redan klart.
-- **Tailscale-stöd** (nytt, från konkurrentanalysen) — inte påbörjat.
-- **WireGuard-profiler** (nytt) — inte påbörjat.
+- **Tailscale-stöd** (nytt, från konkurrentanalysen) — undersökt (2026-07-06)
+  och medvetet uppskjutet: `tailscale status --json` finns inte installerat
+  här att testa mot, OCH Tailscales egen dokumentation (man7-motsvarande
+  sida) säger uttryckligen att JSON-formatet "is subject to change" — inte
+  en stabil, dokumenterad kontraktsyta. Att skriva en parser mot ett
+  format som varken kan testas mot en riktig binär eller är garanterat
+  stabilt vore att gissa, inte verifiera. Avvaktar tills en riktig
+  tailscale-installation finns tillgänglig att verifiera mot.
+- **WireGuard-profiler**: ✅ kärnan klar (2026-07-06, `WireGuardConfig.swift`)
+  — v1 avgränsat till PROFILHANTERING (parsa/lagra/redigera/exportera
+  `.conf`-text), INTE att upprätta tunneln (kräver `wg`-binären + root,
+  eller ett helt eget WireGuard-protokoll om det byggdes utan den binären
+  — separat, mycket större arbete). Formatet verifierat mot `wg(8)` och
+  `wg-quick(8)` (man7.org), inte gissat: `[Interface]` (PrivateKey/Address/
+  DNS/ListenPort/MTU/Table/PreUp/PostUp/PreDown/PostDown/SaveConfig/FwMark)
+  + valfritt antal `[Peer]`-sektioner (PublicKey/PresharedKey/AllowedIPs/
+  Endpoint/PersistentKeepalive). Skiftlägesokänsliga nycklar/sektions-
+  rubriker (verkliga `.conf`-filer varierar), `#`-kommentarer, kommaseparerade
+  listor, upprepade nycklar ackumuleras (flera `Address`-rader är tillåtet).
+  9 tester, inklusive full round-trip (`parse -> rendered() -> parse` ger
+  identiskt resultat) mot en realistisk exempelkonfiguration.
+  **Kvar**: `WireGuardProfileStore` (JSON-lagring, samma mönster som
+  `SnippetStore`) + UI för import/visning/redigering i App/ och LinuxApp —
+  inget UI byggt än, bara den testade kärnan.
 - **tvOS** (nytt, 2026-07-06) — inte påbörjat. Nytt target i `project.yml`,
   samma SwiftUI-kod som iOS/macOS. Scopas som dashboard-/Docker-vy, inte
   en fullt interaktiv terminal (fjärrkontroll-tangentbord är ohanterbart
