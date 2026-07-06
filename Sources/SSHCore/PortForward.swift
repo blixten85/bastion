@@ -211,20 +211,30 @@ extension SSHSession {
         channel.eventLoop.execute {
             sshHandler.sendTCPForwardingRequest(.listen(host: bindHost, port: bindPort), promise: promise)
         }
-        let response: GlobalRequest.TCPForwardingResponse?
+        // Registreras INUTI future-kedjan (flatMapThrowing), inte efter att
+        // await bridgat till async — en async-fortsättning kan återupptas på
+        // vilken tråd som helst, medan en inkommen forwarded-tcpip-kanal
+        // dispatchas på kanalens event loop-tråd. Utan det här fanns ett
+        // fönster där en anslutning hann in innan mappningen skrevs, och
+        // avvisades som "ingen aktiv fjärrvidarebefordran" (CodeRabbit-fynd).
+        // flatMapThrowings closure körs garanterat på future:ns egen event
+        // loop, precis som handleInboundForwardedChannel dispatchas på.
+        let actualBindPort: Int
         do {
-            response = try await promise.futureResult.get()
+            actualBindPort = try await promise.futureResult.flatMapThrowing { [remoteForwards] response in
+                // Om bindPort var 0 ("valfri ledig port") berättar servern
+                // vilken port den faktiskt band i svaret — annars är det
+                // samma som begärt.
+                let port = response?.boundPort ?? bindPort
+                remoteForwards.withLockedValue { $0[port] = (targetHost: targetHost, targetPort: targetPort) }
+                return port
+            }.get()
         } catch {
             // Servern kan sakna stöd för fjärr-portvidarebefordran helt
             // (AllowTcpForwarding no), eller ha avvisat begäran — samma
             // felkategori som andra kanalfel, inget eget behövs.
             throw SSHError.channelFailed(String(describing: error))
         }
-
-        // Om bindPort var 0 ("valfri ledig port") berättar servern vilken
-        // port den faktiskt band i svaret — annars är det samma som begärt.
-        let actualBindPort = response?.boundPort ?? bindPort
-        remoteForwards.withLockedValue { $0[actualBindPort] = (targetHost: targetHost, targetPort: targetPort) }
 
         return RemotePortForward(
             session: self, bindHost: bindHost, bindPort: bindPort, actualBindPort: actualBindPort,
