@@ -8,6 +8,14 @@ import SSHCore
 //   bastion-cli -R [bindHost:]bindPort:targetHost:targetPort <user@host[:port]>
 //   bastion-cli -D [bindHost:]bindPort <user@host[:port]>
 //
+// ProxyJump: en `ProxyJump`-rad i ~/.ssh/config (redan parsad sedan tidigare,
+// se SSHConfig.swift — bara aldrig kopplad till en riktig anslutning förut)
+// hoppas genom AUTOMATISKT, inget eget CLI-flagg behövs. Jump-hoppet
+// återanvänder SAMMA autentisering (miljövariabler/nyckelfråga) som
+// huvudmålet — v1-förenkling, täcker det vanliga fallet med samma identitet
+// överallt. Separat auth per hopp är inte byggt. Inget stöd för `ProxyJump`
+// angivet direkt på kommandoraden (bara via ssh-config) än.
+//
 // Lösenord läses från miljövariabeln BASTION_PASSWORD (annars frågas det via
 // stdin). Ed25519-nyckel (rått 32-byte frö, hex) kan ges via BASTION_ED25519_HEX.
 
@@ -112,27 +120,30 @@ guard args.count >= (anyForward ? 1 : 2) else {
     fail("Användning: bastion-cli <[user@]host-eller-alias[:port]> \"<kommando>\"")
 }
 
-// Destinationen kan vara user@host:port ELLER ett alias ur ~/.ssh/config.
-// Uttryckliga delar (user, port) vinner över configen.
-let dest = args[0]
-var explicitUser: String?
-var token = dest
-if let atIdx = dest.firstIndex(of: "@") {
-    explicitUser = String(dest[dest.startIndex..<atIdx])
-    token = String(dest[dest.index(after: atIdx)...])
-}
-var explicitPort: Int?
-if let colon = token.lastIndex(of: ":"), let p = Int(token[token.index(after: colon)...]) {
-    explicitPort = p
-    token = String(token[token.startIndex..<colon])
+/// Löser upp `user@host:port` (delar valfria) ELLER ett alias ur
+/// `~/.ssh/config` till en konkret destination. Uttryckliga delar (user,
+/// port) vinner över configen. Delad mellan huvudmålet och ett ev.
+/// `ProxyJump`-hopp (samma parsningslogik oavsett vilken av dem det gäller).
+func resolveDestination(_ dest: String) -> (host: String, port: Int, username: String, cfg: ResolvedHost) {
+    var explicitUser: String?
+    var token = dest
+    if let atIdx = dest.firstIndex(of: "@") {
+        explicitUser = String(dest[dest.startIndex..<atIdx])
+        token = String(dest[dest.index(after: atIdx)...])
+    }
+    var explicitPort: Int?
+    if let colon = token.lastIndex(of: ":"), let p = Int(token[token.index(after: colon)...]) {
+        explicitPort = p
+        token = String(token[token.startIndex..<colon])
+    }
+    let cfg = SSHConfig.load().resolve(token)
+    guard let username = explicitUser ?? cfg.user else {
+        fail("Ingen användare: ange user@host eller sätt User för \(token) i ~/.ssh/config")
+    }
+    return (cfg.hostName, explicitPort ?? cfg.port, username, cfg)
 }
 
-let cfg = SSHConfig.load().resolve(token)
-let hostPart = cfg.hostName
-let port = explicitPort ?? cfg.port
-guard let username = explicitUser ?? cfg.user else {
-    fail("Ingen användare: ange user@host eller sätt User för \(token) i ~/.ssh/config")
-}
+let (hostPart, port, username, cfg) = resolveDestination(args[0])
 let command = anyForward ? "" : args[1]
 
 // Autentisering. Ordning: uttrycklig nyckelfil > rått frö > lösenord >
@@ -168,8 +179,25 @@ if let keyFile = env["BASTION_KEY_FILE"] {
 let target = SSHTarget(host: hostPart, port: port, username: username)
 let session = SSHSession(target: target, auth: auth)
 
+// ProxyJump ur ~/.ssh/config (om satt) — återanvänder SAMMA auth som
+// huvudmålet (se filhuvudets kommentar för varför). Jump-sessionen MÅSTE
+// stängas EFTER huvudsessionen (se doc-kommentaren på SSHSession.connect(via:)
+// för varför den ordningen inte är valfri).
+var jumpSession: SSHSession?
+if let proxyJump = cfg.proxyJump {
+    let (jumpHost, jumpPort, jumpUsername, _) = resolveDestination(proxyJump)
+    FileHandle.standardError.write(Data("Hoppar via \(jumpUsername)@\(jumpHost):\(jumpPort) (ProxyJump)\n".utf8))
+    let jump = SSHSession(target: SSHTarget(host: jumpHost, port: jumpPort, username: jumpUsername), auth: auth)
+    jumpSession = jump
+}
+
 do {
-    try await session.connect()
+    if let jumpSession {
+        try await jumpSession.connect()
+        try await session.connect(via: jumpSession)
+    } else {
+        try await session.connect()
+    }
     if let spec = localForward {
         // `signal()`s hanterare är en C-funktionspekare — den kan inte fånga
         // kontext, bara referera globalt/statiskt tillstånd. Görs bara
@@ -188,6 +216,7 @@ do {
         }
         await forward.close()
         await session.close()
+        await jumpSession?.close()
         exit(0)
     }
     if let spec = remoteForward {
@@ -204,6 +233,7 @@ do {
         }
         await forward.close()
         await session.close()
+        await jumpSession?.close()
         exit(0)
     }
     if let spec = dynamicForward {
@@ -217,6 +247,7 @@ do {
         }
         await forward.close()
         await session.close()
+        await jumpSession?.close()
         exit(0)
     }
     for try await chunk in session.execute(command) {
@@ -224,11 +255,14 @@ do {
         handle.write(Data(chunk.bytes))
     }
     await session.close()
+    await jumpSession?.close()
 } catch let SSHError.remoteExit(status) {
     await session.close()
+    await jumpSession?.close()
     exit(Int32(status))
 } catch let SSHError.hostKeyRejected(info) {
     await session.close()
+    await jumpSession?.close()
     fail("""
     ⚠️  VÄRDNYCKELN HAR ÄNDRATS för \(hostPart):\(port)!
         Presenterad nyckel: \(info.keyType) \(info.sha256Fingerprint)
@@ -238,6 +272,7 @@ do {
     """)
 } catch {
     await session.close()
+    await jumpSession?.close()
     fail("Fel: \(error)")
 }
 
