@@ -1,6 +1,7 @@
 import NIOCore
 import NIOPosix
 import NIOSSH
+import NIOConcurrencyHelpers
 
 /// Slår om rå `ByteBuffer` <-> `SSHChannelData` på en direct-tcpip-barnkanal —
 /// motsvarande `ExecHandler`, men utan kommando-/exitstatus-hantering (en
@@ -27,10 +28,14 @@ final class DirectTCPIPWrapperHandler: ChannelDuplexHandler {
 }
 
 /// Ett aktivt lokalt portvidarebefordran (`ssh -L bindPort:targetHost:targetPort`).
-/// Håller den lokala TCP-lyssnaren vid liv — `close()` stänger den (och därmed
-/// alla dess aktiva vidarebefordrade anslutningar).
+/// Håller den lokala TCP-lyssnaren vid liv — `close()` stänger den OCH alla
+/// aktiva vidarebefordrade anslutningar (CodeRabbit-fynd, PR #25: close()
+/// stängde tidigare bara lyssnaren, redan öppnade tunnlar fortsatte köra
+/// tills fjärrsidan eller SSH-sessionen stängdes — kommentaren påstod
+/// motsatsen).
 public final class LocalPortForward {
     private let serverChannel: Channel
+    private let activeChannels: NIOLockedValueBox<[ObjectIdentifier: Channel]>
     public let bindHost: String
     public let bindPort: Int
     public let targetHost: String
@@ -40,8 +45,12 @@ public final class LocalPortForward {
     /// annars den OS-tilldelade porten (`bindPort: 0` = "valfri ledig port").
     public var actualBindPort: Int { serverChannel.localAddress?.port ?? bindPort }
 
-    init(serverChannel: Channel, bindHost: String, bindPort: Int, targetHost: String, targetPort: Int) {
+    init(
+        serverChannel: Channel, activeChannels: NIOLockedValueBox<[ObjectIdentifier: Channel]>,
+        bindHost: String, bindPort: Int, targetHost: String, targetPort: Int
+    ) {
         self.serverChannel = serverChannel
+        self.activeChannels = activeChannels
         self.bindHost = bindHost
         self.bindPort = bindPort
         self.targetHost = targetHost
@@ -49,6 +58,10 @@ public final class LocalPortForward {
     }
 
     public func close() async {
+        let channels = activeChannels.withLockedValue { $0 }
+        for (_, channel) in channels {
+            try? await channel.close().get()
+        }
         try? await serverChannel.close().get()
     }
 }
@@ -74,6 +87,11 @@ extension SSHSession {
             throw SSHError.channelFailed(String(describing: error))
         }
 
+        // Skapas FÖRE bind() (inte inuti LocalPortForward efteråt) — annars
+        // kunde en klient hinna ansluta mellan att bind() returnerar och
+        // LocalPortForward konstrueras, och den anslutningen skulle aldrig
+        // spåras/stängas av close().
+        let activeChannels = NIOLockedValueBox<[ObjectIdentifier: Channel]>([:])
         let serverChannel: Channel
         do {
             serverChannel = try await ServerBootstrap(group: group)
@@ -82,6 +100,11 @@ extension SSHSession {
                     guard let originatorAddress = inboundChannel.remoteAddress else {
                         return inboundChannel.eventLoop.makeFailedFuture(
                             SSHError.channelFailed("okänd avsändaradress"))
+                    }
+                    let id = ObjectIdentifier(inboundChannel)
+                    activeChannels.withLockedValue { $0[id] = inboundChannel }
+                    inboundChannel.closeFuture.whenComplete { _ in
+                        activeChannels.withLockedValue { _ = $0.removeValue(forKey: id) }
                     }
                     let promise = inboundChannel.eventLoop.makePromise(of: Channel.self)
                     let directTCPIP = SSHChannelType.DirectTCPIP(
@@ -109,7 +132,8 @@ extension SSHSession {
         }
 
         return LocalPortForward(
-            serverChannel: serverChannel, bindHost: bindHost, bindPort: bindPort,
+            serverChannel: serverChannel, activeChannels: activeChannels,
+            bindHost: bindHost, bindPort: bindPort,
             targetHost: targetHost, targetPort: targetPort
         )
     }
