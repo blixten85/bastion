@@ -386,7 +386,7 @@ Inget nytt att bygga, bara verifiera/lansera:
   API: `realpath`/`stat`/`listDirectory`/`mkdir`/`rmdir`/`remove`/`rename`/
   `readFile`/`writeFile` (chunkad läsning/skrivning) + lägre nivå
   `openFile`/`read`/`write`/`closeFile`.
-  30 tester totalt (20 rena protokoll-round-trip + 10 end-to-end mot en
+  42 tester totalt (26 rena protokoll-round-trip + 16 end-to-end mot en
   testserver backad av ett riktigt temp-directory — `FileManager`/
   `FileHandle`, inte bara protokolleko), inklusive ett samtidighetstest
   (10 parallella läsningar, verifierar att id-matchningen inte blandar
@@ -397,10 +397,17 @@ Inget nytt att bygga, bara verifiera/lansera:
   via NIOPipeBootstrap + Foundation.Process är fragilt (dubbel fd-ägande
   mellan Foundation.Pipe och NIO) och sparat som ett eget, separat steg
   om djupare protokollkompatibilitet någonsin behöver verifieras.
-  **Kvar**: Drag & Drop, Zip/Tar, chmod/chown, förhandsvisning,
-  textredigering.
-  **Kvar**: UI (Drag & Drop, Zip/Tar, chmod/chown, förhandsvisning,
-  textredigering) i App/ och LinuxApp.
+  **chmod** (2026-07-06): ✅ klart — `SFTPClient.setPermissions(_:mode:)`
+  (SSH_FXP_SETSTAT, samma `SFTPFileAttributes.permissions`-fält som redan
+  fanns i tråd­formatet, bara ingen klientmetod förut) + en "chmod"-knapp
+  i `LinuxApp/SFTPBrowserView.swift` (oktal textruta, t.ex. "644"). Test-
+  servern (`ServerSFTPHandler`) svarade tidigare bara `opUnsupported` på
+  SETSTAT — utökad till att faktiskt köra `chmod` på den riktiga bakomliggande
+  filen, verifierat i testet genom att läsa tillbaka det RIKTIGA filläget
+  från disk (`FileManager.attributesOfItem`), inte bara att servern svarade OK.
+  **Kvar**: Drag & Drop, Zip/Tar, chown (kräver numeriska UID/GID servern
+  måste känna till — inte byggt, se `SFTPClient.setPermissions`s doc-kommentar),
+  förhandsvisning, textredigering — i både App/ och LinuxApp.
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - ProxyJump, Agent Forwarding, PKCS11, YubiKey, Passkeys

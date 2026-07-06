@@ -373,6 +373,14 @@ public enum SFTPRequest {
             buf.writeSFTPString(newPath)
         }
     }
+
+    public static func setstat(id: UInt32, path: String, attributes: SFTPFileAttributes) -> ByteBuffer {
+        makeSFTPPacket(type: .setstat) { buf in
+            buf.writeInteger(id)
+            buf.writeSFTPString(path)
+            attributes.encode(into: &buf)
+        }
+    }
 }
 
 /// Ett avkodat svarspaket från servern — id ingår inte här, den läses ut

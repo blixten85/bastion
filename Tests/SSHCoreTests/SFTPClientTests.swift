@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 @testable import SSHCore
 
 final class SFTPClientTests: XCTestCase {
@@ -108,6 +109,27 @@ final class SFTPClientTests: XCTestCase {
         try await sftp.rmdir("subdir")
         let afterRemoval = try await sftp.listDirectory(".")
         XCTAssertFalse(afterRemoval.contains { $0.filename == "subdir" })
+
+        await sftp.close()
+        await session.close()
+    }
+
+    /// Verifierar mot den RIKTIGA filen på disk (backad av `server.sftpRoot`,
+    /// samma sandlåda-mönster som testservern använder överallt) — inte bara
+    /// att servern svarar OK, utan att behörigheten faktiskt ändrades.
+    func testSetPermissionsChangesRealFileMode() async throws {
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+        let session = try await connectedSession(server)
+        let sftp = try await SFTPClient.open(on: session)
+
+        try await sftp.writeFile("perm-test.txt", data: Array("x".utf8))
+        try await sftp.setPermissions("perm-test.txt", mode: 0o600)
+
+        let diskPath = server.sftpRoot + "/perm-test.txt"
+        let attrs = try FileManager.default.attributesOfItem(atPath: diskPath)
+        let mode = (attrs[.posixPermissions] as? NSNumber)?.uint16Value ?? 0
+        XCTAssertEqual(mode & 0o777, 0o600)
 
         await sftp.close()
         await session.close()
