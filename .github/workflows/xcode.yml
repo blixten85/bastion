@@ -15,6 +15,8 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
 
       # macos-26-imagens standard-Xcode kan bytas ut under oss vid en framtida
       # runner-uppdatering — pinnar explicit till den version som är
@@ -53,6 +55,8 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
       - name: Välj Xcode 26.4.1
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
