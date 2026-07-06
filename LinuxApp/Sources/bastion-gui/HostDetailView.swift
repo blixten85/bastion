@@ -12,6 +12,7 @@ struct HostDetailView: View {
     @State private var showSnippets = false
     @State private var showCommandLibrary = false
     @State private var showSFTPBrowser = false
+    @State private var showPortForward = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -26,6 +27,7 @@ struct HostDetailView: View {
                     Button("Snippets") { showSnippets = true }
                     Button("Bibliotek") { showCommandLibrary = true }
                     Button("Filer") { showSFTPBrowser = true }
+                    Button("Tunnlar") { showPortForward = true }
                 }
             }
 
@@ -51,6 +53,9 @@ struct HostDetailView: View {
         }
         .sheet(isPresented: $showSFTPBrowser) {
             SFTPBrowserView(host: host, password: resolvedPassword)
+        }
+        .sheet(isPresented: $showPortForward) {
+            PortForwardView(host: host, password: resolvedPassword)
         }
     }
 

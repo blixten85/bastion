@@ -48,6 +48,7 @@ delvis andra, av konkreta skäl:
 | Linux-GUI (`bastion-gui`, SwiftCrossUI/GTK4) | ✅ byggd och körd (Xvfb) + egen CI-lane (`linux-gui.yml`, required check) |
 | Linux-terminal (VT100/ANSI-tolk, bestående PTY-shell) | ✅ 17 fristående parser-tester gröna, körd (Xvfb) — radvis input (ingen rå key-API i SwiftCrossUI) |
 | Linux-Docker-hantering (`DockerView`) | ✅ lista/start/stopp/omstart/logg/shell — motsvarar `App/DockerView.swift` |
+| Linux-portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa, byggd+körd (Xvfb) — ingen App/-motsvarighet än |
 
 ## Nästa steg (i ordning)
 
@@ -293,8 +294,18 @@ Inget nytt att bygga, bara verifiera/lansera:
     Fix: handskakningshandlern vidarebefordrar (`context.fireChannelRead`)
     istället för att droppa allt som kommer in efter att den en gång blivit
     klar — oavsett om den formellt redan borttagen ur pipelinen eller inte.
-  - **Kvar**: ingen GUI-yta (App/LinuxApp) för `-L`/`-R`/`-D` än — bara
-    `bastion-cli` kan starta/stoppa en tunnel hittills.
+  - **LinuxApp-GUI** (2026-07-06, `PortForwardView.swift`): ✅ klart, ny
+    "Tunnlar"-knapp i `HostDetailView`. Väljer typ (lokal/fjärr/dynamisk) via
+    `Picker`, fält för bindport + mål (mål döljs för dynamisk — SOCKS-
+    klienten väljer det per anslutning), lista över aktiva tunnlar med
+    "Stoppa"-knapp per rad. En delad `SSHSession` per vy-instans (samma
+    mönster som `DockerModel`), stänger alla aktiva tunnlar + sessionen vid
+    `onDisappear`. Byggd och körd (Xvfb) med Swift 6.5-dev-snapshot-
+    toolchainen (se README "Bygg Linux-GUI:t" för varför stabil 6.1.3
+    kraschar på ett känt, öppet kompilatorfel — inte relaterat till den
+    här koden).
+  - **Kvar**: App/-yta (iOS/macOS, Xcode-only — kan inte byggas/verifieras
+    här) helt saknas för `-L`/`-R`/`-D`.
 - **Face ID/Touch ID-app-lås** — ✅ klart i App/. `AppLockManager` (LocalAuthentication,
   `.deviceOwnerAuthentication` — Face ID/Touch ID/lösenkod-fallback), låser vid
   bakgrund (`scenePhase`), egen inställningsyta (menyn i värdlistan, av som

@@ -140,6 +140,7 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   SnippetEditView.swift  Lägg till/ändra ett snippet — motsvarar App/SnippetEditView.swift
   CommandLibraryView.swift Bläddra referensbiblioteket — motsvarar App/CommandLibraryView.swift
   SFTPBrowserView.swift  SFTP-filhanterare (modell + vy i samma fil) — motsvarar App/SFTPBrowser{Model,View}.swift
+  PortForwardView.swift  Portvidarebefordran (lokal/fjärr/dynamisk -L/-R/-D), starta/stoppa — ingen App/-motsvarighet än
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
 WindowsApp/            EGET SwiftPM-paket, samma mönster som LinuxApp/ — WinUIBackend istället för GtkBackend
   Package.swift          .package(path: "..") mot roten för SSHCore, + SwiftCrossUI/WinUIBackend
