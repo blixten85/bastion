@@ -95,7 +95,15 @@ public struct WireGuardConfig: Sendable, Equatable {
         }
 
         for rawLine in text.split(whereSeparator: { $0 == "\n" || $0 == "\r" }) {
-            let withoutComment = rawLine.split(separator: "#", maxSplits: 1).first.map(String.init) ?? ""
+            // omittingEmptySubsequences: false är nödvändigt — annars tappas
+            // den TOMMA prefixen på en rad som BÖRJAR med "#" (t.ex. en
+            // helt utkommenterad "#Address = ..."), och split(...).first
+            // skulle då plocka ut det som kommer EFTER "#" istället för att
+            // korrekt ge en tom rad (CodeRabbit-fynd, PR #79, bevisat med
+            // ett körbart Swift-exempel i granskningskommentaren).
+            let withoutComment = rawLine
+                .split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+                .first.map(String.init) ?? ""
             let line = withoutComment.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty else { continue }
 

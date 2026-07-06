@@ -67,6 +67,20 @@ final class WireGuardConfigTests: XCTestCase {
         XCTAssertEqual(parsed.interface.privateKey, "abc123=")
     }
 
+    /// CodeRabbit-fynd, PR #79: en rad som BÖRJAR med "#" (en helt
+    /// utkommenterad nyckel, t.ex. från en användare som tillfälligt
+    /// stängt av en Address-rad) fick tidigare sin ledande tomma sträng
+    /// tappad av `split(separator: "#", maxSplits: 1)` (default
+    /// `omittingEmptySubsequences: true`) — resultatet blev att texten
+    /// EFTER "#" felaktigt tolkades som aktiv config istället för att
+    /// ignoreras som en kommentar.
+    func testLeadingHashCommentLineIsIgnoredNotParsedAsActiveConfig() {
+        let text = "[Interface]\n#Address = 10.0.0.99/32\nPrivateKey = x\n"
+        let config = WireGuardConfig(text: text)
+        XCTAssertTrue(config.interface.address.isEmpty)
+        XCTAssertEqual(config.interface.privateKey, "x")
+    }
+
     func testRoundTripThroughRenderedPreservesAllFields() {
         let original = WireGuardConfig(text: sample)
         let rerendered = WireGuardConfig(text: original.rendered())
