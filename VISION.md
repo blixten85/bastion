@@ -265,6 +265,27 @@ inte fler protokollfunktioner för sin egen skull.
 uppfattas som en kopia av Termius — se "Design"-avsnittet ovan (redan i
 originalvisionen: "Inte kopiera Termius").
 
+### Plattformar (tillägg, 2026-07-06)
+
+- **tvOS** — tillagd i Fas C-backloggen. Billigt att lägga till (samma
+  Xcode-projekt, samma SwiftUI-kod, samma Apple-utvecklarkonto som redan
+  är på gång) och en riktig differentiator — ingen av konkurrenterna ovan
+  har en tvOS-app. Scopas som en dashboard-/Docker-vy, INTE en fullt
+  interaktiv terminal — att skriva SSH-kommandon med en Apple TV-fjärrkontroll
+  är en usel upplevelse, men systemstatus/containrar på storbild är
+  användbart (bygger vidare på Dashboard/Docker-vyerna som redan finns).
+- **Android** — kvarstår i backloggen som ett stort, separat initiativ
+  (inte närmast i tur). SSHCore är ren Swift; en Android-app skulle kräva
+  antingen Skip (SwiftUI→Kotlin/Compose-transpilering) eller en helt
+  separat Kotlin-app som pratar med kärnan på något sätt — en annan
+  kostnadsnivå än tvOS. Termius har redan en Android-app, så det är
+  paritet snarare än differentiering (fast "gratis för alltid" håller
+  som vinkel även där).
+- **Övriga smart-TV-plattformar** (Tizen/webOS/Roku m.fl.) — medvetet
+  bortvalda. Egna, icke-Swift-ekosystem utan någon kodåteranvändning alls
+  — en separat omskrivning per plattform, för stort scope för ett
+  soloprojekt.
+
 ### Nya funktionsidéer (inte i originalvisionen)
 
 - **Port Forwarding** (lokal `-L`, fjärr `-R`, dynamisk `-D`) — en av
