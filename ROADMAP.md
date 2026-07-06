@@ -189,16 +189,40 @@ Inget nytt att bygga, bara verifiera/lansera:
   Developer Program köpt, CI-vägen förberedd, väntar på kontoverifiering).
 
 ### Fas B — UX-paritet med Termius (det folk betalar för idag)
-- **Port Forwarding**: 🧩 **lokal (`-L`) klar i SSHCore** —
-  `SSHSession.openLocalPortForward(bindHost:bindPort:targetHost:targetPort:)`,
-  en lokal TCP-lyssnare som bryggar varje ansluten klient till en egen
-  `direct-tcpip`-SSH-kanal (`GlueHandler`, kopierad från swift-nio-ssh:s eget
-  exempel — inte del av det publika biblioteket). Testad end-to-end mot
-  loopback-testservern (riktig TCP-socket → SSH-kanal → eko → tillbaka).
-  **Kvar**: fjärr (`-R`) och dynamisk (`-D`, SOCKS) inte påbörjat; ingen
-  CLI-/UI-koppling än (varken `bastion-cli`, App/ eller LinuxApp) — kärnan
-  går att anropa programmatiskt men har ingen yta att starta/stoppa en
-  tunnel från än.
+- **Port Forwarding**: 🧩 **lokal (`-L`) OCH fjärr (`-R`) klara i SSHCore**.
+  - Lokal: `SSHSession.openLocalPortForward(bindHost:bindPort:targetHost:targetPort:)`,
+    en lokal TCP-lyssnare som bryggar varje ansluten klient till en egen
+    `direct-tcpip`-SSH-kanal. `close()` stänger både lyssnaren och alla
+    aktiva tunnlar (CodeRabbit-fynd, PR #25/#61, se "Klart").
+  - Fjärr (2026-07-06): `SSHSession.openRemotePortForward(bindHost:bindPort:targetHost:targetPort:)`
+    — ber servern lyssna åt oss (`sendTCPForwardingRequest(.listen(...))`,
+    ett globalt SSH-request, inte en kanal). Servern öppnar en
+    `forwarded-tcpip`-kanal TILLBAKA till oss för varje anslutning; en
+    delad, trådsäker tabell (`SSHSession.remoteForwards`, keyad på port)
+    dirigerar varje inkommen kanal till rätt lokal `targetHost:targetPort`
+    via `handleInboundForwardedChannel` (satt som `inboundChildChannelInitializer`
+    vid `connect()`). Samma `GlueHandler`/`DirectTCPIPWrapperHandler` som
+    lokal vidarebefordran, bara i motsatt riktning.
+    Testservern (`LoopbackServer`) fick en riktig `GlobalRequestDelegate`-
+    implementation (`ServerRemoteForwardingDelegate`/`ServerRemoteForwarder`,
+    baserad på swift-nio-ssh:s eget `NIOSSHServer`-exempel) för att kunna
+    bevisa hela vägen end-to-end (riktig extern TCP-anslutning → servern →
+    SSH → klienten → riktig lokal TCP-ekoserver → samma väg tillbaka), inte
+    bara en förenklad eko-kortslutning.
+    **3 riktiga buggar hittade under just den här verifieringen** (skulle
+    inte synts utan ett genuint end-to-end-test): (1) `DirectTCPIPWrapperHandler`
+    sattes på fel kanal i `handleInboundForwardedChannel` (lokala TCP-
+    anslutningen istället för SSH-kanalen) — kraschade direkt så fort riktig
+    data flödade igenom. (2) `sendTCPForwardingRequest` är dokumenterat
+    "inte trådsäker, får bara anropas på kanalens egen event loop", men en
+    `async`-fortsättning garanterar inte det — måste skickas in explicit via
+    `channel.eventLoop.execute { ... }` i både `openRemotePortForward` och
+    `close()`. (3) Testserverns `stopListening()` kraschade med NIOs egen
+    "BUG DETECTED"-skydd mot att anropa `.wait()` på en event loop-tråd.
+  - **Kvar**: dynamisk (`-D`, SOCKS) inte påbörjat; ingen CLI-/UI-koppling
+    för `-R` än (bara `-L` har det, i `bastion-cli`) — kärnan går att
+    anropa programmatiskt men har ingen yta att starta/stoppa en fjärrtunnel
+    från än, varken CLI eller GUI.
 - **Face ID/Touch ID-app-lås** — ✅ klart i App/. `AppLockManager` (LocalAuthentication,
   `.deviceOwnerAuthentication` — Face ID/Touch ID/lösenkod-fallback), låser vid
   bakgrund (`scenePhase`), egen inställningsyta (menyn i värdlistan, av som

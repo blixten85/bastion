@@ -20,6 +20,15 @@ public final class SSHSession {
     private var fatalResolved = false
     var channel: Channel?
 
+    // Fjärr-portvidarebefordran (ssh -R): servern öppnar en "forwarded-tcpip"-
+    // kanal MOT klienten när någon ansluter till den fjärrport som begärts.
+    // inboundChildChannelInitializer sätts en gång vid connect() (innan någon
+    // openRemotePortForward()-anrop kan ha hunnit ske), så routningen måste gå
+    // via en delad, trådsäker tabell istället för att fångas direkt i closuren.
+    // Keyad enbart på port (inte host) — tillräckligt för det vanliga fallet
+    // av en vidarebefordran per port, se PortForward.swift.
+    let remoteForwards = NIOLockedValueBox<[Int: (targetHost: String, targetPort: Int)]>([:])
+
     public init(target: SSHTarget, auth: SSHAuth, knownHosts: KnownHosts = KnownHosts()) {
         self.target = target
         self.auth = auth
@@ -50,14 +59,18 @@ public final class SSHSession {
             self?.signalFatal(SSHError.hostKeyRejected(info))
         }
         let bootstrap = ClientBootstrap(group: group)
-            .channelInitializer { channel in
+            .channelInitializer { [weak self] channel in
                 channel.pipeline.addHandlers([
                     NIOSSHHandler(
                         role: .client(.init(
                             userAuthDelegate: userAuth,
                             serverAuthDelegate: validator)),
                         allocator: channel.allocator,
-                        inboundChildChannelInitializer: nil)
+                        inboundChildChannelInitializer: { inboundChannel, channelType in
+                            self?.handleInboundForwardedChannel(inboundChannel, channelType: channelType)
+                                ?? inboundChannel.eventLoop.makeFailedFuture(
+                                    SSHError.channelFailed("sessionen är borta"))
+                        })
                 ])
             }
             .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
