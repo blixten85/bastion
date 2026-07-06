@@ -94,6 +94,44 @@ delvis andra, av konkreta skäl:
 
 ## Klart
 
+- **Nyckelgenerering + export + fjärr-deploy till authorized_keys** (2026-07-06,
+  `KeyManagement.swift`/`SSHKeyParser.swift`): kärnan för ett fullständigt
+  "generera-nyckel-och-byt-bort-lösenord"-flöde.
+  - `KeyGenerator.generateEd25519(comment:)` — ett helt nytt, slumpmässigt
+    Ed25519-nyckelpar (`Curve25519.Signing.PrivateKey()`, samma
+    `NIOSSHPrivateKey`-inpackning som redan användes för host-nycklar).
+  - `OpenSSHPrivateKey.export(seed:comment:)` — skriver en okrypterad
+    Ed25519-nyckel i riktigt OpenSSH-filformat (samma format `ssh-keygen`
+    skapar), inversen av den redan befintliga `parse`-funktionen. Verifierad
+    dubbelt: rundresa genom den egna (redan bevisade) decodern, OCH ett
+    riktigt `ssh-keygen -y -f`-anrop mot den exporterade filen — den faktiska,
+    kanoniska implementationen läser vår fil och räknar ut exakt samma
+    publika nyckel, inte bara vår egen kod som testar sig själv.
+  - `SSHSession.deployPublicKey(_:)` — lägger till en publik nyckelrad i
+    fjärrsidans `~/.ssh/authorized_keys` över en redan autentiserad session
+    (idempotent: `mkdir -p`/`chmod`/`grep -qxF || echo >>`, aldrig
+    dubblettrader). Kommentaren (fri text) är inte ett smalt validerbart
+    format som `DockerService`s namn-allowlist, så en riktig `shellQuoted`-
+    escaping används istället — testad mot en RIKTIG `/bin/sh`-subprocess
+    (inte bara egen escape-logik mot sig själv), inklusive skalmetatecken
+    (`$() \`` ; & | > < \`) och en injektionsförsöks-sträng.
+  - `SSHSession.verifyKeyAuthWorks(target:seed:knownHosts:)` — en tyst,
+    separat anslutning med den nya nyckeln, stänger direkt utan att köra
+    något kommando. Testad end-to-end mot `LoopbackServer` (lyckas) och mot
+    en onåbar host (misslyckas rent, ingen hängning).
+  - **OBS, viktig gräns just nu**: `deployPublicKey`s kommando antar en
+    POSIX-shell (`mkdir -p`/`chmod`) — INTE testat mot en riktig fjärrserver
+    än (testservern `LoopbackServer`s exec-hantering är en attrapp som bara
+    ekar tillbaka en kanad sträng, kör aldrig riktiga kommandon). En riktig
+    Windows-server (annan skalsyntax, annan authorized_keys-sökväg) skulle
+    kräva en separat variant. Nästa steg: verifiera mot en riktig Linux-VPS
+    (och ev. Windows) när uppkopplingsuppgifter finns tillgängliga.
+  - **Kvar**: App/LinuxApp-yta helt saknas — generera/importera/exportera-
+    knappar, "byt ut lösenord mot nyckel"-flödet (deploy + tyst verifiering
+    + checkbox/toggle för att ta bort lösenordet ur Bastions EGEN lagring,
+    aldrig fjärrserverns faktiska auth-konfiguration — se
+    [[feedback_password_removal_scope]] för resonemanget), samt Keychain-
+    borttagningen av det gamla lösenordet efter grönt ljus.
 - **App-ikon + launch screen**: `App/Assets.xcassets` (genererad från en SVG med
   `rsvg-convert`, opak PNG utan alfakanal enligt Apples krav — alla iOS- och
   macOS-storlekar) + en mörk `LaunchBackground`-färg som matchar ikonen.

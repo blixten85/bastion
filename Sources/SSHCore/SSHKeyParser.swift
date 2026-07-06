@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 
 public enum SSHKeyError: Error, Sendable {
@@ -51,6 +52,57 @@ public enum OpenSSHPrivateKey {
         let pem = try String(contentsOfFile: path, encoding: .utf8)
         return try parse(pem)
     }
+
+    /// Bygger en okrypterad Ed25519-nyckel i OpenSSH-filformat (samma format
+    /// `ssh-keygen` skriver) — inversen av `parse` ovan, byte för byte samma
+    /// struktur. Enda vägen att verifiera en encoder utan en referens-
+    /// implementation att jämföra mot är att bevisa att den egna decodern
+    /// (redan skriven, redan bevisad mot riktiga `ssh-keygen`-nycklar) läser
+    /// tillbaka exakt samma frö — se `SSHKeyParserTests`s round-trip-test.
+    public static func export(seed: Data, comment: String = "") throws -> String {
+        guard seed.count == 32 else { throw SSHKeyError.malformed }
+        let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
+        let publicKey = Array(privateKey.publicKey.rawRepresentation)
+
+        var pub = ByteWriter()
+        pub.writeString(Array("ssh-ed25519".utf8))
+        pub.writeString(publicKey)
+
+        var priv = ByteWriter()
+        let checkint = UInt32.random(in: .min ... .max)
+        priv.writeU32(checkint)
+        priv.writeU32(checkint)
+        priv.writeString(Array("ssh-ed25519".utf8))
+        priv.writeString(publicKey)
+        priv.writeString(Array(seed) + publicKey)
+        priv.writeString(Array(comment.utf8))
+        // Utfyllnad till ett multipel av 8 (blockstorleken för "none"-chiffret)
+        // — OpenSSH-formatet kräver 1,2,3,... som utfyllnadsbytes, inte nollor.
+        var padByte: UInt8 = 1
+        while priv.bytes.count % 8 != 0 {
+            priv.bytes.append(padByte)
+            padByte += 1
+        }
+
+        var whole = ByteWriter()
+        whole.bytes.append(contentsOf: Array("openssh-key-v1".utf8) + [0])
+        whole.writeString(Array("none".utf8))       // ciphername
+        whole.writeString(Array("none".utf8))       // kdfname
+        whole.writeString([])                       // kdfoptions
+        whole.writeU32(1)                           // antal nycklar
+        whole.writeString(pub.bytes)
+        whole.writeString(priv.bytes)
+
+        let base64 = Data(whole.bytes).base64EncodedString()
+        let lines = stride(from: 0, to: base64.count, by: 70).map { start -> Substring in
+            let s = base64.index(base64.startIndex, offsetBy: start)
+            let e = base64.index(s, offsetBy: 70, limitedBy: base64.endIndex) ?? base64.endIndex
+            return base64[s..<e]
+        }
+        return "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+            + lines.joined(separator: "\n")
+            + "\n-----END OPENSSH PRIVATE KEY-----\n"
+    }
 }
 
 /// Minimal läsare för SSH:s binära wire-format (uint32-längd + bytes, big-endian).
@@ -82,5 +134,23 @@ private struct ByteReader {
 
     mutating func expect(_ magic: [UInt8]) throws {
         guard try readBytes(magic.count) == magic else { throw SSHKeyError.notOpenSSHFormat }
+    }
+}
+
+/// Inversen av `ByteReader` — bygger SSH:s binära wire-format (uint32-längd
+/// + bytes, big-endian).
+private struct ByteWriter {
+    var bytes: [UInt8] = []
+
+    mutating func writeU32(_ value: UInt32) {
+        bytes.append(UInt8((value >> 24) & 0xFF))
+        bytes.append(UInt8((value >> 16) & 0xFF))
+        bytes.append(UInt8((value >> 8) & 0xFF))
+        bytes.append(UInt8(value & 0xFF))
+    }
+
+    mutating func writeString(_ value: [UInt8]) {
+        writeU32(UInt32(value.count))
+        bytes.append(contentsOf: value)
     }
 }
