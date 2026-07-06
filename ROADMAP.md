@@ -219,10 +219,13 @@ Inget nytt att bygga, bara verifiera/lansera:
     `channel.eventLoop.execute { ... }` i både `openRemotePortForward` och
     `close()`. (3) Testserverns `stopListening()` kraschade med NIOs egen
     "BUG DETECTED"-skydd mot att anropa `.wait()` på en event loop-tråd.
-  - **Kvar**: dynamisk (`-D`, SOCKS) inte påbörjat; ingen CLI-/UI-koppling
-    för `-R` än (bara `-L` har det, i `bastion-cli`) — kärnan går att
-    anropa programmatiskt men har ingen yta att starta/stoppa en fjärrtunnel
-    från än, varken CLI eller GUI.
+  - **CLI-koppling för `-R`** (2026-07-06): ✅ klart i `bastion-cli`, symmetriskt
+    med `-L` (samma `[bindHost:]bindPort:targetHost:targetPort`-syntax,
+    samma `LocalForwardSpec`-parser återanvänd rakt av). `bastion-cli -R ...`
+    öppnar fjärrtunneln, väntar på Ctrl+C, stänger rent.
+  - **Kvar**: dynamisk (`-D`, SOCKS) inte påbörjat; ingen GUI-yta (App/
+    LinuxApp) för `-L`/`-R` än — bara `bastion-cli` kan starta/stoppa en
+    tunnel hittills.
 - **Face ID/Touch ID-app-lås** — ✅ klart i App/. `AppLockManager` (LocalAuthentication,
   `.deviceOwnerAuthentication` — Face ID/Touch ID/lösenkod-fallback), låser vid
   bakgrund (`scenePhase`), egen inställningsyta (menyn i värdlistan, av som
