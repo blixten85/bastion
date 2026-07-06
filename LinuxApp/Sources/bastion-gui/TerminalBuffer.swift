@@ -166,20 +166,78 @@ final class TerminalBuffer: ObservableObject {
         }
     }
 
+    /// 256-färgspaletten (SGR `38;5;n`/`48;5;n`): 0-15 är samma som
+    /// standard-/ljusa ANSI-färgerna, 16-231 är en 6×6×6-RGB-kub, 232-255 är
+    /// en gråskale-ramp — samma indelning som xterm och alla vanliga
+    /// terminalemulatorer använder.
+    private static func color256(_ n: Int) -> Color {
+        switch n {
+        case 0..<8: return ansiPalette[n]
+        case 8..<16: return ansiPalette[n]
+        case 16..<232:
+            let i = n - 16
+            let steps: [Double] = [0, 95, 135, 175, 215, 255]
+            let r = steps[(i / 36) % 6] / 255
+            let g = steps[(i / 6) % 6] / 255
+            let b = steps[i % 6] / 255
+            return Color(red: r, green: g, blue: b)
+        default:
+            let level = 8 + (n - 232) * 10
+            let v = Double(min(level, 255)) / 255
+            return Color(red: v, green: v, blue: v)
+        }
+    }
+
+    /// Läser en 256-färg- (`5;n`) eller True Color- (`2;r;g;b`) sekvens ur
+    /// `params` från och med index `i` (som pekar på `38`/`48`). Returnerar
+    /// färgen och hur många ytterligare parametrar som konsumerades, eller
+    /// `nil` om sekvensen är trasig/ofullständig (params slut i förtid) —
+    /// då hoppas resten av den enskilda SGR-sekvensen bara över istället för
+    /// att krascha på ett array-index utanför gränserna.
+    private static func extendedColor(_ params: [Int], from i: Int) -> (Color, Int)? {
+        guard i + 1 < params.count else { return nil }
+        switch params[i + 1] {
+        case 5:
+            guard i + 2 < params.count else { return nil }
+            return (color256(params[i + 2]), 2)
+        case 2:
+            guard i + 4 < params.count else { return nil }
+            let r = Double(params[i + 2]) / 255
+            let g = Double(params[i + 3]) / 255
+            let b = Double(params[i + 4]) / 255
+            return (Color(red: r, green: g, blue: b), 4)
+        default:
+            return nil
+        }
+    }
+
     private func applySGR(_ params: [Int]) {
-        for p in params {
+        var i = 0
+        while i < params.count {
+            let p = params[i]
             switch p {
             case 0: currentFg = nil; currentBg = nil; currentBold = false
             case 1: currentBold = true
             case 22: currentBold = false
             case 30...37: currentFg = Self.ansiPalette[p - 30]
+            case 38:
+                if let (color, consumed) = Self.extendedColor(params, from: i) {
+                    currentFg = color
+                    i += consumed
+                }
             case 39: currentFg = nil
             case 40...47: currentBg = Self.ansiPalette[p - 40]
+            case 48:
+                if let (color, consumed) = Self.extendedColor(params, from: i) {
+                    currentBg = color
+                    i += consumed
+                }
             case 49: currentBg = nil
             case 90...97: currentFg = Self.ansiPalette[8 + (p - 90)]
             case 100...107: currentBg = Self.ansiPalette[8 + (p - 100)]
             default: break // kursiv/understrykning m.m. — ignoreras i v1
             }
+            i += 1
         }
     }
 }
