@@ -28,6 +28,12 @@ final class KeyDeployModel: ObservableObject {
     }
 
     func generate() {
+        // Busy-vakten hindrar att en pågående deployAndVerify() jobbar mot
+        // en nyckel som hunnit bytas ut under tiden (CodeRabbit-fynd, PR #73)
+        // — annars kunde ett SENT lyckat verifieringssvar för den GAMLA
+        // nyckeln råka sätta `verified = true` efter att `generatedKey`
+        // redan pekar på en NY, aldrig deployad/verifierad nyckel.
+        guard !busy else { return }
         generatedKey = KeyGenerator.generateEd25519(comment: comment)
         deployed = false
         verified = false
@@ -37,6 +43,9 @@ final class KeyDeployModel: ObservableObject {
     func deployAndVerify() async {
         guard let key = generatedKey else { return }
         busy = true
+        deployed = false
+        verified = false
+        statusMessage = nil
         defer { busy = false }
         guard let auth = resolveAuth(for: host, password: password) else {
             statusMessage = "Kan inte autentisera värden."
@@ -45,8 +54,18 @@ final class KeyDeployModel: ObservableObject {
         let session = SSHSession(target: host.target, auth: auth)
         do {
             try await session.connect()
-            try await session.deployPublicKey(key.publicKeyLine, platform: host.platform)
+            // Sessionen ska stängas oavsett om deployPublicKey lyckas eller
+            // kastar — annars läcker en öppen SSH-anslutning vid fel
+            // (CodeRabbit-fynd, PR #73: close() nåddes aldrig på felvägen).
+            let deployResult: Result<Void, Error>
+            do {
+                try await session.deployPublicKey(key.publicKeyLine, platform: host.platform)
+                deployResult = .success(())
+            } catch {
+                deployResult = .failure(error)
+            }
             await session.close()
+            try deployResult.get()
             deployed = true
         } catch {
             statusMessage = "Deploy misslyckades: \(error)"
@@ -55,6 +74,14 @@ final class KeyDeployModel: ObservableObject {
 
         let ok = await SSHSession.verifyKeyAuthWorks(
             target: host.target, seed: key.seed, knownHosts: KnownHosts())
+        // `generate()` kan inte köra medan `busy` är sant (se guarden ovan),
+        // men kontrollen här är ändå den definitiva garantin: verifierings-
+        // resultatet gäller bara om det fortfarande är SAMMA nyckel som
+        // `generatedKey` pekar på.
+        guard generatedKey?.publicKeyLine == key.publicKeyLine else {
+            statusMessage = "Nyckeln ändrades under verifieringen. Kör deploy + verifiera igen."
+            return
+        }
         verified = ok
         statusMessage = ok
             ? "Nyckeln verifierad — fungerar."
@@ -116,7 +143,10 @@ struct KeyDeployView: View {
             HStack {
                 Button(model.generatedKey == nil ? "Generera nyckel" : "Generera ny nyckel") {
                     model.generate()
+                    switchAuthAfterVerify = false
+                    saveError = nil
                 }
+                .disabled(model.busy)
                 if model.generatedKey != nil {
                     Button(model.busy ? "Arbetar…" : "Deploya + verifiera") {
                         Task { await model.deployAndVerify() }
