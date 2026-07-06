@@ -390,6 +390,89 @@ final class ServerDirectTCPIPEchoHandler: ChannelDuplexHandler {
     }
 }
 
+/// Server-sidans stöd för fjärr-portvidarebefordran (`ssh -R`) i test: en
+/// generisk vidarebefordrare (inte en fejk-eko som `ServerDirectTCPIPEchoHandler`
+/// ovan) — binder en riktig lokal lyssnare och bryggar varje accepterad
+/// anslutning mot en `forwarded-tcpip`-SSH-kanal tillbaka till klienten, precis
+/// som en riktig SSH-server. Baserad på swift-nio-ssh:s eget exempel
+/// (`Sources/NIOSSHServer/RemotePortForwarding.swift`, Apache 2.0) men
+/// återanvänder Bastions egen `DirectTCPIPWrapperHandler` istället för deras
+/// `DataToBufferCodec`.
+final class ServerRemoteForwarder {
+    private let inboundSSHHandler: NIOSSHHandler
+    private var listenerChannel: Channel?
+
+    init(inboundSSHHandler: NIOSSHHandler) {
+        self.inboundSSHHandler = inboundSSHHandler
+    }
+
+    func beginListening(on host: String, port: Int, loop: EventLoop) -> EventLoopFuture<Int?> {
+        let sshHandler = self.inboundSSHHandler
+        return ServerBootstrap(group: loop)
+            .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+            .childChannelInitializer { childChannel in
+                childChannel.eventLoop.makeCompletedFuture {
+                    let (ours, theirs) = GlueHandler.matchedPair()
+                    let promise = loop.makePromise(of: Channel.self)
+                    sshHandler.createChannel(
+                        promise,
+                        channelType: .forwardedTCPIP(
+                            .init(
+                                listeningHost: host,
+                                listeningPort: childChannel.localAddress!.port!,
+                                originatorAddress: childChannel.remoteAddress!
+                            )
+                        )
+                    ) { sshChildChannel, _ in
+                        sshChildChannel.eventLoop.makeCompletedFuture {
+                            try sshChildChannel.pipeline.syncOperations.addHandler(DirectTCPIPWrapperHandler())
+                            try sshChildChannel.pipeline.syncOperations.addHandler(theirs)
+                        }
+                    }
+                    try childChannel.pipeline.syncOperations.addHandler(ours)
+                }
+            }
+            .bind(host: host, port: port)
+            .map { channel in
+                self.listenerChannel = channel
+                return port == 0 ? channel.localAddress?.port : nil
+            }
+    }
+
+    func stopListening() {
+        // wait() kraschar med "BUG DETECTED" om den anropas på en event loop-
+        // tråd, vilket den här metoden alltid gör (kallas synkront från
+        // tcpForwardingRequest()s .cancel-gren). Best-effort, inget att
+        // invänta i test.
+        _ = listenerChannel?.close()
+    }
+}
+
+final class ServerRemoteForwardingDelegate: GlobalRequestDelegate {
+    // Testservern tolererar bara en bunden port åt gången — tillräckligt för
+    // testerna, ingen riktig produktionsbegränsning.
+    private var forwarder: ServerRemoteForwarder?
+
+    func tcpForwardingRequest(
+        _ request: GlobalRequest.TCPForwardingRequest,
+        handler: NIOSSHHandler,
+        promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>
+    ) {
+        switch request {
+        case .listen(let host, let port):
+            let forwarder = ServerRemoteForwarder(inboundSSHHandler: handler)
+            self.forwarder = forwarder
+            forwarder.beginListening(on: host, port: port, loop: promise.futureResult.eventLoop)
+                .map { GlobalRequest.TCPForwardingResponse(boundPort: $0) }
+                .cascade(to: promise)
+        case .cancel:
+            forwarder?.stopListening()
+            forwarder = nil
+            promise.succeed(GlobalRequest.TCPForwardingResponse(boundPort: nil))
+        }
+    }
+}
+
 struct LoopbackServer {
     let group: MultiThreadedEventLoopGroup
     let channel: Channel
@@ -409,7 +492,8 @@ struct LoopbackServer {
                     NIOSSHHandler(
                         role: .server(.init(
                             hostKeys: [hostKey],
-                            userAuthDelegate: ServerAuth(password: password))),
+                            userAuthDelegate: ServerAuth(password: password),
+                            globalRequestDelegate: ServerRemoteForwardingDelegate())),
                         allocator: channel.allocator,
                         inboundChildChannelInitializer: { child, channelType in
                             switch channelType {

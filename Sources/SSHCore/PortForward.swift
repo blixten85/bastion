@@ -138,3 +138,127 @@ extension SSHSession {
         )
     }
 }
+
+/// Ett aktivt fjärr-portvidarebefordran (`ssh -R bindPort:targetHost:targetPort`):
+/// servern lyssnar åt oss, och vidarebefordrar inkommande anslutningar till oss
+/// som `forwarded-tcpip`-kanaler, som vi i sin tur bryggar mot en lokal
+/// TCP-anslutning till `targetHost:targetPort` (sett från klientens sida, till
+/// skillnad från `LocalPortForward` där målet ligger på fjärrsidan).
+public final class RemotePortForward {
+    private weak var session: SSHSession?
+    public let bindHost: String
+    /// Porten som begärdes (kan vara 0 = "valfri ledig port hos servern").
+    public let bindPort: Int
+    /// Porten servern faktiskt band — samma som `bindPort` om den inte var 0.
+    public let actualBindPort: Int
+    public let targetHost: String
+    public let targetPort: Int
+
+    init(session: SSHSession, bindHost: String, bindPort: Int, actualBindPort: Int, targetHost: String, targetPort: Int) {
+        self.session = session
+        self.bindHost = bindHost
+        self.bindPort = bindPort
+        self.actualBindPort = actualBindPort
+        self.targetHost = targetHost
+        self.targetPort = targetPort
+    }
+
+    /// Ber servern sluta vidarebefordra och tar bort routningen lokalt.
+    /// Best-effort (samma som `LocalPortForward.close()`s `try?`-mönster) —
+    /// om sessionen redan är stängd/borta finns inget att avbeställa.
+    public func close() async {
+        guard let session, let channel = session.channel else { return }
+        session.remoteForwards.withLockedValue { $0.removeValue(forKey: actualBindPort) }
+        guard let sshHandler = try? await channel.pipeline.handler(type: NIOSSHHandler.self).get() else { return }
+        let promise = channel.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
+        // sendTCPForwardingRequest är dokumenterat "inte trådsäker, får bara
+        // anropas på kanalens egen event loop" — en async-fortsättning
+        // garanterar INTE att vi fortfarande kör där, så själva anropet måste
+        // skickas in explicit via eventLoop.execute (kraschade annars med
+        // "Precondition failed" i assumeIsolatedUnsafeUnchecked).
+        channel.eventLoop.execute {
+            sshHandler.sendTCPForwardingRequest(.cancel(host: self.bindHost, port: self.actualBindPort), promise: promise)
+        }
+        _ = try? await promise.futureResult.get()
+    }
+}
+
+extension SSHSession {
+    /// Fjärr-portvidarebefordran, motsvarande `ssh -R bindPort:targetHost:targetPort`:
+    /// ber servern lyssna på `bindHost:bindPort` på sin sida. Varje anslutning
+    /// dit ger en `forwarded-tcpip`-kanal tillbaka till oss (dirigerad via
+    /// `remoteForwards`, se `handleInboundForwardedChannel`), som bryggas mot
+    /// en ny lokal TCP-anslutning till `targetHost:targetPort`.
+    public func openRemotePortForward(
+        bindHost: String = "0.0.0.0",
+        bindPort: Int,
+        targetHost: String,
+        targetPort: Int
+    ) async throws -> RemotePortForward {
+        guard let channel = self.channel else {
+            throw SSHError.channelFailed("inte ansluten")
+        }
+        let sshHandler: NIOSSHHandler
+        do {
+            sshHandler = try await channel.pipeline.handler(type: NIOSSHHandler.self).get()
+        } catch {
+            throw SSHError.channelFailed(String(describing: error))
+        }
+
+        let promise = channel.eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
+        // Se kommentaren i RemotePortForward.close() — samma icke-trådsäkra
+        // anrop, samma behov av att explicit köra på kanalens event loop.
+        channel.eventLoop.execute {
+            sshHandler.sendTCPForwardingRequest(.listen(host: bindHost, port: bindPort), promise: promise)
+        }
+        let response: GlobalRequest.TCPForwardingResponse?
+        do {
+            response = try await promise.futureResult.get()
+        } catch {
+            // Servern kan sakna stöd för fjärr-portvidarebefordran helt
+            // (AllowTcpForwarding no), eller ha avvisat begäran — samma
+            // felkategori som andra kanalfel, inget eget behövs.
+            throw SSHError.channelFailed(String(describing: error))
+        }
+
+        // Om bindPort var 0 ("valfri ledig port") berättar servern vilken
+        // port den faktiskt band i svaret — annars är det samma som begärt.
+        let actualBindPort = response?.boundPort ?? bindPort
+        remoteForwards.withLockedValue { $0[actualBindPort] = (targetHost: targetHost, targetPort: targetPort) }
+
+        return RemotePortForward(
+            session: self, bindHost: bindHost, bindPort: bindPort, actualBindPort: actualBindPort,
+            targetHost: targetHost, targetPort: targetPort
+        )
+    }
+
+    /// Kallas av `inboundChildChannelInitializer` (se `connect()`) för varje
+    /// kanal fjärrsidan öppnar mot oss. Bara `forwarded-tcpip` med en port som
+    /// finns i `remoteForwards` accepteras — allt annat avvisas.
+    func handleInboundForwardedChannel(_ inboundChannel: Channel, channelType: SSHChannelType) -> EventLoopFuture<Void> {
+        guard case .forwardedTCPIP(let info) = channelType else {
+            return inboundChannel.eventLoop.makeFailedFuture(
+                SSHError.channelFailed("oväntad kanaltyp för inkommande fjärrvidarebefordran"))
+        }
+        guard let target = remoteForwards.withLockedValue({ $0[info.listeningPort] }) else {
+            return inboundChannel.eventLoop.makeFailedFuture(
+                SSHError.channelFailed("ingen aktiv fjärrvidarebefordran för port \(info.listeningPort)"))
+        }
+
+        return ClientBootstrap(group: group)
+            .connect(host: target.targetHost, port: target.targetPort)
+            .flatMap { localChannel in
+                localChannel.eventLoop.makeCompletedFuture {
+                    // Wrappern hör hemma på SSH-kanalen (SSHChannelData-domän),
+                    // INTE den lokala TCP-anslutningen (redan rå ByteBuffer) —
+                    // fick dem omvända i ett tidigare försök, vilket kraschade
+                    // med "tried to decode as type ByteBuffer but found
+                    // SSHChannelData" så fort riktig data flödade igenom.
+                    let (ours, theirs) = GlueHandler.matchedPair()
+                    try localChannel.pipeline.syncOperations.addHandler(ours)
+                    try inboundChannel.pipeline.syncOperations.addHandler(DirectTCPIPWrapperHandler())
+                    try inboundChannel.pipeline.syncOperations.addHandler(theirs)
+                }
+            }
+    }
+}
