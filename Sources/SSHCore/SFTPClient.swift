@@ -275,6 +275,18 @@ public actor SFTPClient {
         try Self.expectOK(response)
     }
 
+    /// `mode`: POSIX-behörighetsbitar, t.ex. `0o644` eller `0o755` — samma
+    /// format som `chmod`. Ändrar bara behörigheter, rör inte ägare/grupp
+    /// (SFTP version 3 har inget separat "chown"-fält utanför UID/GID i
+    /// samma SETSTAT-anrop, vilket kräver numeriska ID:n servern måste känna
+    /// till — inte byggt än, se ROADMAP).
+    public func setPermissions(_ path: String, mode: UInt32) async throws {
+        let id = nextID()
+        let response = try await request(
+            SFTPRequest.setstat(id: id, path: path, attributes: SFTPFileAttributes(permissions: mode)), id: id)
+        try Self.expectOK(response)
+    }
+
     public func stat(_ path: String) async throws -> SFTPFileAttributes {
         let id = nextID()
         let response = try await request(SFTPRequest.stat(id: id, path: path), id: id)

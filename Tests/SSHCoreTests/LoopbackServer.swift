@@ -360,7 +360,19 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
                 sendStatus(id: id, code: .failure, message: "\(error)", context: context)
             }
 
-        case .setstat, .fsetstat, .fstat:
+        case .setstat:
+            guard let id: UInt32 = payload.readInteger(), let path = try? payload.readSFTPString() else { return }
+            do {
+                let attrs = try SFTPFileAttributes.decode(from: &payload)
+                if let mode = attrs.permissions {
+                    try fm.setAttributes([.posixPermissions: mode], ofItemAtPath: diskPath(for: path))
+                }
+                sendStatus(id: id, code: .ok, context: context)
+            } catch {
+                sendStatus(id: id, code: .failure, message: "\(error)", context: context)
+            }
+
+        case .fsetstat, .fstat:
             guard let id: UInt32 = payload.readInteger() else { return }
             sendStatus(id: id, code: .opUnsupported, context: context)
 

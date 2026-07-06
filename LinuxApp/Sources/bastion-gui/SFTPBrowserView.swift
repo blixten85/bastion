@@ -150,6 +150,23 @@ final class SFTPBrowserModel: ObservableObject {
         }
     }
 
+    /// `mode`: oktal sträng utan `0o`-prefix, t.ex. "644"/"755" — samma
+    /// notation som `chmod` på kommandoraden, vilket är vad användaren
+    /// redan känner till.
+    func chmod(_ entry: SFTPNameEntry, mode: String) async {
+        guard let value = UInt32(mode, radix: 8) else {
+            errorMessage = "Ogiltig behörighet — ange tre oktala siffror, t.ex. 644."
+            return
+        }
+        guard let client = await ensureClient() else { return }
+        do {
+            try await client.setPermissions(joined(entry.filename), mode: value)
+            await refresh()
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
     func disconnect() {
         // Avbryter en ev. pågående anslutning — annars kan den hinna klart
         // EFTER städningen nedan och skriva tillbaka ett levande session/
@@ -173,6 +190,8 @@ struct SFTPBrowserView: View {
     @State private var newFolderName = ""
     @State private var showRename = false
     @State private var renameText = ""
+    @State private var showChmod = false
+    @State private var chmodText = ""
 
     init(host: Host, password: String?) {
         self._model = State(wrappedValue: SFTPBrowserModel(host: host, password: password))
@@ -235,12 +254,24 @@ struct SFTPBrowserView: View {
                         }
                         Button("Avbryt") { showRename = false }
                     }
+                } else if showChmod {
+                    HStack {
+                        TextField("Behörighet (t.ex. 644)", text: $chmodText)
+                        Button("Spara") {
+                            let mode = chmodText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            showChmod = false
+                            guard !mode.isEmpty else { return }
+                            Task { await model.chmod(selected, mode: mode) }
+                        }
+                        Button("Avbryt") { showChmod = false }
+                    }
                 } else {
                     HStack {
                         if selected.attributes.isDirectory {
                             Button("Öppna") { Task { await model.open(selected) } }
                         }
                         Button("Döp om") { renameText = selected.filename; showRename = true }
+                        Button("chmod") { chmodText = ""; showChmod = true }
                         Button("Ta bort") { Task { await model.delete(selected) } }
                     }
                 }
