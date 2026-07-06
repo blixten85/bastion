@@ -119,19 +119,32 @@ delvis andra, av konkreta skäl:
     separat anslutning med den nya nyckeln, stänger direkt utan att köra
     något kommando. Testad end-to-end mot `LoopbackServer` (lyckas) och mot
     en onåbar host (misslyckas rent, ingen hängning).
-  - **OBS, viktig gräns just nu**: `deployPublicKey`s kommando antar en
-    POSIX-shell (`mkdir -p`/`chmod`) — INTE testat mot en riktig fjärrserver
-    än (testservern `LoopbackServer`s exec-hantering är en attrapp som bara
-    ekar tillbaka en kanad sträng, kör aldrig riktiga kommandon). En riktig
-    Windows-server (annan skalsyntax, annan authorized_keys-sökväg) skulle
-    kräva en separat variant. Nästa steg: verifiera mot en riktig Linux-VPS
-    (och ev. Windows) när uppkopplingsuppgifter finns tillgängliga.
+  - **Windows-stöd** (2026-07-06, `RemotePlatform`): `deployPublicKey(_:platform:)`
+    tar nu ett `RemotePlatform`-argument (`.posix` default, `.windowsAdmin`,
+    `.windowsStandard`) — upptäckt via RIKTIG verifiering mot en Windows
+    Server 2025-VPS att Win32-OpenSSH har en avsiktlig säkerhetsregel:
+    admin-konton IGNORERAR `~/.ssh/authorized_keys` helt, kräver den delade
+    `C:\ProgramData\ssh\administrators_authorized_keys` med strikta ACL:er
+    (`icacls`, bara SYSTEM+Administrators, ärvda rättigheter avstängda) —
+    annars vägrar sshd använda filen. Windows-kommandot byggs som ett
+    `powershell -EncodedCommand`-anrop (hela skriptet Base64/UTF-16LE-kodat)
+    istället för att försöka escapa en fri kommentarsträng genom två
+    nästlade skallager (SSH-exec-argumentet OCH cmd.exe/PowerShells egen
+    citering) — base64 innehåller bara tecken som är säkra oquotade i cmd.exe.
+    **Verifierat mot riktig extern hårdvara, inte bara enhetstester**: hela
+    flödet (generera nyckel → `deployPublicKey(platform: .windowsAdmin)` →
+    `verifyKeyAuthWorks`) kört i ett svep mot en riktig Windows Server 2025-
+    VPS, autentiserade rent utan lösenord. Testnycklarna städades bort
+    efteråt.
   - **Kvar**: App/LinuxApp-yta helt saknas — generera/importera/exportera-
-    knappar, "byt ut lösenord mot nyckel"-flödet (deploy + tyst verifiering
-    + checkbox/toggle för att ta bort lösenordet ur Bastions EGEN lagring,
-    aldrig fjärrserverns faktiska auth-konfiguration — se
+    knappar, plattformsval (POSIX/Windows-admin/Windows-standard) på
+    host-profilen, "byt ut lösenord mot nyckel"-flödet (deploy + tyst
+    verifiering + checkbox/toggle för att ta bort lösenordet ur Bastions
+    EGEN lagring, aldrig fjärrserverns faktiska auth-konfiguration — se
     [[feedback_password_removal_scope]] för resonemanget), samt Keychain-
-    borttagningen av det gamla lösenordet efter grönt ljus.
+    borttagningen av det gamla lösenordet efter grönt ljus. `Host`-modellen
+    behöver även ett `platform: RemotePlatform`-fält för att App-lagret ska
+    kunna spara valet per host.
 - **App-ikon + launch screen**: `App/Assets.xcassets` (genererad från en SVG med
   `rsvg-convert`, opak PNG utan alfakanal enligt Apples krav — alla iOS- och
   macOS-storlekar) + en mörk `LaunchBackground`-färg som matchar ikonen.

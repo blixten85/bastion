@@ -127,7 +127,7 @@ final class ShellQuotedTests: XCTestCase {
 
 final class DeployPublicKeyCommandTests: XCTestCase {
     func testCommandContainsCorrectPieces() {
-        let cmd = deployPublicKeyCommand("ssh-ed25519 AAAAtest comment")
+        let cmd = deployPublicKeyCommandPOSIX("ssh-ed25519 AAAAtest comment")
         XCTAssertTrue(cmd.contains("mkdir -p ~/.ssh"))
         XCTAssertTrue(cmd.contains("chmod 700 ~/.ssh"))
         XCTAssertTrue(cmd.contains("chmod 600 ~/.ssh/authorized_keys"))
@@ -137,10 +137,72 @@ final class DeployPublicKeyCommandTests: XCTestCase {
 
     func testMaliciousCommentIsFullyQuotedNotInjected() {
         let malicious = "'; rm -rf ~ #"
-        let cmd = deployPublicKeyCommand("ssh-ed25519 AAAAtest \(malicious)")
+        let cmd = deployPublicKeyCommandPOSIX("ssh-ed25519 AAAAtest \(malicious)")
         // Den escapade formen ska finnas — INTE den råa, oescapade strängen
         // (vilket skulle betyda att den läckt ut ur citattecknen).
         XCTAssertFalse(cmd.contains("AAAAtest '; rm -rf ~ #'"))
+    }
+}
+
+final class DeployPublicKeyCommandWindowsTests: XCTestCase {
+    /// Avkodar `-EncodedCommand`-base64:n tillbaka till PowerShell-skriptet
+    /// (UTF-16LE, precis som PowerShell själv förväntar sig) — testar mot
+    /// den FAKTISKA kodningen, inte bara att ett kommando byggdes.
+    private func decodedScript(_ command: String) throws -> String {
+        let prefix = "powershell -NoProfile -NonInteractive -EncodedCommand "
+        guard command.hasPrefix(prefix) else {
+            XCTFail("förväntade prefix saknas: \(command)")
+            return ""
+        }
+        let base64 = String(command.dropFirst(prefix.count))
+        guard let data = Data(base64Encoded: base64) else {
+            XCTFail("ogiltig base64")
+            return ""
+        }
+        let utf16 = data.withUnsafeBytes { $0.bindMemory(to: UInt16.self) }
+        return String(decoding: utf16, as: UTF16.self)
+    }
+
+    func testAdminPathUsesSharedAdministratorsFileWithACL() throws {
+        let cmd = deployPublicKeyCommandWindows(
+            "ssh-ed25519 AAAAtest comment",
+            path: #"C:\ProgramData\ssh\administrators_authorized_keys"#, setACL: true)
+        let script = try decodedScript(cmd)
+        XCTAssertTrue(script.contains(#"C:\ProgramData\ssh\administrators_authorized_keys"#))
+        XCTAssertTrue(script.contains(#"C:\ProgramData\ssh"#))
+        XCTAssertTrue(script.contains("icacls"))
+        XCTAssertTrue(script.contains("Administrators:F"))
+        XCTAssertTrue(script.contains("SYSTEM:F"))
+        XCTAssertTrue(script.contains("'ssh-ed25519 AAAAtest comment'"))
+    }
+
+    func testStandardPathHasNoACLCommands() throws {
+        let cmd = deployPublicKeyCommandWindows(
+            "ssh-ed25519 AAAAtest comment",
+            path: #"$env:USERPROFILE\.ssh\authorized_keys"#, setACL: false)
+        let script = try decodedScript(cmd)
+        XCTAssertTrue(script.contains(#"$env:USERPROFILE\.ssh\authorized_keys"#))
+        XCTAssertFalse(script.contains("icacls"))
+    }
+
+    /// PowerShell-enkelcitat escapas genom att fördubblas (`'` -> `''`),
+    /// INTE med POSIX-skalets `\'`-mönster — en riktig kommentar med en
+    /// apostrof får inte bryta ut ur citatet.
+    func testEmbeddedSingleQuoteIsDoubledNotBackslashEscaped() throws {
+        let cmd = deployPublicKeyCommandWindows(
+            "ssh-ed25519 AAAAtest o'brien", path: #"C:\test\authorized_keys"#, setACL: false)
+        let script = try decodedScript(cmd)
+        XCTAssertTrue(script.contains("o''brien"))
+        XCTAssertFalse(script.contains("o\\'brien"))
+    }
+
+    func testDirIsSplitOnBackslashNotForwardSlash() throws {
+        // Regression: NSString.deletingLastPathComponent antar POSIX-
+        // snedstreck och skulle INTE dela upp en backslash-sökväg korrekt.
+        let cmd = deployPublicKeyCommandWindows(
+            "ssh-ed25519 AAAAtest", path: #"C:\a\b\c\authorized_keys"#, setACL: false)
+        let script = try decodedScript(cmd)
+        XCTAssertTrue(script.contains(#"$dir = 'C:\a\b\c'"#))
     }
 }
 
