@@ -17,7 +17,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.13.0"),
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.60.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.101.2"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "4.5.0"),
     ],
     targets: [
