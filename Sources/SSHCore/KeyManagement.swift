@@ -31,12 +31,33 @@ func shellQuoted(_ s: String) -> String {
     "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
+/// Vilken sorts fjärrsystem `deployPublicKey` ska bygga ett kommando för.
+/// Windows OpenSSH har en avsiktlig säkerhetsregel som gör att admin- och
+/// standardkonton måste hanteras helt olika (se `RemotePlatform.windowsAdmin`),
+/// och Bastion har ingen tillförlitlig, riskfri fjärrdetektion av det här —
+/// därför ett explicit fält på host-profilen (`Host.platform`) istället för
+/// att gissa via en sond.
+public enum RemotePlatform: String, Codable, Sendable, CaseIterable {
+    /// Linux/macOS — standard `~/.ssh/authorized_keys`.
+    case posix
+    /// Windows, konto i Administrators-gruppen. Win32-OpenSSH IGNORERAR
+    /// `~/.ssh/authorized_keys` helt för såna konton — kräver den delade
+    /// `C:\ProgramData\ssh\administrators_authorized_keys` med strikta ACL:er
+    /// (bara SYSTEM+Administrators, ärvda behörigheter avstängda), annars
+    /// vägrar sshd använda filen. Verifierat mot en riktig Windows Server
+    /// 2025-VPS (2026-07-06).
+    case windowsAdmin
+    /// Windows, vanligt (icke-admin) konto — `%USERPROFILE%\.ssh\authorized_keys`,
+    /// inga särskilda ACL-krav.
+    case windowsStandard
+}
+
 /// Bygger kommandot som lägger till `publicKeyLine` i `~/.ssh/authorized_keys`
 /// — idempotent (kör om säkert, aldrig dubblettrader), skapar `~/.ssh` med
 /// rätt rättigheter (700/600) om den saknas. Egen funktion (inte inline i
 /// `deployPublicKey`) just för att kunna testa den exakta kommandosträngen
 /// utan en riktig SSH-anslutning.
-func deployPublicKeyCommand(_ publicKeyLine: String) -> String {
+func deployPublicKeyCommandPOSIX(_ publicKeyLine: String) -> String {
     let quoted = shellQuoted(publicKeyLine)
     return """
     mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && \
@@ -45,12 +66,65 @@ func deployPublicKeyCommand(_ publicKeyLine: String) -> String {
     """
 }
 
+/// Bygger ett Windows-kommando som anropar `powershell -EncodedCommand` med
+/// hela skriptet Base64/UTF-16LE-kodat — undviker helt att behöva escapa en
+/// fri kommentarsträng genom TVÅ nästlade skallager (SSH-exec-argumentet OCH
+/// cmd.exe/PowerShells egen citering). Base64 innehåller bara
+/// `[A-Za-z0-9+/=]`, alla säkra oquotade i cmd.exe.
+///
+/// `setACL`: bara `.windowsAdmin` behöver `icacls`-låsningen — Win32-OpenSSH
+/// vägrar annars filen helt. Standardkontots egen `.ssh`-mapp har inga såna krav.
+func deployPublicKeyCommandWindows(_ publicKeyLine: String, path: String, setACL: Bool) -> String {
+    // Enkelcitat i PowerShell: `'` blir `''` (fördubblad), inte `\'` som i POSIX-skal.
+    let psQuoted = "'" + publicKeyLine.replacingOccurrences(of: "'", with: "''") + "'"
+    let psPath = "'" + path.replacingOccurrences(of: "'", with: "''") + "'"
+    // INTE NSString.deletingLastPathComponent — den antar POSIX-snedstreck
+    // som separator och skulle inte dela upp en backslash-separerad Windows-
+    // sökväg (eller en med `$env:...`-prefix) korrekt alls.
+    let dir = path.split(separator: "\\", omittingEmptySubsequences: false).dropLast().joined(separator: "\\")
+    let psDir = "'" + dir.replacingOccurrences(of: "'", with: "''") + "'"
+
+    var script = """
+    $ErrorActionPreference = 'Stop'
+    $key = \(psQuoted)
+    $path = \(psPath)
+    $dir = \(psDir)
+    if (!(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    if (!(Test-Path $path) -or -not (Select-String -Path $path -Pattern ([regex]::Escape($key)) -SimpleMatch -Quiet)) {
+        Add-Content -Path $path -Value $key
+    }
+    """
+    if setACL {
+        script += """
+
+        icacls $path /inheritance:r | Out-Null
+        icacls $path /grant SYSTEM:F /grant Administrators:F | Out-Null
+        """
+    }
+
+    let utf16 = Data(script.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] })
+    let encoded = utf16.base64EncodedString()
+    return "powershell -NoProfile -NonInteractive -EncodedCommand \(encoded)"
+}
+
 extension SSHSession {
-    /// Lägger till en publik nyckel i fjärrsidans `~/.ssh/authorized_keys`.
-    /// Kräver en redan autentiserad session (vilken auth-metod som helst —
-    /// det är separat från den nya nyckeln som deployas).
-    public func deployPublicKey(_ publicKeyLine: String) async throws {
-        for try await _ in execute(deployPublicKeyCommand(publicKeyLine)) {}
+    /// Lägger till en publik nyckel i fjärrsidans `authorized_keys` — POSIX
+    /// eller Windows (admin/standard), beroende på `platform`. Kräver en
+    /// redan autentiserad session (vilken auth-metod som helst — det är
+    /// separat från den nya nyckeln som deployas).
+    public func deployPublicKey(_ publicKeyLine: String, platform: RemotePlatform = .posix) async throws {
+        let command: String
+        switch platform {
+        case .posix:
+            command = deployPublicKeyCommandPOSIX(publicKeyLine)
+        case .windowsAdmin:
+            command = deployPublicKeyCommandWindows(
+                publicKeyLine, path: #"C:\ProgramData\ssh\administrators_authorized_keys"#, setACL: true)
+        case .windowsStandard:
+            command = deployPublicKeyCommandWindows(
+                publicKeyLine, path: #"$env:USERPROFILE\.ssh\authorized_keys"#, setACL: false)
+        }
+        for try await _ in execute(command) {}
     }
 
     /// Öppnar en TYST, separat anslutning mot samma mål med den angivna
