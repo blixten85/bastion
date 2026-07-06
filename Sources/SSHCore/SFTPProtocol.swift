@@ -47,19 +47,51 @@ public struct SFTPOpenFlags: OptionSet, Sendable {
 }
 
 /// SSH_FX_*-statuskoderna i SSH_FXP_STATUS-svar.
-public enum SFTPStatusCode: UInt32, Sendable, Equatable {
-    case ok = 0
-    case eof = 1
-    case noSuchFile = 2
-    case permissionDenied = 3
-    case failure = 4
-    case badMessage = 5
-    case noConnection = 6
-    case connectionLost = 7
-    case opUnsupported = 8
-    /// Okänd kod från servern (framtida version/utökning) — bevarar rawValue
-    /// istället för att krascha på ett oigenkänt fall.
-    case unknown = 0xFFFF_FFFF
+public enum SFTPStatusCode: Sendable, Equatable, RawRepresentable {
+    case ok
+    case eof
+    case noSuchFile
+    case permissionDenied
+    case failure
+    case badMessage
+    case noConnection
+    case connectionLost
+    case opUnsupported
+    /// Okänd kod från servern (framtida version/utökning) — bevarar den
+    /// faktiska rawValue istället för att kollapsa alla okända koder till
+    /// samma värde (CodeRabbit-fynd, PR #37: raden sa att rawValue bevarades
+    /// men `.unknown = 0xFFFF_FFFF` gjorde precis motsatsen).
+    case unknown(UInt32)
+
+    public init(rawValue: UInt32) {
+        switch rawValue {
+        case 0: self = .ok
+        case 1: self = .eof
+        case 2: self = .noSuchFile
+        case 3: self = .permissionDenied
+        case 4: self = .failure
+        case 5: self = .badMessage
+        case 6: self = .noConnection
+        case 7: self = .connectionLost
+        case 8: self = .opUnsupported
+        default: self = .unknown(rawValue)
+        }
+    }
+
+    public var rawValue: UInt32 {
+        switch self {
+        case .ok: return 0
+        case .eof: return 1
+        case .noSuchFile: return 2
+        case .permissionDenied: return 3
+        case .failure: return 4
+        case .badMessage: return 5
+        case .noConnection: return 6
+        case .connectionLost: return 7
+        case .opUnsupported: return 8
+        case .unknown(let raw): return raw
+        }
+    }
 }
 
 public struct SFTPStatusError: Error, Sendable, Equatable {
@@ -99,21 +131,30 @@ public struct SFTPFileAttributes: Equatable, Sendable {
     }
 
     func encode(into buffer: inout ByteBuffer) {
+        // uid/gid och accessTime/modificationTime är par i v3-trådformatet —
+        // om bara den ena hälften sattes skrev den gamla koden en falsk 0:a
+        // för den andra istället för att upptäcka den felaktiga anropen
+        // (CodeRabbit-fynd, PR #37).
+        precondition((uid == nil) == (gid == nil), "uid och gid måste ges tillsammans")
+        precondition(
+            (accessTime == nil) == (modificationTime == nil),
+            "accessTime och modificationTime måste ges tillsammans")
+
         var flags: Flags = []
         if size != nil { flags.insert(.size) }
-        if uid != nil || gid != nil { flags.insert(.uidgid) }
+        if uid != nil { flags.insert(.uidgid) }
         if permissions != nil { flags.insert(.permissions) }
-        if accessTime != nil || modificationTime != nil { flags.insert(.acmodtime) }
+        if accessTime != nil { flags.insert(.acmodtime) }
         buffer.writeInteger(flags.rawValue)
         if let size { buffer.writeInteger(size) }
-        if flags.contains(.uidgid) {
-            buffer.writeInteger(uid ?? 0)
-            buffer.writeInteger(gid ?? 0)
+        if let uid, let gid {
+            buffer.writeInteger(uid)
+            buffer.writeInteger(gid)
         }
         if let permissions { buffer.writeInteger(permissions) }
-        if flags.contains(.acmodtime) {
-            buffer.writeInteger(accessTime ?? 0)
-            buffer.writeInteger(modificationTime ?? 0)
+        if let accessTime, let modificationTime {
+            buffer.writeInteger(accessTime)
+            buffer.writeInteger(modificationTime)
         }
         // Extended-par (flags & extended) skrivs aldrig av oss — vi sätter
         // aldrig den flaggan i encode(), så det finns inget att skriva här.
@@ -356,8 +397,11 @@ public enum SFTPResponse: Equatable {
             guard let id: UInt32 = buffer.readInteger(), let rawCode: UInt32 = buffer.readInteger() else {
                 throw SFTPProtocolError.truncatedMessage
             }
-            let message = (try? buffer.readSFTPString()) ?? ""
-            let code = SFTPStatusCode(rawValue: rawCode) ?? .unknown
+            // try? dolde tidigare trunkerade/ogiltiga STATUS-meddelanden, och
+            // v3:s language-tag-sträng lästes aldrig (CodeRabbit-fynd, PR #37).
+            let message = try buffer.readSFTPString()
+            _ = try buffer.readSFTPString()  // language-tag, används inte
+            let code = SFTPStatusCode(rawValue: rawCode)
             return .status(id: id, code: code, message: message)
         case .handle:
             guard let id: UInt32 = buffer.readInteger() else { throw SFTPProtocolError.truncatedMessage }
@@ -369,6 +413,13 @@ public enum SFTPResponse: Equatable {
             return .data(id: id, bytes: bytes)
         case .name:
             guard let id: UInt32 = buffer.readInteger(), let count: UInt32 = buffer.readInteger() else {
+                throw SFTPProtocolError.truncatedMessage
+            }
+            // count är obetrodd tråddata — reserveCapacity(Int(count)) kunde
+            // tidigare försöka en enorm allokering innan paketets giltighet
+            // ens bevisats (CodeRabbit-fynd, PR #37).
+            let minimumEncodedEntryBytes = 12  // filnamnslängd + longname-längd + attrs-flaggor
+            guard UInt64(count) <= UInt64(buffer.readableBytes / minimumEncodedEntryBytes) else {
                 throw SFTPProtocolError.truncatedMessage
             }
             var entries: [SFTPNameEntry] = []

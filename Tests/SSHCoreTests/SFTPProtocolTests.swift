@@ -67,6 +67,24 @@ final class SFTPProtocolTests: XCTestCase {
         XCTAssertNil(decoded.permissions)
     }
 
+    func testAttributesRoundTripOnlyUidGidPairSet() throws {
+        // Regressionstest för CodeRabbit-fyndet (PR #37): uid/gid är ett par
+        // i v3-trådformatet. Tidigare kunde koden skriva en falsk 0:a för
+        // den andra hälften om bara en var satt — det är nu en
+        // precondition-krasch istället (testas inte här, går inte fånga
+        // ett precondition-trap i XCTest utan att krascha hela sviten) —
+        // det som verifieras här är att det giltiga, ihopparade fallet
+        // fortfarande round-trippar korrekt utan accessTime/modificationTime.
+        let original = SFTPFileAttributes(uid: 1000, gid: 1000)
+        var buf = ByteBuffer()
+        original.encode(into: &buf)
+        let decoded = try SFTPFileAttributes.decode(from: &buf)
+        XCTAssertEqual(decoded.uid, 1000)
+        XCTAssertEqual(decoded.gid, 1000)
+        XCTAssertNil(decoded.accessTime)
+        XCTAssertNil(decoded.modificationTime)
+    }
+
     func testIsDirectoryReadsPOSIXTypeBits() {
         XCTAssertTrue(SFTPFileAttributes(permissions: 0o040755).isDirectory)
         XCTAssertFalse(SFTPFileAttributes(permissions: 0o100644).isDirectory)
@@ -163,7 +181,34 @@ final class SFTPProtocolTests: XCTestCase {
         payload.writeSFTPString("")
         let response = try SFTPResponse.decode(type: .status, from: &payload)
         guard case .status(_, let code, _) = response else { return XCTFail("fel gren") }
-        XCTAssertEqual(code, .unknown)
+        XCTAssertEqual(code, .unknown(999))
+    }
+
+    func testDecodeStatusConsumesLanguageTag() throws {
+        // Regressionstest för CodeRabbit-fyndet (PR #37): en tidigare
+        // implementation läste bara meddelandesträngen (med try?, som
+        // dessutom dolde trunkeringsfel) och lämnade v3:s language-tag
+        // oläst i bufferten.
+        var payload = ByteBuffer()
+        payload.writeInteger(UInt32(1))
+        payload.writeInteger(SFTPStatusCode.ok.rawValue)
+        payload.writeSFTPString("meddelande")
+        payload.writeSFTPString("en-US")
+        let response = try SFTPResponse.decode(type: .status, from: &payload)
+        guard case .status(_, _, let message) = response else { return XCTFail("fel gren") }
+        XCTAssertEqual(message, "meddelande")
+        XCTAssertEqual(payload.readableBytes, 0)
+    }
+
+    func testDecodeStatusThrowsOnTruncatedMessage() throws {
+        // try? dolde tidigare trunkerade STATUS-meddelanden bakom en tom
+        // sträng — ett skadat/kortslutet paket ska kastas, inte tolkas som
+        // "inget meddelande" (CodeRabbit-fynd, PR #37).
+        var payload = ByteBuffer()
+        payload.writeInteger(UInt32(1))
+        payload.writeInteger(SFTPStatusCode.ok.rawValue)
+        payload.writeInteger(UInt32(50))  // säger 50 byte sträng men skickar inga
+        XCTAssertThrowsError(try SFTPResponse.decode(type: .status, from: &payload))
     }
 
     func testDecodeHandle() throws {
@@ -202,6 +247,18 @@ final class SFTPProtocolTests: XCTestCase {
         XCTAssertEqual(entries[1].filename, "file.txt")
         XCTAssertEqual(entries[1].attributes.size, 100)
         XCTAssertEqual(payload.readableBytes, 0)
+    }
+
+    func testDecodeNameRejectsImpossiblyLargeCount() throws {
+        // Regressionstest för CodeRabbit-fyndet (PR #37): count är obetrodd
+        // tråddata. reserveCapacity(Int(count)) skulle tidigare försöka
+        // allokera för en miljon poster fastän bufferten bara innehåller
+        // några byte — nu ska paketet kastas som trunkerat istället.
+        var payload = ByteBuffer()
+        payload.writeInteger(UInt32(1))  // id
+        payload.writeInteger(UInt32(1_000_000))  // count, långt fler än vad bufferten kan rymma
+        payload.writeSFTPString(".")  // bara en enda liten post faktiskt skickad
+        XCTAssertThrowsError(try SFTPResponse.decode(type: .name, from: &payload))
     }
 
     func testDecodeAttrs() throws {
