@@ -109,6 +109,23 @@ final class OpenSSHCertificateAuthTests: XCTestCase {
                 principal: "tester", type: .user, allowedAuthoritySigningKeys: [fixture.caPublicKey]))
     }
 
+    /// Klistrar ihop EN nyckelfil med EN ANNAN, orelaterad nyckels
+    /// certifikat — måste kastas tydligt vid inläsning (CodeRabbit-fynd,
+    /// PR #93), inte upptäckas först som ett förvirrande SSH-auth-fel
+    /// senare.
+    func testLoadCertificateThrowsOnKeyCertificateMismatch() throws {
+        let fixtureA = try makeFixture(principal: "tester")
+        let fixtureB = try makeFixture(principal: "tester")
+
+        XCTAssertThrowsError(
+            try OpenSSHPrivateKey.loadCertificate(keyPath: fixtureA.userKeyPath, certPath: fixtureB.userCertPath)
+        ) { error in
+            guard case SSHKeyError.certificateKeyMismatch = error else {
+                return XCTFail("fel feltyp: \(error)")
+            }
+        }
+    }
+
     func testCertificateOfferFailsValidationForWrongPrincipal() async throws {
         // Certifikatet gäller "otheruser", vi loggar in som "tester" — måste
         // misslyckas ÄVEN med rätt/betrodd CA. Bevisar att `validate()`

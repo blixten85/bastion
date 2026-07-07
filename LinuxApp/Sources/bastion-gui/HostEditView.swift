@@ -117,8 +117,18 @@ struct HostEditView: View {
     }
 
     private var isValid: Bool {
-        !draft.hostName.trimmingCharacters(in: .whitespaces).isEmpty
-            && !draft.user.trimmingCharacters(in: .whitespaces).isEmpty
+        guard !draft.hostName.trimmingCharacters(in: .whitespaces).isEmpty,
+              !draft.user.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return false }
+        switch authKind {
+        case .key:
+            return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .certificate:
+            return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
+                && !certPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .agent, .password, .importedElsewhere:
+            return true
+        }
     }
 
     private func save() {

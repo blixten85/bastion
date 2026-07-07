@@ -117,9 +117,19 @@ struct HostEditView: View {
     private var isValid: Bool {
         let baseValid = !draft.hostName.trimmingCharacters(in: .whitespaces).isEmpty
             && !draft.user.trimmingCharacters(in: .whitespaces).isEmpty
-        guard baseValid, authKind == .keychainImport else { return baseValid }
-        guard !keyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        return keyValidationMessage == nil
+        guard baseValid else { return false }
+        switch authKind {
+        case .keychainImport:
+            guard !keyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+            return keyValidationMessage == nil
+        case .key:
+            return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .certificate:
+            return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
+                && !certPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .agent, .password:
+            return true
+        }
     }
 
     /// `nil` om nyckeltexten (om ifylld) tolkas som en giltig okrypterad OpenSSH-nyckel.

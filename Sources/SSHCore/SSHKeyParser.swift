@@ -6,6 +6,9 @@ public enum SSHKeyError: Error, Sendable {
     case unsupportedKeyType(String)
     case encrypted          // lösenfras-skyddad — stöds inte än
     case malformed
+    /// Certifikatets inbäddade publika nyckel matchar inte den laddade
+    /// privata nyckeln — de hör inte ihop (CodeRabbit-fynd, PR #93).
+    case certificateKeyMismatch
 }
 
 /// Läser en privatnyckel i OpenSSH-format (`-----BEGIN OPENSSH PRIVATE KEY-----`),
@@ -58,11 +61,23 @@ public enum OpenSSHPrivateKey {
     /// `<nyckel>`) — kombinationen `SSHAuth.certificate` behöver för att
     /// erbjuda certifikatet men signera med den underliggande privata
     /// nyckeln (se `SSHUserAuth.swift`).
+    ///
+    /// Verifierar att certifikatets INBÄDDADE publika nyckel faktiskt
+    /// matchar den laddade privata nyckeln (CodeRabbit-fynd, PR #93) —
+    /// annars skulle en användare som råkar peka på en OMATCHAD nyckel/
+    /// cert-kombination bara upptäcka det senare, som ett förvirrande
+    /// SSH-autentiseringsfel, istället för ett tydligt fel direkt vid
+    /// inläsning.
     public static func loadCertificate(keyPath: String, certPath: String) throws -> SSHAuth {
         guard case .ed25519Seed(let seed) = try load(path: keyPath) else {
             throw SSHKeyError.unsupportedKeyType("certifikatautentisering kräver en Ed25519-nyckel")
         }
         let certLine = try String(contentsOfFile: certPath, encoding: .utf8)
+        let certificate = try OpenSSHCertificate.parse(certLine)
+        let derivedPublicKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seed).publicKey.rawRepresentation
+        guard certificate.publicKey == derivedPublicKey else {
+            throw SSHKeyError.certificateKeyMismatch
+        }
         return .certificate(seed: seed, certificateLine: certLine)
     }
 
