@@ -52,6 +52,7 @@ delvis andra, av konkreta skäl:
 | ProxyJump (`ssh -J`) | ✅ `SSHSession.connect(via:)`, `bastion-cli` läser `ProxyJump` ur ssh-config automatiskt |
 | WireGuard-profiler | ✅ parsning/serialisering + lagring + LinuxApp-UI — 🧩 App/-motsvarighet kvar (Xcode-only) |
 | OpenSSH-certifikatparsning | ✅ `OpenSSHCertificate.swift`, testad mot RIKTIGA `ssh-keygen -s`-genererade certifikat — 🧩 signaturverifiering/auth-wiring kvar |
+| ssh-agent-protokollklient | ✅ `SSHAgentClient.swift`, testad mot en RIKTIG `ssh-agent` — 🧩 kanal-forwarding till fjärrserver kvar |
 
 ## Nästa steg (i ordning)
 
@@ -477,7 +478,34 @@ Inget nytt att bygga, bara verifiera/lansera:
   hittills), syntax highlighting (se separat post nedan).
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
-- Agent Forwarding, PKCS11, YubiKey, Passkeys
+- **Agent Forwarding**: ✅ agent-PROTOKOLLKLIENTEN klar (2026-07-07,
+  `SSHAgentClient.swift`) — lista identiteter + begära signaturer från en
+  KÖRANDE, LOKAL `ssh-agent` över `$SSH_AUTH_SOCK` (Unix-socket, NIOs
+  `ClientBootstrap.connect(unixDomainSocketPath:)`). Trådformatet
+  verifierat mot `draft-miller-ssh-agent-09` (IETF). v1 avgränsat till
+  klienten mot en LOKAL agent — INTE forwarding över en SSH-kanal till en
+  fjärrserver än (`auth-agent@openssh.com`-kanaltypen, kräver att koppla
+  ihop klientens ramning med en SSH-kanal istället för ett rått socket,
+  separat nästa steg).
+  3 tester mot en RIKTIG, självstartad `ssh-agent`-process (ingen
+  fejkad testserver — agent-protokollet är redan minimalt, inget SSH
+  inblandat) + en riktig nyckel tillagd med `ssh-add`: lista identiteter,
+  begära en signatur och VERIFIERA den kryptografiskt (Curve25519) mot
+  den riktiga publika nyckeln, samt att en okänd nyckelblob korrekt ger
+  `SSH_AGENT_FAILURE`.
+  **Genuin bugg hittad och fixad under testutvecklingen** (inte i
+  produktionskoden — i testinfrastrukturen, men värd att dokumentera för
+  framtida liknande tester): `Process.waitUntilExit()` (Foundation)
+  HÄNGER på Linux när en långlivad demonprocess (`ssh-agent -D`) redan är
+  startad via samma `Process`-bokföring i samma testprocess — trots att
+  en vanlig `kill -TERM` fungerar perfekt utanför Foundation, och trots
+  att `KeyManagementTests.swift` använder EXAKT samma `waitUntilExit()`-
+  mönster för `ssh-keygen` utan problem (ingen samtidig bakgrundsdemon
+  där). En känd kategori av swift-corelibs-foundation-kvirk med
+  barnprocess-reaping vid flera samtidiga `Process`-instanser. Fixat
+  genom att helt kringgå Foundations väntemekanism: rå `kill(2)`/
+  `waitpid(2)` istället, för alla subprocess-anrop i testfilen.
+  PKCS11, YubiKey, Passkeys — inte påbörjat.
 - **OpenSSH-certifikatautentisering** (nytt, 2026-07-05) — stöd för
   `ssh-keygen`-signerade/externt utfärdade SSH-certifikat som en egen
   `HostAuth`-variant, inte bara rå nyckel. De stora molnleverantörerna har
