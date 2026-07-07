@@ -322,3 +322,53 @@ med synk mellan ALLA enheter, inte bara Apple-ekosystemet:
 
 Se [ROADMAP.md](ROADMAP.md) för hur detta prioriteras in i backloggen —
 paketeringsarbetet (deb/rpm) och BSD-portning är inte påbörjat än.
+
+### Native filhanterare-integration + molnlagring som filkälla (tillägg, 2026-07-07)
+
+Utöver att Bastion är en egen app: integrera med varje plattforms EGEN
+filhanterare, och låta molnlagringstjänster bläddras som allmänna filkällor
+(inte bara som synkbackend för host-databasen, vilket redan finns).
+
+- **Apple Filer/Finder** — `FileProvider`-ramverket (`NSFileProviderReplicatedExtension`,
+  iOS 11+/macOS 11+), INTE den äldre "Document Provider"-API:n. Beprövad väg
+  — **Blink Shell gör redan exakt detta** (bläddra/förhandsgranska/redigera
+  fjärrfiler som om de vore lokala, i Filer-appen). Kräver ett separat
+  Xcode-extension-target ("File Provider Extension") + delad App Group med
+  huvudappen. Fungerar på både iOS och macOS (macOS-stödet är sämre
+  dokumenterat men bekräftat fungera i praktiken av andra). STÖDS INTE under
+  Mac Catalyst — måste vara en native macOS-extension om Mac ska nås direkt.
+  API:t är callback-baserat, inte async/await — viss friktion mot
+  Swift-concurrency att vänta. En enkel, strömmande provider (v1) är rimlig;
+  en fullt "replicated" provider (offline-cache, konfliktlösning,
+  miniatyrer) är betydligt större arbete.
+- **Windows Utforskaren** — mest realistiska väg är **WinFsp** (öppen källkod,
+  FUSE-motsvarighet för Windows, GPLv3 + FOSS-undantag). **`sshfs-win`
+  (underhållet av WinFsp:s egen upphovsman) monterar redan idag en SFTP-värd
+  som en nätverksenhet i Utforskaren** — bevisar att hela konceptet fungerar,
+  men är en C/Cygwin-wrapper, inte Swift. Rätt väg för Bastion: en egen
+  WinFsp-filsystemsprovider (C-API, samma interop-mönster SwiftNIO redan
+  använder för Windows-syscalls) backad av Bastions EGEN `SFTPClient` —
+  genuint nytt ingenjörsarbete (path-upplösning, handtagscache,
+  läs/skriv-callbacks), inte bara en wrapper. Shell Namespace Extensions
+  (äldre COM-baserad API) och Cloud Filter API (det OneDrive/Dropbox
+  använder, partner-spärrat + designat för "placeholder+synk", inte generell
+  bläddring) övervägdes och valdes bort.
+- **Molnlagring som filkälla** (inte bara synkbackend) — de OAuth-scope:er
+  Bastion redan använder för att synka host-databasen är MEDVETET
+  app-mapp-avgränsade och räcker INTE för generell bläddring: Dropbox
+  (`files.content.write/read`, App folder-bara — behöver `full_dropbox`),
+  Google Drive (`drive.appdata`, en DOLD app-datamapp — helt fel scope,
+  behöver `drive`/`drive.readonly` med en tyngre Google-granskningsprocess),
+  OneDrive (`Files.ReadWrite.AppFolder` — behöver `Files.ReadWrite.All`).
+  Alltså inte en liten utökning: nya scope:er, nya samtyckesskärmar, ny
+  klientkod (mappträd-bläddring, godtycklig upp/nedladdning) — separat
+  kodväg från den befintliga en-fils-synken.
+  **AWS** ("vad de nu har") har inget konsument-OAuth-flöde ("logga in med
+  AWS" finns inte för det här användningsfallet) — realistisk modell:
+  användaren klistrar in sin egen Access Key ID + Secret (eller
+  STS-token) + bucket/region, Bastion signerar förfrågningar själv
+  (AWS SigV4 — en väldokumenterad, stabil spec, till skillnad från t.ex.
+  Tailscales "subject to change"-JSON). Fullt implementerbart som en egen
+  Swift-klient, inget tredjeparts-SDK-beroende krävs.
+
+Ingenting av detta är påbörjat. Se [ROADMAP.md](ROADMAP.md) för prioritering.
