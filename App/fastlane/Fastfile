@@ -1,4 +1,4 @@
-require "tempfile"
+require "tmpdir"
 require "base64"
 require "shellwords"
 
@@ -44,8 +44,16 @@ platform :ios do
     # Sedan Xcode 15 stödjer xcodebuild samma API-nyckelautentisering
     # direkt via tre kommandoradsflaggor, men de vill ha en RIKTIG
     # filsökväg, inte nyckelinnehållet inline — skriver ut den till en
-    # temp-fil i samma steg.
-    key_path = Tempfile.new(["AuthKey", ".p8"]).path
+    # fil i samma steg.
+    #
+    # INTE Tempfile: Tempfile har en GC-finalizer som raderar filen så
+    # fort Ruby skräpsamlar objektet — vi sparade bara `.path` (en
+    # String), aldrig själva Tempfile-objektet, så filen kunde försvinna
+    # innan xcodebuild hann läsa den ("The -authenticationKeyPath flag
+    # must be an absolute path to an existing file", trots att sökvägen
+    # var korrekt formaterad). En vanlig fil i samma temp-katalog har
+    # ingen sådan livstidskoppling till en Ruby-variabel.
+    key_path = File.join(Dir.tmpdir, "bastion-asc-authkey.p8")
     File.write(key_path, Base64.decode64(ENV.fetch("APP_STORE_CONNECT_KEY_CONTENT")))
 
     build_app(
