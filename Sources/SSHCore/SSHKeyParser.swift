@@ -53,6 +53,19 @@ public enum OpenSSHPrivateKey {
         return try parse(pem)
     }
 
+    /// Läser en privatnyckel + dess signerade OpenSSH-certifikat
+    /// (`ssh-keygen -s` skriver typiskt `<nyckel>-cert.pub` bredvid
+    /// `<nyckel>`) — kombinationen `SSHAuth.certificate` behöver för att
+    /// erbjuda certifikatet men signera med den underliggande privata
+    /// nyckeln (se `SSHUserAuth.swift`).
+    public static func loadCertificate(keyPath: String, certPath: String) throws -> SSHAuth {
+        guard case .ed25519Seed(let seed) = try load(path: keyPath) else {
+            throw SSHKeyError.unsupportedKeyType("certifikatautentisering kräver en Ed25519-nyckel")
+        }
+        let certLine = try String(contentsOfFile: certPath, encoding: .utf8)
+        return .certificate(seed: seed, certificateLine: certLine)
+    }
+
     /// Bygger en okrypterad Ed25519-nyckel i OpenSSH-filformat (samma format
     /// `ssh-keygen` skriver) — inversen av `parse` ovan, byte för byte samma
     /// struktur. Enda vägen att verifiera en encoder utan en referens-

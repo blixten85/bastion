@@ -67,7 +67,7 @@ Klistra in respektive klient-ID i `App/OAuthProviders.swift` (t.ex.
 ```
 Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   SSHSession.swift       Anslut, execute() -> AsyncThrowingStream, run(), close()
-  SSHUserAuth.swift      Klient-autentisering (lösenord / Ed25519-frö)
+  SSHUserAuth.swift      Klient-autentisering (lösenord / Ed25519-frö / OpenSSH-certifikat)
   SSHKeyParser.swift     OpenSSH-privatnyckelparser (~/.ssh/id_ed25519)
   SSHShell.swift         Interaktiv PTY-shell: send/resize + strömmad utdata
   ExecHandler.swift      Barnkanal: ByteBuffer <-> SSHChannelData, strömmar utdata
