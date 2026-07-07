@@ -1,14 +1,15 @@
+import Crypto
 import Foundation
 
-/// Parsning av OpenSSH-certifikat (`ssh-ed25519-cert-v01@openssh.com`) — de
-/// stora molnleverantörernas SSH-autentiseringsmodell (identitetsleverantör
-/// utfärdar ett kortlivat certifikat efter inloggning, istället för en
-/// statisk nyckel: Cloudflare Access, Google Cloud OS Login, Microsoft
-/// Entra ID, se ROADMAP.md). v1: PARSNING (läsa/inspektera ett `.pub`-
-/// certifikat), INTE signaturverifiering eller SSH-autentiseringswiring —
-/// det senare kräver en försiktig, egen genomgång (verifiera CA-signaturen
-/// KORREKT är säkerhetskritiskt på ett sätt ren parsning inte är), se
-/// ROADMAP för avgränsningen.
+/// Parsning + CA-signaturverifiering av OpenSSH-certifikat
+/// (`ssh-ed25519-cert-v01@openssh.com`) — de stora molnleverantörernas
+/// SSH-autentiseringsmodell (identitetsleverantör utfärdar ett kortlivat
+/// certifikat efter inloggning, istället för en statisk nyckel: Cloudflare
+/// Access, Google Cloud OS Login, Microsoft Entra ID, se ROADMAP.md).
+/// v1: parsning + `verifySignature()` (se den för vad som verifieras och
+/// INTE verifieras — giltighetsperiod/principals är anroparens ansvar).
+/// INTE `SSHUserAuth`-wiring (att faktiskt använda ett cert för att logga
+/// in) än — det är nästa, separata steg, se ROADMAP.
 ///
 /// Trådformatet verifierat mot OpenSSHs egen `PROTOCOL.certkeys`-
 /// specifikation OCH empiriskt mot ett riktigt certifikat genererat med
@@ -55,6 +56,15 @@ public struct OpenSSHCertificate: Sendable, Equatable {
     /// är Ed25519.
     public let signatureKeyBlob: Data
     public let signatureBlob: Data
+    /// Exakt de råa bytesen som CA:n signerade — enligt `PROTOCOL.certkeys`
+    /// är det "hela certifikatet, fram till men inte inklusive signaturen"
+    /// (dvs. magic...signatureKeyBlob, men INTE signatureBlob-fältet).
+    /// Sparas som en slice av ORIGINALBLOBET vid parsning, inte
+    /// återkonstruerad ur avkodade fält — en återkonstruktion riskerar
+    /// subtila kodningsskillnader (t.ex. fältordning) som skulle göra
+    /// signaturverifieringen falskt negativ (eller, värre, falskt positiv
+    /// om återkonstruktionen råkar vara "nästan rätt"). Se `verifySignature()`.
+    public let signedData: Data
 
     public static let magic = "ssh-ed25519-cert-v01@openssh.com"
 
@@ -111,14 +121,56 @@ public struct OpenSSHCertificate: Sendable, Equatable {
 
         _ = try reader.readString()  // reserved
         let signatureKeyBlob = Data(try reader.readString())
+        let signedDataLength = reader.offset  // precis EFTER signatureKeyBlob, precis FÖRE signatureBlob
         let signatureBlob = Data(try reader.readString())
+        let signedData = blob.prefix(signedDataLength)
 
         return OpenSSHCertificate(
             nonce: nonce, publicKey: publicKey, serial: serial, type: type, keyID: keyID,
             validPrincipals: principals, validAfter: validAfter, validBefore: validBefore,
             criticalOptions: criticalOptions, extensionNames: extensionNames,
-            signatureKeyBlob: signatureKeyBlob, signatureBlob: signatureBlob)
+            signatureKeyBlob: signatureKeyBlob, signatureBlob: signatureBlob, signedData: signedData)
     }
+
+    /// Verifierar CA-signaturen — bekräftar att en CA som äger
+    /// `signatureKeyBlob`s privata nyckel verkligen signerat EXAKT det här
+    /// certifikatets innehåll (avslöjar manipulation/förfalskning).
+    /// Verifierar INTE giltighetsperiod, principals eller critical options
+    /// — bara den kryptografiska signaturen. Anroparen ansvarar för
+    /// resten av trust-beslutet (giltighetsfönster, vilken CA som litas på).
+    ///
+    /// Bara CA:er som signerar med `ssh-ed25519` stöds (matchar resten av
+    /// kodbasens Ed25519-avgränsning, se `SSHKeyError.unsupportedKeyType`) —
+    /// RSA/ECDSA-signerande CA:er kastar tydligt istället för att gissa.
+    public func verifySignature() throws -> Bool {
+        var keyReader = CertByteReader(signatureKeyBlob)
+        let signingKeyType = String(decoding: try keyReader.readString(), as: UTF8.self)
+        guard signingKeyType == "ssh-ed25519" else {
+            throw OpenSSHCertificateError.unsupportedSigningKeyType(signingKeyType)
+        }
+        let rawSigningKey = try keyReader.readString()
+        guard rawSigningKey.count == 32 else { throw OpenSSHCertificateError.malformedSignature }
+        let signingKey = try Curve25519.Signing.PublicKey(rawRepresentation: Data(rawSigningKey))
+
+        var sigReader = CertByteReader(signatureBlob)
+        let signatureType = String(decoding: try sigReader.readString(), as: UTF8.self)
+        guard signatureType == "ssh-ed25519" else {
+            throw OpenSSHCertificateError.unsupportedSigningKeyType(signatureType)
+        }
+        let rawSignature = try sigReader.readString()
+        guard rawSignature.count == 64 else { throw OpenSSHCertificateError.malformedSignature }
+
+        return signingKey.isValidSignature(Data(rawSignature), for: signedData)
+    }
+}
+
+public enum OpenSSHCertificateError: Error, Sendable, Equatable {
+    /// CA:ns signeringsnyckeltyp (eller signaturens egen typ) är inte
+    /// `ssh-ed25519` — t.ex. en RSA- eller ECDSA-signerande CA.
+    case unsupportedSigningKeyType(String)
+    /// Signaturblobben eller CA-nyckelblobben hade fel längd för sin
+    /// deklarerade typ (t.ex. inte 32/64 byte för ssh-ed25519).
+    case malformedSignature
 }
 
 /// Samma SSH-trådformat (uint32-längd-prefixade strängar, big-endian) som
@@ -129,7 +181,7 @@ public struct OpenSSHCertificate: Sendable, Equatable {
 /// sin egen ramningskod separat från SSHKeyParser.swift.
 private struct CertByteReader {
     private let bytes: [UInt8]
-    private var offset = 0
+    private(set) var offset = 0
     init(_ data: Data) { bytes = Array(data) }
 
     var isAtEnd: Bool { offset >= bytes.count }
