@@ -41,17 +41,60 @@ final class ServerExecHandler: ChannelDuplexHandler, RemovableChannelHandler {
 
     private var shellMode = false
     private let sftpRoot: String
+    private let realExec: Bool
 
-    init(sftpRoot: String) {
+    /// `realExec`: `false` (default) — den ursprungliga fejkade
+    /// "ran: <kommando>\n"-ekot, vad de flesta exec-tester (`SSHCoreTests`,
+    /// `KeyParserTests`, `KnownHostsTests`, `ProxyJumpTests` m.fl.) redan
+    /// bygger på och inte ska rubbas. `true` — kör kommandot GENUINT via
+    /// `Process` (`/bin/sh -c`) med `sftpRoot` som arbetskatalog, samma
+    /// sandlåda `ServerSFTPHandler` redan använder — krävs för att bevisa
+    /// t.ex. `tar`/`zip`-arkivoperationer på RIKTIGA filer, inte bara att
+    /// rätt kommandosträng skickades.
+    init(sftpRoot: String, realExec: Bool = false) {
         self.sftpRoot = sftpRoot
+        self.realExec = realExec
     }
 
     func handlerAdded(context: ChannelHandlerContext) {
         _ = context.channel.setOption(ChannelOptions.allowRemoteHalfClosure, value: true)
     }
 
+    private func runReal(_ command: String, context: ChannelHandlerContext) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.currentDirectoryURL = URL(fileURLWithPath: sftpRoot)
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = outPipe
+        do {
+            try process.run()
+        } catch {
+            var buf = context.channel.allocator.buffer(capacity: 32)
+            buf.writeString("kunde inte starta: \(error)\n")
+            context.writeAndFlush(wrapOutboundOut(SSHChannelData(type: .channel, data: .byteBuffer(buf))), promise: nil)
+            context.triggerUserOutboundEvent(SSHChannelRequestEvent.ExitStatus(exitStatus: 127), promise: nil)
+            context.close(promise: nil)
+            return
+        }
+        let outputData = outPipe.fileHandleForReading.readDataToEndOfFile()
+        var status: Int32 = 0
+        waitpid(process.processIdentifier, &status, 0)
+        let exitCode = (status >> 8) & 0xFF
+        var buf = context.channel.allocator.buffer(capacity: outputData.count)
+        buf.writeBytes(outputData)
+        context.writeAndFlush(wrapOutboundOut(SSHChannelData(type: .channel, data: .byteBuffer(buf))), promise: nil)
+        context.triggerUserOutboundEvent(SSHChannelRequestEvent.ExitStatus(exitStatus: Int(exitCode)), promise: nil)
+        context.close(promise: nil)
+    }
+
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
         if let exec = event as? SSHChannelRequestEvent.ExecRequest {
+            if realExec {
+                runReal(exec.command, context: context)
+                return
+            }
             var buf = context.channel.allocator.buffer(capacity: 32)
             buf.writeString("ran: \(exec.command)\n")
             let data = SSHChannelData(type: .channel, data: .byteBuffer(buf))
@@ -538,7 +581,9 @@ struct LoopbackServer {
     /// tunneln). `true` öppnar en RIKTIG utgående anslutning till klientens
     /// begärda mål — krävs för att testa ProxyJump på riktigt (jump-servern
     /// måste faktiskt nå en separat målserver, inte bara eka).
-    static func start(password: String, realDirectTCPIPForwarding: Bool = false) throws -> LoopbackServer {
+    static func start(
+        password: String, realDirectTCPIPForwarding: Bool = false, realExec: Bool = false
+    ) throws -> LoopbackServer {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let sftpRoot = NSTemporaryDirectory() + "bastion-sftp-test-\(UUID().uuidString)"
@@ -565,7 +610,8 @@ struct LoopbackServer {
                                 }
                                 return child.pipeline.addHandler(ServerDirectTCPIPEchoHandler())
                             default:
-                                return child.pipeline.addHandler(ServerExecHandler(sftpRoot: sftpRoot))
+                                return child.pipeline.addHandler(
+                                    ServerExecHandler(sftpRoot: sftpRoot, realExec: realExec))
                             }
                         }))
             }

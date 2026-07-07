@@ -616,9 +616,33 @@ Inget nytt att bygga, bara verifiera/lansera:
   göra, men bevisar hela protokollvägen. `LoopbackServer`s SETSTAT-hantering
   utökad att applicera uid/gid, inte bara permissions. LinuxApp-UI: en ny
   "chown"-knapp bredvid "chmod", två textfält (UID/GID). 1 nytt test.
-  **Kvar**: Drag & Drop, Zip/Tar, förhandsvisning (t.ex. bilder),
-  textredigering i App/ (bara LinuxApp klart hittills), syntax highlighting
-  (se separat post nedan), chown i App/-UI (bara LinuxApp klart hittills).
+  **Zip/Tar** (2026-07-07): ✅ klart, `ArchiveOperations.swift` — SFTP
+  version 3 har ingen egen arkivsemantik, så det här shellar ut till
+  `tar`/`zip` över en vanlig exec-kanal (`SSHSession.run`), samma mönster
+  som `DockerService.swift`. Sökvägar VALIDERAS INTE mot en whitelist
+  (containerreferenser tål det, filnamn med mellanslag/unicode gör inte)
+  — istället citeras varje sökväg individuellt (enkla citattecken,
+  inbäddade `'` eskapade som `'\''`, standard POSIX-shell-säkert).
+  Injektionssäkerheten är INTE bara antagen: ett test kör den citerade
+  strängen genom en RIKTIG `/bin/sh -c` och verifierar att en filnamn-
+  injektion (`"'; touch /tmp/...; echo '"`) tolkas som EN bokstavlig
+  sökväg, inte ett avslutat citat + ett nytt kommando; ett annat test
+  bevisar att en sådan injektion i `paths` genom hela vägen till
+  `createTarGz` aldrig skapar bevisfilen. `LoopbackServer` fick en ny
+  opt-in `realExec`-flagga (default `false`, rör inga befintliga
+  exec-tester) som kör kommandot GENUINT via `Process` istället för det
+  fejkade "ran: <kommando>\n"-ekot — krävs för att bevisa att `tar`/`zip`
+  faktiskt skapar/packar upp RIKTIGA filer, inte bara att rätt
+  kommandosträng skickades. Skapa-sedan-packa-upp-rundtur verifierad mot
+  riktiga `tar`/`zip`-binärer för båda formaten. LinuxApp-UI: "Komprimera"
+  (namnfält + zip/tar.gz-växel) och "Packa upp" (visas bara för kända
+  arkivändelser: `.tar.gz`/`.tgz`/`.zip`) bredvid chmod/chown. v1
+  avgränsat till EN fil/mapp åt gången (ingen flerval-UI i SwiftCrossUIs
+  `List` ännu). 9 nya tester, 224 gröna totalt.
+  **Kvar**: Drag & Drop, flerval för komprimering, förhandsvisning
+  (t.ex. bilder), textredigering i App/ (bara LinuxApp klart hittills),
+  syntax highlighting (se separat post nedan), chown/Zip-Tar i App/-UI
+  (bara LinuxApp klart hittills).
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - **Agent Forwarding**: ✅ agent-PROTOKOLLKLIENTEN klar (2026-07-07,

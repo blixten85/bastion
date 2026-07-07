@@ -167,6 +167,53 @@ final class SFTPBrowserModel: ObservableObject {
         }
     }
 
+    /// Komprimerar EN post (fil eller mapp) till ett nytt arkiv i samma
+    /// katalog. `archiveName` bör sluta på `.tar.gz`/`.zip` (styr inte
+    /// formatet — det gör `useZip` — men läses av `extract` nedan för att
+    /// välja rätt uppackningskommando).
+    func compress(_ entry: SFTPNameEntry, archiveName: String, useZip: Bool) async {
+        guard let client = await ensureClient(), let session else { return }
+        do {
+            // SFTP:s `currentPath` och exec-kanalens arbetskatalog delar
+            // typiskt startkatalog (användarens hem) men är INTE garanterat
+            // samma sak — `realpath` slår upp den FAKTISKA absoluta
+            // sökvägen via SFTP-protokollet, så `cd` i arkivkommandot
+            // landar exakt där filhanteraren visar, oavsett.
+            let absoluteDir = try await client.realpath(currentPath)
+            if useZip {
+                try await ArchiveOperations.createZip(
+                    paths: [entry.filename], archiveName: archiveName, in: absoluteDir, over: session)
+            } else {
+                try await ArchiveOperations.createTarGz(
+                    paths: [entry.filename], archiveName: archiveName, in: absoluteDir, over: session)
+            }
+            await refresh()
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
+    /// Packar upp ett arkiv i SAMMA katalog den ligger i. Formatet avgörs
+    /// av filändelsen — `.tar.gz`/`.tgz` eller `.zip`, annat avvisas tydligt
+    /// istället för att gissa fel kommando.
+    func extract(_ entry: SFTPNameEntry) async {
+        guard let client = await ensureClient(), let session else { return }
+        do {
+            let absoluteDir = try await client.realpath(currentPath)
+            if entry.filename.hasSuffix(".tar.gz") || entry.filename.hasSuffix(".tgz") {
+                try await ArchiveOperations.extractTarGz(archiveName: entry.filename, in: absoluteDir, over: session)
+            } else if entry.filename.hasSuffix(".zip") {
+                try await ArchiveOperations.extractZip(archiveName: entry.filename, in: absoluteDir, over: session)
+            } else {
+                errorMessage = "Okänt arkivformat — stödjer .tar.gz/.tgz/.zip."
+                return
+            }
+            await refresh()
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
     /// `uidText`/`gidText`: NUMERISKA ID:n, inte användarnamn — SFTP version 3
     /// känner bara till UID/GID, aldrig namn (se `SFTPClient.chown`s
     /// doc-kommentar för varför).
@@ -245,6 +292,9 @@ struct SFTPBrowserView: View {
     @State private var showChown = false
     @State private var chownUIDText = ""
     @State private var chownGIDText = ""
+    @State private var showCompress = false
+    @State private var compressNameText = ""
+    @State private var compressUseZip = false
     @State private var showEditor = false
     @State private var editorText = ""
     @State private var editorFilename: String?
@@ -334,6 +384,19 @@ struct SFTPBrowserView: View {
                         }
                         Button("Avbryt") { showChown = false }
                     }
+                } else if showCompress {
+                    HStack {
+                        TextField("Arkivnamn (t.ex. \(selected.filename).tar.gz)", text: $compressNameText)
+                        Toggle("zip", isOn: $compressUseZip)
+                        Button("Skapa") {
+                            let name = compressNameText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let useZip = compressUseZip
+                            showCompress = false
+                            guard !name.isEmpty else { return }
+                            Task { await model.compress(selected, archiveName: name, useZip: useZip) }
+                        }
+                        Button("Avbryt") { showCompress = false }
+                    }
                 } else {
                     HStack {
                         if selected.attributes.isDirectory {
@@ -351,6 +414,16 @@ struct SFTPBrowserView: View {
                         Button("Döp om") { renameText = selected.filename; showRename = true }
                         Button("chmod") { chmodText = ""; showChmod = true }
                         Button("chown") { chownUIDText = ""; chownGIDText = ""; showChown = true }
+                        Button("Komprimera") {
+                            compressNameText = selected.filename + ".tar.gz"
+                            compressUseZip = false
+                            showCompress = true
+                        }
+                        if selected.filename.hasSuffix(".tar.gz") || selected.filename.hasSuffix(".tgz")
+                            || selected.filename.hasSuffix(".zip")
+                        {
+                            Button("Packa upp") { Task { await model.extract(selected) } }
+                        }
                         Button("Ta bort") { Task { await model.delete(selected) } }
                     }
                 }
