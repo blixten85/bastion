@@ -745,6 +745,19 @@ Inget nytt att bygga, bara verifiera/lansera:
   `NIOSSHCertifiedPublicKey.validate(...)` en riktig sshd använder) att en
   korrekt implementerad server SKULLE acceptera det. 4 nya tester, 213
   gröna totalt.
+  **Empiriskt bekräftat mot en RIKTIG `sshd` (2026-07-07, engångsverifiering,
+  inte en permanent CI-test)**: `openssh-server` fanns installerat lokalt —
+  startade en genuin `sshd` (unprivilegierad port, `TrustedUserCAKeys` mot
+  en riktig CA, `sudo` krävdes bara för att binda som root, inget annat) och
+  körde Bastions EGEN `SSHSession`/`SSHUserAuth` med `.certificate(seed:,
+  certificateLine:)` mot den. Tre fall, alla med korrekt utfall: giltigt
+  certifikat (rätt principal, betrodd CA) → `LYCKADES`, fel principal →
+  `authenticationFailed`, obetrodd CA → `authenticationFailed`. Upphöjer
+  "en riktig sshd SKULLE acceptera det" (ovan, resonerat + offline-
+  verifierat) till genuint bevisat, inte bara resonerat. Byggdes inte in
+  som permanent test — kräver root-processer + portgissning i CI för
+  marginell extra säkerhet utöver de redan offline-verifierade testerna,
+  en oproportionerlig skörhetsökning för den vinsten.
 - Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
 - **256-färg + True Color i Linux-terminalen** — ✅ klart. `TerminalBuffer.applySGR`
   hanterade tidigare bara 16-färgspaletten (`SGR 30-37/40-47/90-97/100-107`).
