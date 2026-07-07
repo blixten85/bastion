@@ -51,7 +51,7 @@ delvis andra, av konkreta skäl:
 | Linux-portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa, byggd+körd (Xvfb) — ingen App/-motsvarighet än |
 | ProxyJump (`ssh -J`) | ✅ `SSHSession.connect(via:)`, `bastion-cli` läser `ProxyJump` ur ssh-config automatiskt |
 | WireGuard-profiler | ✅ parsning/serialisering + lagring + LinuxApp-UI — 🧩 App/-motsvarighet kvar (Xcode-only) |
-| OpenSSH-certifikat | ✅ parsning + CA-signaturverifiering (Ed25519), `OpenSSHCertificate.swift`, testad mot RIKTIGA `ssh-keygen -s`-certifikat — 🧩 auth-wiring (använda ett cert vid inloggning) kvar |
+| OpenSSH-certifikat | ✅ parsning + CA-signaturverifiering + `SSHUserAuth`/`HostAuth`-wiring (`.certificateFile`) — testad mot RIKTIGA `ssh-keygen -s`-certifikat, LinuxApp+App-UI klar |
 | ssh-agent-protokollklient | ✅ `SSHAgentClient.swift`, testad mot en RIKTIG `ssh-agent` — 🚫 kanal-forwarding till fjärrserver BLOCKERAD (se ROADMAP) |
 | Tailscale-värdförslag | ✅ `TailscaleStatus.swift` (fetch/fetchLocal) + LinuxApp `TailscaleDiscoveryView` — 🧩 App/-motsvarighet kvar (Xcode-only) |
 
@@ -687,9 +687,37 @@ Inget nytt att bygga, bara verifiera/lansera:
   bara att den lyckas för det oförändrade fallet, vilket ett buggigt
   "returnera alltid true" också hade klarat). 4 nya tester, 205 gröna
   totalt.
-  **Kvar**: `SSHUserAuth`/`HostAuth`-wiring (använda ett verifierat
-  certifikat för att faktiskt logga in, inte bara verifiera det offline),
-  UI.
+  **Auth-wiring** (2026-07-07): ✅ klart. Ny `SSHAuth.certificate(seed:,
+  certificateLine:)` + `HostAuth.certificateFile(keyPath:, certPath:)` +
+  `OpenSSHPrivateKey.loadCertificate(keyPath:certPath:)`. `SSHUserAuth`
+  erbjuder certifikatet via swift-nio-ssh:s EGNA förstklassiga
+  `NIOSSHCertifiedPublicKey`/`NIOSSHUserAuthenticationOffer.Offer.PrivateKey
+  (privateKey:certifiedKey:)` — inget eget protokollarbete behövdes, biblioteket
+  har redan fullt stöd för att en CLIENT ERBJUDER ett cert. LinuxApp
+  (`HostEditView`) + App (Xcode-only) UI: ny "OpenSSH-certifikat"-autentiseringsväg
+  med separata sökvägsfält för nyckel + certifikat.
+  **Viktigt fynd under verifieringen** (empiriskt bekräftat genom att
+  temporärt instrumentera den lånade paketkopian, inte gissat): swift-nio-ssh
+  SERVER-rollen kan INTE ta emot certifikatbaserad publickey-auth —
+  `readUserAuthRequestMessage()` (`SSHMessages.swift`) kollar det inkommande
+  algoritmnamnet mot `NIOSSHPublicKey.knownAlgorithms`, som bara listar de
+  fyra RÅA nyckeltyperna (`ssh-ed25519`/`ecdsa-sha2-nistp{256,384,521}`),
+  ALDRIG `*-cert-v01@openssh.com`-varianterna — ett sådant erbjudande blir
+  tyst `.publicKey(.unknown)` och avvisas INNAN
+  `NIOSSHServerUserAuthenticationDelegate` ens nås (bekräftat: en
+  handinstrumenterad körning visade att signeringen lyckas klient-sidan,
+  men serverns `requestReceived` aldrig anropas). Detta är asymmetriskt —
+  CLIENT-rollens erbjudande-stöd är fullständigt, bara SERVER-rollens
+  mottagande saknas. Påverkar INTE Bastion i produktion (Bastion är alltid
+  CLIENT, aldrig server — en riktig sshd hanterar certifikat fullt ut och
+  standardmässigt), men gör att `LoopbackServer`-baserade tester inte kan
+  bevisa en fullständig nätverksrundtur. Testerna
+  (`OpenSSHCertificateAuthTests.swift`) verifierar istället EXAKT det
+  Bastion kontrollerar som klient — att erbjudandet byggs/signeras korrekt
+  och innehåller rätt certifikat — och verifierar SEDAN offline (samma
+  `NIOSSHCertifiedPublicKey.validate(...)` en riktig sshd använder) att en
+  korrekt implementerad server SKULLE acceptera det. 4 nya tester, 213
+  gröna totalt.
 - Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
 - **256-färg + True Color i Linux-terminalen** — ✅ klart. `TerminalBuffer.applySGR`
   hanterade tidigare bara 16-färgspaletten (`SGR 30-37/40-47/90-97/100-107`).

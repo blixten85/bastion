@@ -10,6 +10,7 @@ struct HostEditView: View {
     @State private var tagsText: String
     @State private var authKind: AuthKind
     @State private var keyPath: String
+    @State private var certPath: String
     @State private var keyText: String
     let onSave: (Host) -> Void
 
@@ -17,6 +18,7 @@ struct HostEditView: View {
         case agent = "Standardnyckel/agent"
         case password = "Fråga lösenord"
         case key = "Nyckelfil (sökväg)"
+        case certificate = "OpenSSH-certifikat (nyckel + -cert.pub)"
         case keychainImport = "Importera nyckel"
         var id: String { rawValue }
     }
@@ -31,13 +33,20 @@ struct HostEditView: View {
         self.onSave = onSave
         switch host.auth {
         case .agentDefault:
-            _authKind = State(initialValue: .agent); _keyPath = State(initialValue: ""); _keyText = State(initialValue: "")
+            _authKind = State(initialValue: .agent); _keyPath = State(initialValue: "")
+            _certPath = State(initialValue: ""); _keyText = State(initialValue: "")
         case .askPassword:
-            _authKind = State(initialValue: .password); _keyPath = State(initialValue: ""); _keyText = State(initialValue: "")
+            _authKind = State(initialValue: .password); _keyPath = State(initialValue: "")
+            _certPath = State(initialValue: ""); _keyText = State(initialValue: "")
         case .keyFile(let p):
-            _authKind = State(initialValue: .key); _keyPath = State(initialValue: p); _keyText = State(initialValue: "")
+            _authKind = State(initialValue: .key); _keyPath = State(initialValue: p)
+            _certPath = State(initialValue: ""); _keyText = State(initialValue: "")
+        case .certificateFile(let keyPath, let certPath):
+            _authKind = State(initialValue: .certificate); _keyPath = State(initialValue: keyPath)
+            _certPath = State(initialValue: certPath); _keyText = State(initialValue: "")
         case .keychainKey(let id):
             _authKind = State(initialValue: .keychainImport); _keyPath = State(initialValue: "")
+            _certPath = State(initialValue: "")
             _keyText = State(initialValue: Keychain.get(id) ?? "")
         }
     }
@@ -67,6 +76,12 @@ struct HostEditView: View {
                     }
                     if authKind == .key {
                         TextField("Sökväg till privatnyckel", text: $keyPath)
+                            .noAutocap().autocorrectionDisabled()
+                    }
+                    if authKind == .certificate {
+                        TextField("Sökväg till privatnyckel", text: $keyPath)
+                            .noAutocap().autocorrectionDisabled()
+                        TextField("Sökväg till certifikat (t.ex. nyckel-cert.pub)", text: $certPath)
                             .noAutocap().autocorrectionDisabled()
                     }
                     if authKind == .keychainImport {
@@ -102,9 +117,19 @@ struct HostEditView: View {
     private var isValid: Bool {
         let baseValid = !draft.hostName.trimmingCharacters(in: .whitespaces).isEmpty
             && !draft.user.trimmingCharacters(in: .whitespaces).isEmpty
-        guard baseValid, authKind == .keychainImport else { return baseValid }
-        guard !keyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        return keyValidationMessage == nil
+        guard baseValid else { return false }
+        switch authKind {
+        case .keychainImport:
+            guard !keyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+            return keyValidationMessage == nil
+        case .key:
+            return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .certificate:
+            return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
+                && !certPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .agent, .password:
+            return true
+        }
     }
 
     /// `nil` om nyckeltexten (om ifylld) tolkas som en giltig okrypterad OpenSSH-nyckel.
@@ -134,6 +159,7 @@ struct HostEditView: View {
         case .agent: host.auth = .agentDefault
         case .password: host.auth = .askPassword
         case .key: host.auth = .keyFile(keyPath)
+        case .certificate: host.auth = .certificateFile(keyPath: keyPath, certPath: certPath)
         case .keychainImport:
             let id = Self.keychainID(for: host)
             Keychain.set(keyText, for: id)

@@ -21,5 +21,7 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
         // inget motsvarande säkert nyckelvalv finns här än. Använd Nyckelfil
         // (sökväg) eller standardnyckel/agent på Linux/Windows tills vidare.
         return nil
+    case .certificateFile(let keyPath, let certPath):
+        return try? OpenSSHPrivateKey.loadCertificate(keyPath: keyPath, certPath: certPath)
     }
 }

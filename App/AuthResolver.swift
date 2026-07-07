@@ -16,6 +16,8 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
     case .keychainKey(let id):
         guard let pem = Keychain.get(id) else { return nil }
         return try? OpenSSHPrivateKey.parse(pem)
+    case .certificateFile(let keyPath, let certPath):
+        return try? OpenSSHPrivateKey.loadCertificate(keyPath: keyPath, certPath: certPath)
     }
 }
 #endif

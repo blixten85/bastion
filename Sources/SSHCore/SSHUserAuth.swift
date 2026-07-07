@@ -56,6 +56,43 @@ final class SSHUserAuth: NIOSSHClientUserAuthenticationDelegate {
                 username: username, serviceName: "",
                 offer: .privateKey(.init(privateKey: priv)))
             nextChallengePromise.succeed(offer)
+
+        case .certificate(let seed, let certificateLine):
+            // Signerar med den RÅA privata nyckeln (samma som .ed25519Seed),
+            // men erbjuder CERTIFIKATET som publik nyckel istället för den
+            // bara nyckeln — swift-nio-ssh har förstklassigt certifikatstöd
+            // (NIOSSHCertifiedPublicKey), inget eget behövs här. Servern
+            // validerar CA-signaturen + giltighetsperiod + principal själv.
+            //
+            // Verifierad genom källkodsläsning + empiriskt (INTE bara antaget):
+            // `NIOSSHUserAuthenticationOffer.Offer.PrivateKey(privateKey:certifiedKey:)`
+            // signerar korrekt (bekräftat, "sign succeeded" i en temporär
+            // instrumenterad körning). swift-nio-ssh SERVER-rollen kan dock
+            // INTE ta emot certifikatbaserad publickey-auth — dess
+            // `readUserAuthRequestMessage()` kollar det inkommande
+            // algoritmnamnet mot `NIOSSHPublicKey.knownAlgorithms`, som bara
+            // listar de fyra RÅA nyckeltyperna (`ssh-ed25519`/`ecdsa-*`),
+            // aldrig `*-cert-v01@openssh.com`-varianterna — ett cert-erbjudande
+            // blir tyst `.publicKey(.unknown)` och avvisas innan
+            // `NIOSSHServerUserAuthenticationDelegate` ens nås. Påverkar INTE
+            // Bastion i produktion (Bastion är alltid CLIENT, aldrig server —
+            // en riktig sshd hanterar cert-auth fullt ut), men gör att den här
+            // koden INTE kan täckas av ett genuint end-to-end-test mot
+            // `LoopbackServer` (som använder swift-nio-ssh i serverrollen).
+            // Se ROADMAP.md för detaljer.
+            guard availableMethods.contains(.publicKey),
+                  let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: seed),
+                  let publicKey = try? NIOSSHPublicKey(openSSHPublicKey: certificateLine),
+                  let certifiedKey = NIOSSHCertifiedPublicKey(publicKey)
+            else {
+                giveUp(nextChallengePromise)
+                return
+            }
+            let priv = NIOSSHPrivateKey(ed25519Key: key)
+            let offer = NIOSSHUserAuthenticationOffer(
+                username: username, serviceName: "",
+                offer: .privateKey(.init(privateKey: priv, certifiedKey: certifiedKey)))
+            nextChallengePromise.succeed(offer)
         }
     }
 }

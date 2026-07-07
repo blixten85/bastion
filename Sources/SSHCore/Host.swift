@@ -7,6 +7,10 @@ public enum HostAuth: Codable, Sendable, Equatable {
     case keyFile(String)        // sökväg till en (okrypterad) privatnyckel
     case agentDefault           // ~/.ssh/id_ed25519 / ssh-config
     case keychainKey(String)    // nyckelmaterial importerat i appen, id i Keychain
+    /// OpenSSH-certifikatautentisering: privatnyckelns sökväg + det
+    /// signerade certifikatets sökväg (typiskt `<nyckel>-cert.pub`,
+    /// skrivet av `ssh-keygen -s`).
+    case certificateFile(keyPath: String, certPath: String)
 }
 
 /// En sparad värd i host-databasen. Ren metadata (inga hemligheter) så den kan

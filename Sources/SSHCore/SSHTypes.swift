@@ -19,6 +19,12 @@ public struct SSHTarget: Sendable {
 public enum SSHAuth: Sendable {
     case password(String)
     case ed25519Seed(Data)
+    /// OpenSSH-certifikatautentisering: signerar med den råa Ed25519-fröet
+    /// (`seed`, samma som `.ed25519Seed`) men erbjuder servern CERTIFIKATET
+    /// (`certificateLine`, en hel `type base64 kommentar`-rad som en
+    /// `-cert.pub`-fil) som "publik nyckel" istället för den bara nyckeln —
+    /// servern validerar CA-signaturen + giltighet (se `SSHUserAuth.swift`).
+    case certificate(seed: Data, certificateLine: String)
 }
 
 /// En bit utdata från fjärrkommandot.

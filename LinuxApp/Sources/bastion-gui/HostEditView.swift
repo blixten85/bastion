@@ -10,11 +10,12 @@ struct HostEditView: View {
     @State private var tagsText: String
     @State private var authKind: AuthKind
     @State private var keyPath: String
+    @State private var certPath: String
     let onSave: (Host) -> Void
     let onCancel: () -> Void
 
     enum AuthKind: Equatable, CustomStringConvertible {
-        case agent, password, key
+        case agent, password, key, certificate
         /// Bevarar en `.keychainKey`-värd oförändrad — Linux/Windows saknar
         /// Keychain och kan varken läsa eller skriva sådana nycklar (se
         /// `AuthResolver.swift`), så vi rör inte kopplingen om användaren inte
@@ -26,15 +27,16 @@ struct HostEditView: View {
             case .agent: return "Standardnyckel/agent"
             case .password: return "Fråga lösenord"
             case .key: return "Nyckelfil (sökväg)"
+            case .certificate: return "OpenSSH-certifikat (nyckel + -cert.pub)"
             case .importedElsewhere: return "Importerad nyckel (endast iOS/macOS)"
             }
         }
     }
 
-    /// Valbara lägen: de tre vanliga, plus — bara om värden redan har en —
+    /// Valbara lägen: de fyra vanliga, plus — bara om värden redan har en —
     /// det bevarade Keychain-läget.
     private var pickerOptions: [AuthKind] {
-        var options: [AuthKind] = [.agent, .password, .key]
+        var options: [AuthKind] = [.agent, .password, .key, .certificate]
         if case .keychainKey(let id) = draft.auth { options.append(.importedElsewhere(id)) }
         return options
     }
@@ -59,15 +61,23 @@ struct HostEditView: View {
         case .agentDefault:
             self._authKind = State(wrappedValue: .agent)
             self._keyPath = State(wrappedValue: "")
+            self._certPath = State(wrappedValue: "")
         case .askPassword:
             self._authKind = State(wrappedValue: .password)
             self._keyPath = State(wrappedValue: "")
+            self._certPath = State(wrappedValue: "")
         case .keyFile(let p):
             self._authKind = State(wrappedValue: .key)
             self._keyPath = State(wrappedValue: p)
+            self._certPath = State(wrappedValue: "")
+        case .certificateFile(let keyPath, let certPath):
+            self._authKind = State(wrappedValue: .certificate)
+            self._keyPath = State(wrappedValue: keyPath)
+            self._certPath = State(wrappedValue: certPath)
         case .keychainKey(let id):
             self._authKind = State(wrappedValue: .importedElsewhere(id))
             self._keyPath = State(wrappedValue: "")
+            self._certPath = State(wrappedValue: "")
         }
     }
 
@@ -89,6 +99,10 @@ struct HostEditView: View {
             if authKind == .key {
                 TextField("Sökväg till privatnyckel", text: $keyPath)
             }
+            if authKind == .certificate {
+                TextField("Sökväg till privatnyckel", text: $keyPath)
+                TextField("Sökväg till certifikat (t.ex. nyckel-cert.pub)", text: $certPath)
+            }
 
             Text("Fjärrsystem").font(.subheadline)
             Picker(of: RemotePlatform.allCases, selection: platformBinding)
@@ -103,8 +117,18 @@ struct HostEditView: View {
     }
 
     private var isValid: Bool {
-        !draft.hostName.trimmingCharacters(in: .whitespaces).isEmpty
-            && !draft.user.trimmingCharacters(in: .whitespaces).isEmpty
+        guard !draft.hostName.trimmingCharacters(in: .whitespaces).isEmpty,
+              !draft.user.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return false }
+        switch authKind {
+        case .key:
+            return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .certificate:
+            return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
+                && !certPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .agent, .password, .importedElsewhere:
+            return true
+        }
     }
 
     private func save() {
@@ -116,6 +140,7 @@ struct HostEditView: View {
         case .agent: host.auth = .agentDefault
         case .password: host.auth = .askPassword
         case .key: host.auth = .keyFile(keyPath)
+        case .certificate: host.auth = .certificateFile(keyPath: keyPath, certPath: certPath)
         case .importedElsewhere(let id): host.auth = .keychainKey(id)
         }
         if host.alias.trimmingCharacters(in: .whitespaces).isEmpty { host.alias = host.hostName }
