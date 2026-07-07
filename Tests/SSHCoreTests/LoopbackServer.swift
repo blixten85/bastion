@@ -364,8 +364,17 @@ final class ServerSFTPHandler: ChannelDuplexHandler {
             guard let id: UInt32 = payload.readInteger(), let path = try? payload.readSFTPString() else { return }
             do {
                 let attrs = try SFTPFileAttributes.decode(from: &payload)
-                if let mode = attrs.permissions {
-                    try fm.setAttributes([.posixPermissions: mode], ofItemAtPath: diskPath(for: path))
+                var fileAttrs: [FileAttributeKey: Any] = [:]
+                if let mode = attrs.permissions { fileAttrs[.posixPermissions] = mode }
+                // `chown` till en ANNAN uid/gid än processens egen kräver root
+                // (normalt POSIX-beteende) — testservern körs oprivilegierad,
+                // så bara ett "byte" till samma ägare den redan har går
+                // igenom här. Räcker för att bevisa hela protokollvägen
+                // (klient -> SETSTAT med uid/gid -> server -> riktig fil).
+                if let uid = attrs.uid { fileAttrs[.ownerAccountID] = uid }
+                if let gid = attrs.gid { fileAttrs[.groupOwnerAccountID] = gid }
+                if !fileAttrs.isEmpty {
+                    try fm.setAttributes(fileAttrs, ofItemAtPath: diskPath(for: path))
                 }
                 sendStatus(id: id, code: .ok, context: context)
             } catch {

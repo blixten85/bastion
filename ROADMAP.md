@@ -606,10 +606,19 @@ Inget nytt att bygga, bara verifiera/lansera:
   läs/skriv-väg. En enkel giltighetskontroll (kodar tillbaka till UTF-8 och
   jämför bytelängd) vägrar öppna binärfiler som text istället för att visa
   korrupt/ersatt innehåll (`U+FFFD`) utan varning.
-  **Kvar**: Drag & Drop, Zip/Tar, chown (kräver numeriska UID/GID servern
-  måste känna till — inte byggt, se `SFTPClient.setPermissions`s doc-kommentar),
-  förhandsvisning (t.ex. bilder), textredigering i App/ (bara LinuxApp klart
-  hittills), syntax highlighting (se separat post nedan).
+  **chown** (2026-07-07): ✅ klart, `SFTPClient.chown(_:uid:gid:)` —
+  protokollagret (`SFTPFileAttributes.uid`/`gid`) var redan byggt och
+  testat sedan tidigare, bara en bekvämlighetsmetod saknades. Kräver
+  NUMERISKA UID/GID (SFTP v3 känner inte till användarnamn) — anroparen
+  ansvarar för uppslagning. Verifierat mot den RIKTIGA filens ägarskap på
+  disk (inte bara att servern svarade OK) — testservern (oprivilegierad)
+  "byter" till processens egen uid/gid, det enda en icke-root-process får
+  göra, men bevisar hela protokollvägen. `LoopbackServer`s SETSTAT-hantering
+  utökad att applicera uid/gid, inte bara permissions. LinuxApp-UI: en ny
+  "chown"-knapp bredvid "chmod", två textfält (UID/GID). 1 nytt test.
+  **Kvar**: Drag & Drop, Zip/Tar, förhandsvisning (t.ex. bilder),
+  textredigering i App/ (bara LinuxApp klart hittills), syntax highlighting
+  (se separat post nedan), chown i App/-UI (bara LinuxApp klart hittills).
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - **Agent Forwarding**: ✅ agent-PROTOKOLLKLIENTEN klar (2026-07-07,

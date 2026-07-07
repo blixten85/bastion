@@ -135,6 +135,36 @@ final class SFTPClientTests: XCTestCase {
         await session.close()
     }
 
+    /// Verifierar mot den RIKTIGA filen på disk, precis som
+    /// `testSetPermissionsChangesRealFileMode`. `chown` till en ANNAN
+    /// uid/gid än processens egen kräver root (normalt POSIX-beteende) —
+    /// den här testkörningen är oprivilegierad, så vi "byter" till samma
+    /// uid/gid processen redan kör som. Bevisar ändå hela protokollvägen:
+    /// klient bygger ett SETSTAT med uid+gid -> servern tar emot och
+    /// applicerar det -> filen på disk har verkligen det värdet efteråt
+    /// (inte bara att servern svarade OK).
+    func testChownChangesRealFileOwnership() async throws {
+        let server = try LoopbackServer.start(password: "hunter2")
+        defer { server.shutdown() }
+        let session = try await connectedSession(server)
+        let sftp = try await SFTPClient.open(on: session)
+
+        try await sftp.writeFile("chown-test.txt", data: Array("x".utf8))
+        let myUID = UInt32(getuid())
+        let myGID = UInt32(getgid())
+        try await sftp.chown("chown-test.txt", uid: myUID, gid: myGID)
+
+        let diskPath = server.sftpRoot + "/chown-test.txt"
+        let attrs = try FileManager.default.attributesOfItem(atPath: diskPath)
+        let ownerID = (attrs[.ownerAccountID] as? NSNumber)?.uint32Value
+        let groupID = (attrs[.groupOwnerAccountID] as? NSNumber)?.uint32Value
+        XCTAssertEqual(ownerID, myUID)
+        XCTAssertEqual(groupID, myGID)
+
+        await sftp.close()
+        await session.close()
+    }
+
     func testRemoveDeletesFile() async throws {
         let server = try LoopbackServer.start(password: "hunter2")
         defer { server.shutdown() }

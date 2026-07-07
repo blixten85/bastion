@@ -167,6 +167,23 @@ final class SFTPBrowserModel: ObservableObject {
         }
     }
 
+    /// `uidText`/`gidText`: NUMERISKA ID:n, inte användarnamn — SFTP version 3
+    /// känner bara till UID/GID, aldrig namn (se `SFTPClient.chown`s
+    /// doc-kommentar för varför).
+    func chown(_ entry: SFTPNameEntry, uidText: String, gidText: String) async {
+        guard let uid = UInt32(uidText), let gid = UInt32(gidText) else {
+            errorMessage = "Ogiltigt UID/GID — ange numeriska ID:n, t.ex. 1000."
+            return
+        }
+        guard let client = await ensureClient() else { return }
+        do {
+            try await client.chown(joined(entry.filename), uid: uid, gid: gid)
+            await refresh()
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
     /// `nil` betyder antingen att läsningen misslyckades (se `errorMessage`)
     /// ELLER att innehållet inte är giltig UTF-8 (binärfil). `String(bytes:
     /// encoding:)` (till skillnad från `String(decoding:as:)`, som ALLTID
@@ -225,6 +242,9 @@ struct SFTPBrowserView: View {
     @State private var renameText = ""
     @State private var showChmod = false
     @State private var chmodText = ""
+    @State private var showChown = false
+    @State private var chownUIDText = ""
+    @State private var chownGIDText = ""
     @State private var showEditor = false
     @State private var editorText = ""
     @State private var editorFilename: String?
@@ -301,6 +321,19 @@ struct SFTPBrowserView: View {
                         }
                         Button("Avbryt") { showChmod = false }
                     }
+                } else if showChown {
+                    HStack {
+                        TextField("UID (t.ex. 1000)", text: $chownUIDText)
+                        TextField("GID (t.ex. 1000)", text: $chownGIDText)
+                        Button("Spara") {
+                            let uidText = chownUIDText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let gidText = chownGIDText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            showChown = false
+                            guard !uidText.isEmpty, !gidText.isEmpty else { return }
+                            Task { await model.chown(selected, uidText: uidText, gidText: gidText) }
+                        }
+                        Button("Avbryt") { showChown = false }
+                    }
                 } else {
                     HStack {
                         if selected.attributes.isDirectory {
@@ -317,6 +350,7 @@ struct SFTPBrowserView: View {
                         }
                         Button("Döp om") { renameText = selected.filename; showRename = true }
                         Button("chmod") { chmodText = ""; showChmod = true }
+                        Button("chown") { chownUIDText = ""; chownGIDText = ""; showChown = true }
                         Button("Ta bort") { Task { await model.delete(selected) } }
                     }
                 }
