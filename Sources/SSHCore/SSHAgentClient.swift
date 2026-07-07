@@ -72,10 +72,34 @@ private final class SSHAgentFramingHandler: ChannelInboundHandler {
 public actor SSHAgentClient {
     private let channel: Channel
     private var messages: AsyncStream<ByteBuffer>.Iterator
+    // Agent-protokollet har inget request-ID (till skillnad från SFTP) —
+    // svar måste konsumeras i EXAKT samma ordning som förfrågningarna
+    // skickades. Överlappande requestIdentities()/sign()-anrop skulle annars
+    // kunna läsa varandras svar från samma AsyncStream-iterator (CodeRabbit-
+    // fynd, PR #83). En kö av väntande continuations serialiserar åtkomsten:
+    // bara EN förfrågan i taget får skicka+vänta på svar.
+    private var sendQueue: [CheckedContinuation<Void, Never>] = []
+    private var sending = false
 
     private init(channel: Channel, stream: AsyncStream<ByteBuffer>) {
         self.channel = channel
         self.messages = stream.makeAsyncIterator()
+    }
+
+    private func acquireSendTurn() async {
+        if !sending {
+            sending = true
+            return
+        }
+        await withCheckedContinuation { sendQueue.append($0) }
+    }
+
+    private func releaseSendTurn() {
+        if sendQueue.isEmpty {
+            sending = false
+        } else {
+            sendQueue.removeFirst().resume()
+        }
     }
 
     /// Ansluter till en körande agents Unix-socket (typiskt `$SSH_AUTH_SOCK`).
@@ -110,6 +134,9 @@ public actor SSHAgentClient {
     }
 
     private func send(type: SSHAgentMessageType, body: (inout ByteBuffer) -> Void) async throws -> ByteBuffer {
+        await acquireSendTurn()
+        defer { releaseSendTurn() }
+
         var payload = channel.allocator.buffer(capacity: 64)
         payload.writeInteger(type.rawValue)
         body(&payload)

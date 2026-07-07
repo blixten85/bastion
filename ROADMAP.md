@@ -480,7 +480,7 @@ Inget nytt att bygga, bara verifiera/lansera:
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - **Agent Forwarding**: ✅ agent-PROTOKOLLKLIENTEN klar (2026-07-07,
   `SSHAgentClient.swift`) — lista identiteter + begära signaturer från en
-  KÖRANDE, LOKAL `ssh-agent` över `$SSH_AUTH_SOCK` (Unix-socket, NIOs
+  KÖRANDE, LOKAL `ssh-agent` över `$SSH_AUTH_SOCK` (Unix-socket via NIO:s
   `ClientBootstrap.connect(unixDomainSocketPath:)`). Trådformatet
   verifierat mot `draft-miller-ssh-agent-09` (IETF). v1 avgränsat till
   klienten mot en LOKAL agent — INTE forwarding över en SSH-kanal till en

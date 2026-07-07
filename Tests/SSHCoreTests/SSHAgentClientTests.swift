@@ -53,10 +53,21 @@ final class SSHAgentClientTests: XCTestCase {
     /// bakgrundsdemon). En känd kategori av swift-corelibs-foundation-kvirk
     /// med barnprocess-reaping när flera `Process`-instanser lever samtidigt.
     /// Rå `waitpid(2)` istället, kringgår Foundations bokföring helt.
-    private func waitForExit(_ pid: Int32) -> Int32 {
+    /// Avgränsad väntan (`WNOHANG`-pollning + timeout + `SIGKILL`-reserv) —
+    /// annars återinför en obegränsad `waitpid(2)` exakt den "testsviten
+    /// hänger"-risk det här kringgåendet av `Process.waitUntilExit()` skulle
+    /// lösa, om barnprocessen någonsin skulle vägra avsluta (CodeRabbit-fynd,
+    /// PR #83).
+    private func waitForExit(_ pid: Int32, timeoutSeconds: Double = 10) -> Int32 {
         var status: Int32 = 0
-        waitpid(pid, &status, 0)
-        return (status >> 8) & 0xFF
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while Date() < deadline {
+            let result = waitpid(pid, &status, WNOHANG)
+            if result == pid { return (status >> 8) & 0xFF }
+            usleep(20_000)
+        }
+        kill(pid, SIGKILL)
+        return -1
     }
 
     private func addKey(_ keyPath: String, socketPath: String) throws {
@@ -108,6 +119,11 @@ final class SSHAgentClientTests: XCTestCase {
 
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let client = try await SSHAgentClient.connect(socketPath: agent.socketPath, group: group)
+        // Måste vara `defer`, inte bara ett anrop i slutet av funktionen —
+        // annars läcker kanalen/event loop-gruppen om ett `try await`
+        // ovan kastar (t.ex. requestIdentities()/sign() misslyckas oväntat),
+        // eftersom funktionen då returnerar tidigt (CodeRabbit-fynd, PR #83).
+        defer { Task { await client.close(); try? await group.shutdownGracefully() } }
 
         let identities = try await client.requestIdentities()
         XCTAssertEqual(identities.count, 1)
@@ -143,9 +159,6 @@ final class SSHAgentClientTests: XCTestCase {
 
         let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: rawPublicKey)
         XCTAssertTrue(publicKey.isValidSignature(rawSignature, for: Data(message)))
-
-        await client.close()
-        try? await group.shutdownGracefully()
     }
 
     func testSignWithUnknownKeyBlobFails() async throws {
@@ -154,6 +167,7 @@ final class SSHAgentClientTests: XCTestCase {
 
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let client = try await SSHAgentClient.connect(socketPath: agent.socketPath, group: group)
+        defer { Task { await client.close(); try? await group.shutdownGracefully() } }
 
         // Ingen nyckel tillagd i agenten alls — vilken keyBlob som helst
         // (matchande formatet men okänd för agenten) ska ge SSH_AGENT_FAILURE.
@@ -170,8 +184,6 @@ final class SSHAgentClientTests: XCTestCase {
         } catch SSHAgentError.agentFailure {
             // förväntat
         }
-        await client.close()
-        try? await group.shutdownGracefully()
     }
 
     func testEmptyAgentReturnsNoIdentities() async throws {
@@ -180,9 +192,8 @@ final class SSHAgentClientTests: XCTestCase {
 
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let client = try await SSHAgentClient.connect(socketPath: agent.socketPath, group: group)
+        defer { Task { await client.close(); try? await group.shutdownGracefully() } }
         let identities = try await client.requestIdentities()
         XCTAssertTrue(identities.isEmpty)
-        await client.close()
-        try? await group.shutdownGracefully()
     }
 }
