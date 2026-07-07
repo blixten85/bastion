@@ -85,6 +85,7 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   SFTPProtocol.swift     SFTP-trådformat (SSH_FXP_*, version 3) — kodning/avkodning, inget kanal-I/O
   SFTPClient.swift       SFTP-klient: subsystem-kanal + handskakning + id-baserad request/response-matchning (aktör)
   DockerService.swift    Docker: lista/start/stopp/omstart/logg (injektionssäkert)
+  ArchiveOperations.swift  tar/zip-arkiv över exec-kanal (skapa/packa upp, injektionssäkert)
   SyncEngine.swift       Deterministisk merge (LWW + gravstenar) för sync
   SyncProvider.swift     Synktransport (mapp/iCloud/Dropbox/Syncthing/Git)
   SyncCrypto.swift       E2E-kryptering (AES-256-GCM + PBKDF2) + krypterad provider
@@ -93,7 +94,7 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   KeyManagement.swift    Nyckelgenerering (Ed25519) + fjärr-deploy till authorized_keys (POSIX/Windows)
   WireGuardConfig.swift  WireGuard .conf-parser/serialiserare (profilhantering, inte tunnel-upprättning)
   WireGuardProfileStore.swift  Persistent WireGuard-profildatabas (JSON, samma mönster som SnippetStore)
-  OpenSSHCertificate.swift  ssh-ed25519-cert-v01-parser (bara parsning, ingen signaturverifiering än)
+  OpenSSHCertificate.swift  ssh-ed25519-cert-v01-parser + CA-signaturverifiering
   SSHAgentClient.swift   ssh-agent-protokollklient över $SSH_AUTH_SOCK (lista identiteter, begär signaturer)
   TailscaleStatus.swift  `tailscale status --json`-parser + `fetch(over:)`/`fetchLocal()` (fjärr via SSH resp. lokal process)
   S3Client.swift         S3-kompatibel objektlagring (AWS SigV4-signering) — egna nycklar, inget OAuth
