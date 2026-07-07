@@ -293,6 +293,28 @@ originalvisionen: "Inte kopiera Termius").
   nämner ProxyJump/Agent Forwarding).
 - **Tailscale-stöd** — koppla mot Tailscale-nätverk för värdar.
 - **WireGuard-profiler** — hantera WireGuard-konfigurationer i appen.
+- **Mosh-stöd** (tillägg, 2026-07-07, ägarfråga) — INTE påbörjat, inte
+  bara ett SSH-tillägg: Mosh startar visserligen en session över SSH,
+  men växlar sedan till ett HELT EGET protokoll (SSP, State
+  Synchronization Protocol) över UDP, med lokal predikering av
+  tangenttryckningar (döljer latens på dåliga/mobila nät — Mosh:s hela
+  poäng). Kräver en `mosh-server`-binär installerad OCH körande på
+  fjärrsystemet (Mosh startar den via den initiala SSH-anslutningen) och
+  en egen `mosh-client`-motsvarighet i Bastion — ett väsentligt större
+  scope än något annat nätverksprotokoll i den här listan.
+- **Telnet-stöd** (tillägg, 2026-07-07, ägarfråga) — INTE påbörjat.
+  Enklare protokoll (RFC 854) men HELT SEPARAT från SSH — okrypterat,
+  ingen nyckelhantering, egen förhandling (option negotiation). Skulle
+  vara en egen `TelnetSession`-motsvarighet till `SSHSession`, inte en
+  utökning av den befintliga SSH-kärnan. Legitimt värdefullt för äldre
+  nätverksutrustning (switchar/routrar utan SSH) — en del av målgruppen
+  (nätverkstekniker) stöter på det.
+- **Kör kommando automatiskt vid anslutning** ("startup snippet",
+  tillägg, 2026-07-07, ägarfråga) — INTE påbörjat, men lågt hängande
+  frukt: `Snippet`/`SnippetStore` finns redan, kräver bara ett nytt
+  `Host`-fält (t.ex. `startupCommand: String?`) + att `SSHSession`/
+  terminalvyn kör det direkt efter lyckad anslutning, innan interaktiv
+  input tas emot. Motsvarande Termius "Startup Snippet".
 - **Slutmål (tillägg, 2026-07-07): inget externt beroende.** Bastion ska
   kunna upprätta WireGuard/Tailscale-tunnlar HELT SJÄLV — inte bara peka
   på en `wg`/`tailscale`-installation användaren redan gjort separat.

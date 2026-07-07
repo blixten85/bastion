@@ -408,6 +408,13 @@ Inget nytt att bygga, bara verifiera/lansera:
   ut hela detaljvyn vid nytt värdval — samma begränsning som App/ hade innan
   den här ändringen, inte adresserad än).
 
+- **Kör kommando automatiskt vid anslutning** ("startup snippet", nytt,
+  2026-07-07, ägarfråga, se VISION.md) — inte påbörjat, men lågt hängande
+  frukt jämfört med resten av Fas B: `Snippet`/`SnippetStore` finns redan
+  och är redan testade, kräver bara ett nytt `Host`-fält (t.ex.
+  `startupCommand: String?`) + att terminalvyn kör det direkt efter
+  lyckad anslutning. Motsvarande Termius "Startup Snippet".
+
 ### Fas C — Differentiatorer bortom Termius
 - Docker-hantering ✅ redan klart (App + LinuxApp).
 - Systemstatus/dashboard ✅ redan klart.
@@ -559,6 +566,20 @@ Inget nytt att bygga, bara verifiera/lansera:
   återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
+- **Mosh-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
+  påbörjat. Inte ett SSH-tillägg — Mosh startar via SSH men växlar sedan
+  till ett helt eget protokoll (SSP) över UDP med lokal predikering av
+  tangenttryckningar. Kräver `mosh-server` körande på fjärrsystemet
+  (startas via den initiala SSH-anslutningen) och en egen
+  `mosh-client`-motsvarighet i Bastion — större scope än något annat
+  nätverksprotokoll i den här listan, ren protokollimplementation från
+  grunden (ingen swift-nio-ssh-återanvändning möjlig, helt annat
+  protokoll).
+- **Telnet-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
+  påbörjat. Helt separat från SSH (RFC 854, okrypterat, egen
+  option-negotiation) — en egen `TelnetSession`, inte en utökning av
+  `SSHSession`. Mindre arbete än Mosh, men fortfarande en egen
+  protokollimplementation från grunden.
 - **Paketering + BSD-täckning** (nytt, 2026-07-07, se VISION.md
   "Plattforms- och paketeringsmål, fullständigt") — inte påbörjat:
   `.deb`-paket (Debian/Ubuntu), `.rpm`-paket (RHEL/Fedora), FreeBSD-bygge
