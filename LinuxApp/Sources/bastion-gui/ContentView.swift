@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var editingHost: Host?
     @State private var showEditor = false
     @State private var showImport = false
+    @State private var showWireGuard = false
     @State private var searchText = ""
 
     private var filteredHosts: [Host] {
@@ -61,6 +62,9 @@ struct ContentView: View {
                 onCancel: { showImport = false }
             )
         }
+        .sheet(isPresented: $showWireGuard) {
+            WireGuardProfileListView()
+        }
     }
 
     private var sidebar: some View {
@@ -71,6 +75,7 @@ struct ContentView: View {
                     showEditor = true
                 }
                 Button("Importera") { showImport = true }
+                Button("WireGuard") { showWireGuard = true }
                 Spacer()
             }
 
