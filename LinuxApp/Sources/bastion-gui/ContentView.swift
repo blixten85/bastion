@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showImport = false
     @State private var showWireGuard = false
     @State private var showTailscale = false
+    @State private var showS3 = false
     @State private var searchText = ""
 
     private var filteredHosts: [Host] {
@@ -77,6 +78,9 @@ struct ContentView: View {
                 onCancel: { showTailscale = false }
             )
         }
+        .sheet(isPresented: $showS3) {
+            S3ConnectionListView()
+        }
     }
 
     private var sidebar: some View {
@@ -89,6 +93,7 @@ struct ContentView: View {
                 Button("Importera") { showImport = true }
                 Button("WireGuard") { showWireGuard = true }
                 Button("Tailscale") { showTailscale = true }
+                Button("S3") { showS3 = true }
                 Spacer()
             }
 

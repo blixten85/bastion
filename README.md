@@ -97,6 +97,7 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   SSHAgentClient.swift   ssh-agent-protokollklient över $SSH_AUTH_SOCK (lista identiteter, begär signaturer)
   TailscaleStatus.swift  `tailscale status --json`-parser + `fetch(over:)`/`fetchLocal()` (fjärr via SSH resp. lokal process)
   S3Client.swift         S3-kompatibel objektlagring (AWS SigV4-signering) — egna nycklar, inget OAuth
+  S3ConnectionStore.swift  Persistent S3-anslutningsdatabas (JSON, samma mönster som WireGuardProfileStore)
 Sources/bastion-cli/   Tunn CLI runt SSHCore (bevisar mot riktig server)
 Tests/SSHCoreTests/    In-process SSH-server + end-to-end-test (ingen extern server)
 App/                   XCODE-ONLY: iOS+macOS-appen (SwiftUI, delad kod) + XcodeGen-spec
@@ -150,6 +151,8 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   PortForwardView.swift  Portvidarebefordran (lokal/fjärr/dynamisk -L/-R/-D), starta/stoppa — ingen App/-motsvarighet än
   KeyDeployView.swift    Generera+deploya+verifiera SSH-nyckel, byt host till nyckel-auth efter grönt ljus
   TailscaleDiscoveryView.swift Föreslå värdar ur ett tailnet (lokalt eller via en sparad fjärrvärd), lägg till som ny värd
+  S3BrowserView.swift    Bläddra S3-kompatibel objektlagring: buckets → objekt → ladda upp/ner (text)/ta bort
+  S3ConnectionEditView.swift  Lägg till/ändra en S3-anslutning (endpoint/region/nycklar)
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
 WindowsApp/            EGET SwiftPM-paket, samma mönster som LinuxApp/ — WinUIBackend istället för GtkBackend
   Package.swift          .package(path: "..") mot roten för SSHCore, + SwiftCrossUI/WinUIBackend
@@ -209,12 +212,23 @@ Windows-headers som saknas på Linux. `GtkBackend` beror bara på
 ### Om din toolchain-nedladdning är byggd för en äldre Ubuntu-version
 En `ubuntu24.04`-snapshot på en nyare Ubuntu (t.ex. 26.04, som saknar
 `libxml2.so.2` — bara `libxml2-16`) ger `error while loading shared libraries:
-libxml2.so.2`. Lös genom att peka `LD_LIBRARY_PATH` på en mapp med den gamla
-`.so`:n (extraherad ur ett arkiverat `libxml2`-paket, aldrig `dpkg`-installerad
-systemvitt):
+libxml2.so.2` VID KÖRNING. Lös genom att peka `LD_LIBRARY_PATH` på en mapp
+med den gamla `.so`:n (extraherad ur ett arkiverat `libxml2`-paket, aldrig
+`dpkg`-installerad systemvitt):
 
 ```sh
 LD_LIBRARY_PATH=/path/to/compat-libs swift build --product bastion-gui
+```
+
+Sedan `S3Client.swift` (`FoundationXML`) drogs in transitivt (2026-07-07)
+misslyckas dessutom LÄNKNINGEN på samma sätt (`undefined reference to
+xmlBufferFree@LIBXML2_2.4.30` m.fl.) — `LD_LIBRARY_PATH` räcker inte
+ensamt där, GNU `ld.bfd` behöver även `-rpath-link` för att slå upp
+`libFoundationXML.so`s TRANSITIVA libxml2-beroende under själva länkningen:
+
+```sh
+LD_LIBRARY_PATH=/path/to/compat-libs swift build --product bastion-gui \
+  -Xlinker -rpath-link -Xlinker /path/to/compat-libs
 ```
 
 ## Bygg Windows-GUI:t (`bastion-gui`, i `WindowsApp/`)
