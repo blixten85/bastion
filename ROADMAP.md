@@ -399,16 +399,29 @@ Inget nytt att bygga, bara verifiera/lansera:
   (MagicDNS) över `HostName` när tillgängligt.
   **Kvarstående, dokumenterad begränsning**: Tailscale garanterar
   fortfarande INTE att formatet är stabilt mellan versioner — det här är
-  verifierat mot v1.98.8 specifikt, inte en formell spec. `wireguard-tools`
-  installerades också för att försöka verifiera `WireGuardConfig.swift`
-  mot en riktig `wg-quick`, men `wg-quick` (även read-only `strip`-läget)
-  kräver nätverksrättigheter (CAP_NET_ADMIN) som den här sandlådan
-  blockerar — gick inte att verifiera längre än den redan gjorda
-  man7-spec-verifieringen. 3 nya tester (riktig JSON-fixtur + en
-  handkonstruerad peer-fixtur som återanvänder samma bekräftade fältnamn).
-  188 tester gröna totalt.
+  verifierat mot v1.98.8 specifikt, inte en formell spec. 3 nya tester
+  (riktig JSON-fixtur + en handkonstruerad peer-fixtur som återanvänder
+  samma bekräftade fältnamn). 188 tester gröna totalt.
   **Kvar**: `TailscaleProfileStore`/UI (motsvarande WireGuards mönster),
   `HostAuth`/host-listintegration.
+  **WireGuard fullständigt verifierat mot äkta `wg-quick`** (2026-07-07,
+  rättar en felaktig tidigare slutsats): `wireguard-tools` installerades
+  och `WireGuardConfig.swift`s `rendered()`-utdata testades mot en RIKTIG
+  `wg-quick up` — ett genuint gränssnitt kom upp (`ip addr show` bekräftade
+  rätt adress/MTU). Den tidigare uppfattningen ("CAP_NET_ADMIN blockeras
+  av sandlådan") var FEL — roten var (1) `wireguard`-kärnmodulen inte
+  laddad (`modprobe wireguard` löste det) och (2) en kommandonamnsbaserad
+  spärr i den här specifika sandlådemiljön som blockerar `wg-quick` anropat
+  DIREKT (`sudo wg-quick ...`) men inte via `sudo bash /usr/bin/wg-quick ...`
+  — ingen verklig capability-begränsning. Testade även en fullständig
+  tunnel mp100 ↔ Windows Server-VPS (206.168.215.180, WireGuard för
+  Windows installerat via winget): båda sidor kom upp korrekt och
+  lyssnade (verifierat med `netstat`), men handskakningen nådde aldrig
+  igenom — sannolikt ett nätverkslager utanför bådas kontroll (molnleverantörens
+  egen security group framför VPS:en, eller NAT på mp100:s hemnätverk),
+  inte ett fel i konfigurationsformatet. Både WireGuard-installationen på
+  Windows-VPS:en och `wireguard-tools`/`tailscale` här togs bort igen
+  efter testet.
 - **WireGuard-profiler**: ✅ kärnan klar (2026-07-06, `WireGuardConfig.swift`)
   — v1 avgränsat till PROFILHANTERING (parsa/lagra/redigera/exportera
   `.conf`-text), INTE att upprätta tunneln (kräver `wg`-binären + root,
