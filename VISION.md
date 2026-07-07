@@ -295,3 +295,30 @@ originalvisionen: "Inte kopiera Termius").
 - **WireGuard-profiler** — hantera WireGuard-konfigurationer i appen.
 
 Se [ROADMAP.md](ROADMAP.md) för hur dessa är prioriterade in i backloggen.
+
+### Plattforms- och paketeringsmål, fullständigt (tillägg, 2026-07-07)
+
+Slutmålet — uttryckt explicit av användaren — är genuin cross-platform-täckning
+med synk mellan ALLA enheter, inte bara Apple-ekosystemet:
+
+- **Apple**: iPhone, MacBook (macOS), Apple TV (tvOS) — redan i Fas 1/2/
+  "Plattformar (tillägg, 2026-07-06)" ovan.
+- **Windows** — redan Fas 4 i originalvisionen, `WindowsApp/` påbörjat
+  (blockerat av uppströms swift-nio-buggar just nu, se ROADMAP).
+- **Linux** — redan Fas 3, men paketeringsmålet är BREDARE än "bygger på
+  Linux": bygg-från-källkod (redan möjligt), **.deb-paket** (Debian/Ubuntu),
+  **.rpm-paket** (RHEL/Fedora). Inget paketeringsarbete gjort ännu — bara
+  `swift build`/CI-verifiering finns idag.
+- **BSD** (NYTT, inte i någon tidigare version av visionen): FreeBSD,
+  OpenBSD, NetBSD. Swift har officiellt stöd för FreeBSD (community-
+  underhållna toolchains); OpenBSD/NetBSD-stöd för Swift är betydligt
+  omognare/experimentellt — inte verifierat att det ens fungerar, se
+  ROADMAP för status när det undersöks.
+- **CPU-arkitekturer** (NYTT, explicit): x86/amd64 OCH ARM64 — inklusive
+  Raspberry Pi (ARM64 Raspberry Pi OS är en Debian-derivata, så
+  .deb-paketering + ARM64-byggen täcker den naturligt, förutsatt att
+  Swift-toolchainen stödjer target-arkitekturen, vilket den gör för
+  Linux ARM64).
+
+Se [ROADMAP.md](ROADMAP.md) för hur detta prioriteras in i backloggen —
+paketeringsarbetet (deb/rpm) och BSD-portning är inte påbörjat än.

@@ -468,6 +468,14 @@ Inget nytt att bygga, bara verifiera/lansera:
   återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
+- **Paketering + BSD-täckning** (nytt, 2026-07-07, se VISION.md
+  "Plattforms- och paketeringsmål, fullständigt") — inte påbörjat:
+  `.deb`-paket (Debian/Ubuntu), `.rpm`-paket (RHEL/Fedora), FreeBSD-bygge
+  (Swift har community-toolchains där), OpenBSD/NetBSD-undersökning
+  (oklart om Swift ens fungerar där än — måste verifieras mot en riktig
+  installation innan något annat antas). ARM64/Raspberry Pi täcks
+  naturligt av samma Linux-bygge + `.deb`-paketering, förutsatt att
+  toolchainen stödjer target-arkitekturen (gör den, för Linux ARM64).
 - **SFTP-filhanterare** — ✅ grundfunktionerna klara, både App/ och
   LinuxApp (`SFTPBrowserView`/`SFTPBrowserModel`): bläddra, navigera
   in/upp, ny mapp, döp om, ta bort. Mapp/fil skiljs via
