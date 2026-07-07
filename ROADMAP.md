@@ -404,24 +404,31 @@ Inget nytt att bygga, bara verifiera/lansera:
   samma bekräftade fältnamn). 188 tester gröna totalt.
   **Kvar**: `TailscaleProfileStore`/UI (motsvarande WireGuards mönster),
   `HostAuth`/host-listintegration.
-  **WireGuard fullständigt verifierat mot äkta `wg-quick`** (2026-07-07,
-  rättar en felaktig tidigare slutsats): `wireguard-tools` installerades
-  och `WireGuardConfig.swift`s `rendered()`-utdata testades mot en RIKTIG
-  `wg-quick up` — ett genuint gränssnitt kom upp (`ip addr show` bekräftade
-  rätt adress/MTU). Den tidigare uppfattningen ("CAP_NET_ADMIN blockeras
-  av sandlådan") var FEL — roten var (1) `wireguard`-kärnmodulen inte
-  laddad (`modprobe wireguard` löste det) och (2) en kommandonamnsbaserad
-  spärr i den här specifika sandlådemiljön som blockerar `wg-quick` anropat
-  DIREKT (`sudo wg-quick ...`) men inte via `sudo bash /usr/bin/wg-quick ...`
-  — ingen verklig capability-begränsning. Testade även en fullständig
-  tunnel mp100 ↔ Windows Server-VPS (206.168.215.180, WireGuard för
-  Windows installerat via winget): båda sidor kom upp korrekt och
-  lyssnade (verifierat med `netstat`), men handskakningen nådde aldrig
-  igenom — sannolikt ett nätverkslager utanför bådas kontroll (molnleverantörens
-  egen security group framför VPS:en, eller NAT på mp100:s hemnätverk),
-  inte ett fel i konfigurationsformatet. Både WireGuard-installationen på
-  Windows-VPS:en och `wireguard-tools`/`tailscale` här togs bort igen
-  efter testet.
+  **WireGuard fullständigt verifierat end-to-end, inklusive en riktig
+  fungerande tunnel** (2026-07-07, rättar en felaktig tidigare slutsats):
+  `wireguard-tools` installerades och `WireGuardConfig.swift`s
+  `rendered()`-utdata testades mot en RIKTIG `wg-quick up` — ett genuint
+  gränssnitt kom upp (`ip addr show` bekräftade rätt adress/MTU). Den
+  tidigare uppfattningen ("CAP_NET_ADMIN blockeras av sandlådan") var
+  FEL — roten var (1) `wireguard`-kärnmodulen inte laddad (`modprobe
+  wireguard` löste det) och (2) en kommandonamnsbaserad spärr i den här
+  specifika sandlådemiljön som blockerar `wg-quick` anropat DIREKT
+  (`sudo wg-quick ...`) men inte via `sudo bash /usr/bin/wg-quick ...` —
+  ingen verklig capability-begränsning.
+  Byggde sedan en fullständig tunnel mp100 ↔ Windows Server-VPS
+  (206.168.215.180, WireGuard för Windows installerat via winget): båda
+  sidor kom upp och lyssnade korrekt (verifierat med `netstat`), men
+  handskakningen nådde först inte igenom — roten var att VPS-leverantörens
+  (Hostup AB) EGEN nätverksbrandvägg/security group framför maskinen
+  blockerade den inkommande UDP-porten, utöver Windows egen brandvägg
+  (som redan var öppnad). Efter att den porten öppnats i Hostups
+  kontrollpanel gick handskakningen igenom direkt — **en riktig,
+  fungerande krypterad tunnel bekräftad**: `ping`/`ping6` gav 0 % paketförlust
+  åt båda hållen, både IPv4 (`10.99.2.1` ↔ `10.99.2.2`) och IPv6
+  (`fd00:99:2::1` ↔ `fd00:99:2::2`), ~10 ms tur-och-retur. Både
+  WireGuard-installationen på Windows-VPS:en (inkl. brandväggsreglerna
+  och tunneltjänsten) och `wireguard-tools`/`tailscale` här togs bort
+  igen efter testet.
 - **WireGuard-profiler**: ✅ kärnan klar (2026-07-06, `WireGuardConfig.swift`)
   — v1 avgränsat till PROFILHANTERING (parsa/lagra/redigera/exportera
   `.conf`-text), INTE att upprätta tunneln (kräver `wg`-binären + root,
