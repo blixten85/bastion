@@ -47,6 +47,9 @@ struct HostDetailView: View {
                             NavigationLink { SFTPBrowserView(request: request) } label: {
                                 Label("Filer (SFTP)", systemImage: "folder")
                             }
+                            NavigationLink { PortForwardView(request: request) } label: {
+                                Label("Portvidarebefordran", systemImage: "arrow.left.arrow.right")
+                            }
                             if let onClose {
                                 Button(role: .destructive) { onClose() } label: {
                                     Label("Stäng session", systemImage: "xmark.circle")
