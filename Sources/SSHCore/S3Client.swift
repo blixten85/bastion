@@ -64,12 +64,17 @@ enum AWSSigV4 {
         let contentSHA256: String
     }
 
-    static let isoDateFormatter: () -> String = {
+    /// En NY `DateFormatter` per anrop, medvetet — `swift-corelibs-foundation`
+    /// (Linux) garanterar INTE att `DateFormatter.string(from:)` är
+    /// trådsäkert för en delad instans (CodeRabbit-fynd, PR #90). Flera
+    /// `S3Client`-instanser kan signera samtidigt, så en delad formatter
+    /// hade kunnat race:a.
+    static func isoDateFormatter() -> String {
         let f = DateFormatter()
         f.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
         f.timeZone = TimeZone(identifier: "UTC")
-        return { f.string(from: Date()) }
-    }()
+        return f.string(from: Date())
+    }
 
     static func sha256Hex(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
@@ -156,13 +161,25 @@ public actor S3Client {
         self.session = session
     }
 
-    private var host: String { endpoint.host ?? "" }
+    /// `Host`-värdet som faktiskt måste signeras — `URLSession` skickar
+    /// `Host: värd:port` för icke-standardportar (t.ex. en lokal MinIO-
+    /// instans på :9000), så den signerade headern måste matcha exakt
+    /// (CodeRabbit-fynd, PR #90) annars underkänns signaturen av servern.
+    // internal (inte `private`) enbart för att vara direkt testbar via
+    // @testable import — inte del av den publika API-ytan.
+    var host: String {
+        guard let h = endpoint.host else { return "" }
+        guard let port = endpoint.port else { return h }
+        let defaultPort = endpoint.scheme == "https" ? 443 : 80
+        return port == defaultPort ? h : "\(h):\(port)"
+    }
 
     private func request(
         method: String,
         pathSegments: [String],
         queryItems: [(String, String)] = [],
-        body: Data = Data()
+        body: Data = Data(),
+        contentType: String? = nil
     ) async throws -> (Data, HTTPURLResponse) {
         let path = pathSegments.isEmpty ? "/" : encodePath(pathSegments)
         let sortedQuery = queryItems.sorted { $0.0 < $1.0 }
@@ -187,6 +204,7 @@ public actor S3Client {
         req.setValue(signed.amzDate, forHTTPHeaderField: "x-amz-date")
         req.setValue(signed.contentSHA256, forHTTPHeaderField: "x-amz-content-sha256")
         req.setValue(signed.authorizationHeader, forHTTPHeaderField: "Authorization")
+        if let contentType { req.setValue(contentType, forHTTPHeaderField: "Content-Type") }
 
         do {
             let (data, response) = try await session.data(for: req)
@@ -231,7 +249,8 @@ public actor S3Client {
     }
 
     public func putObject(bucket: String, key: String, data body: Data, contentType: String? = nil) async throws {
-        let (data, response) = try await request(method: "PUT", pathSegments: [bucket, key], body: body)
+        let (data, response) = try await request(
+            method: "PUT", pathSegments: [bucket, key], body: body, contentType: contentType)
         try requireSuccess(data, response)
     }
 

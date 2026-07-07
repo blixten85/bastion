@@ -1,5 +1,29 @@
 import XCTest
 @testable import SSHCore
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
+/// Fångar upp begäran istället för att göra ett riktigt nätverksanrop —
+/// för att inspektera VILKA headers `S3Client` faktiskt skickar (CodeRabbit-
+/// fynd, PR #90: port i signerad Host, `contentType`-headern), utan att
+/// bero på ett riktigt nätverk för just den detaljen.
+private final class RecordingURLProtocol: URLProtocol {
+    static var lastRequest: URLRequest?
+    static var responseBody = Data("<?xml version=\"1.0\"?><ListAllMyBucketsResult><Buckets></Buckets></ListAllMyBucketsResult>".utf8)
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.lastRequest = request
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.responseBody)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
 
 final class S3ClientTests: XCTestCase {
     /// Fixerad, icke tidsberoende SigV4-vektor — härledd ur en oberoende
@@ -114,5 +138,50 @@ final class S3ClientTests: XCTestCase {
 
         let buckets = try await client.listBuckets()
         XCTAssertTrue(buckets.contains { $0.name == bucket })
+    }
+
+    // MARK: - Regressionstester för CodeRabbit-fynd (PR #90)
+
+    private func recordingClient(endpoint: URL) -> S3Client {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [RecordingURLProtocol.self]
+        return S3Client(
+            endpoint: endpoint, region: "us-east-1",
+            credentials: S3Credentials(accessKeyID: "AKID", secretAccessKey: "secret"),
+            session: URLSession(configuration: config))
+    }
+
+    func testHostIncludesNonDefaultPort() async {
+        let client = recordingClient(endpoint: URL(string: "http://localhost:9000")!)
+        let host = await client.host
+        XCTAssertEqual(host, "localhost:9000")
+    }
+
+    func testHostOmitsDefaultHTTPSPort() async {
+        let client = recordingClient(endpoint: URL(string: "https://s3.hostup.se:443")!)
+        let host = await client.host
+        XCTAssertEqual(host, "s3.hostup.se")
+    }
+
+    func testHostOmitsWhenNoPortSpecified() async {
+        let client = recordingClient(endpoint: URL(string: "https://s3.hostup.se")!)
+        let host = await client.host
+        XCTAssertEqual(host, "s3.hostup.se")
+    }
+
+    func testPutObjectSetsContentTypeHeader() async throws {
+        let client = recordingClient(endpoint: URL(string: "https://example.com")!)
+        try await client.putObject(bucket: "b", key: "k", data: Data("hej".utf8), contentType: "text/plain")
+
+        let sent = try XCTUnwrap(RecordingURLProtocol.lastRequest)
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Content-Type"), "text/plain")
+    }
+
+    func testPutObjectOmitsContentTypeHeaderWhenNil() async throws {
+        let client = recordingClient(endpoint: URL(string: "https://example.com")!)
+        try await client.putObject(bucket: "b", key: "k", data: Data("hej".utf8))
+
+        let sent = try XCTUnwrap(RecordingURLProtocol.lastRequest)
+        XCTAssertNil(sent.value(forHTTPHeaderField: "Content-Type"))
     }
 }
