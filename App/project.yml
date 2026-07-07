@@ -48,15 +48,28 @@ targets:
         SWIFT_VERSION: "5.9"
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-      # Utan den här: automatisk signering försöker signera ÄVEN Release-
-      # arkivet (App Store-export) med en "Apple Development"-identitet,
-      # vilket kräver en registrerad testenhet på kontot — fjärde riktiga
-      # testflight.yml-körningen (2026-07-07) misslyckades med
-      # "Your team has no devices from which to generate a provisioning
-      # profile" av exakt den anledningen. "Apple Distribution" kräver
-      # inga registrerade enheter, rätt identitet för App
-      # Store/TestFlight-arkiv.
+        # CODE_SIGN_STYLE måste vara KONSEKVENT över ALLA konfigurationer
+        # (Debug OCH Release), inte bara satt under `configs.Release` —
+        # XcodeGen härleder pbxproj:ens TargetAttributes.ProvisioningStyle
+        # (det Xcodes signeringsmotor faktiskt läser) genom att jämföra
+        # CODE_SIGN_STYLE mellan konfigurationer; om de INTE matchar sätts
+        # attributet inte alls och förblir Automatic i praktiken, trots
+        # att build-settingen säger Manual. Femte riktiga testflight.yml-
+        # körningen (2026-07-07) fick just den motsägelsen: "automatically
+        # signed for development, but a conflicting code signing identity
+        # Apple Distribution has been manually specified" — trots
+        # CODE_SIGN_STYLE: Manual under configs.Release. "No devices"-felet
+        # i den FJÄRDE körningen (ren Automatic-signering) hade en separat
+        # förklaring: automatisk signering under arkivering vill som
+        # standard skapa en "iOS App Development"-profil (normalt korrekt
+        # — export-steget, inte arkiveringen, avgör distributionstyp) men
+        # det kräver minst en registrerad testenhet på kontot, och vi har
+        # noll. Manual + en uttrycklig Distribution-identitet kringgår
+        # utvecklingsprofil-vägen helt.
+        CODE_SIGN_STYLE: Manual
       configs:
+        Debug:
+          CODE_SIGN_IDENTITY: "Apple Development"
         Release:
           CODE_SIGN_IDENTITY: "Apple Distribution"
     dependencies:
@@ -92,9 +105,11 @@ targets:
         SWIFT_VERSION: "5.9"
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-      # Samma resonemang som Bastion (iOS)-targetet ovan — "Apple
-      # Distribution" för Release, inte "Apple Development".
+        # Samma resonemang som Bastion (iOS)-targetet ovan.
+        CODE_SIGN_STYLE: Manual
       configs:
+        Debug:
+          CODE_SIGN_IDENTITY: "Apple Development"
         Release:
           CODE_SIGN_IDENTITY: "Apple Distribution"
     # App Sandbox + utgående nätverk (SSH kräver klient-nätverk). XcodeGen
