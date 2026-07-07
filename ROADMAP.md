@@ -433,13 +433,6 @@ Inget nytt att bygga, bara verifiera/lansera:
   anslutning". 2 nya tester (Codable round-trip + bakåtkompatibilitet
   för gamla `host.json`-filer utan fältet), 226 gröna totalt.
 
-- **Kör kommando automatiskt vid anslutning** ("startup snippet", nytt,
-  2026-07-07, ägarfråga, se VISION.md) — inte påbörjat, men lågt hängande
-  frukt jämfört med resten av Fas B: `Snippet`/`SnippetStore` finns redan
-  och är redan testade, kräver bara ett nytt `Host`-fält (t.ex.
-  `startupCommand: String?`) + att terminalvyn kör det direkt efter
-  lyckad anslutning. Motsvarande Termius "Startup Snippet".
-
 ### Fas C — Differentiatorer bortom Termius
 - Docker-hantering ✅ redan klart (App + LinuxApp).
 - Systemstatus/dashboard ✅ redan klart.
