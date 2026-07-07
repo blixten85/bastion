@@ -96,6 +96,7 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   OpenSSHCertificate.swift  ssh-ed25519-cert-v01-parser (bara parsning, ingen signaturverifiering än)
   SSHAgentClient.swift   ssh-agent-protokollklient över $SSH_AUTH_SOCK (lista identiteter, begär signaturer)
   TailscaleStatus.swift  `tailscale status --json`-parser + `fetch(over:)`/`fetchLocal()` (fjärr via SSH resp. lokal process)
+  S3Client.swift         S3-kompatibel objektlagring (AWS SigV4-signering) — egna nycklar, inget OAuth
 Sources/bastion-cli/   Tunn CLI runt SSHCore (bevisar mot riktig server)
 Tests/SSHCoreTests/    In-process SSH-server + end-to-end-test (ingen extern server)
 App/                   XCODE-ONLY: iOS+macOS-appen (SwiftUI, delad kod) + XcodeGen-spec
