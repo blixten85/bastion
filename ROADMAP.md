@@ -53,6 +53,7 @@ delvis andra, av konkreta skäl:
 | WireGuard-profiler | ✅ parsning/serialisering + lagring + LinuxApp-UI — 🧩 App/-motsvarighet kvar (Xcode-only) |
 | OpenSSH-certifikatparsning | ✅ `OpenSSHCertificate.swift`, testad mot RIKTIGA `ssh-keygen -s`-genererade certifikat — 🧩 signaturverifiering/auth-wiring kvar |
 | ssh-agent-protokollklient | ✅ `SSHAgentClient.swift`, testad mot en RIKTIG `ssh-agent` — 🧩 kanal-forwarding till fjärrserver kvar |
+| Tailscale-statusparsning | ✅ `TailscaleStatus.swift`, testad mot RIKTIG `tailscale status --json` (v1.98.8) — 🧩 lagring/UI/host-integration kvar |
 
 ## Nästa steg (i ordning)
 
@@ -383,14 +384,31 @@ Inget nytt att bygga, bara verifiera/lansera:
 ### Fas C — Differentiatorer bortom Termius
 - Docker-hantering ✅ redan klart (App + LinuxApp).
 - Systemstatus/dashboard ✅ redan klart.
-- **Tailscale-stöd** (nytt, från konkurrentanalysen) — undersökt (2026-07-06)
-  och medvetet uppskjutet: `tailscale status --json` finns inte installerat
-  här att testa mot, OCH Tailscales egen dokumentation (man7-motsvarande
-  sida) säger uttryckligen att JSON-formatet "is subject to change" — inte
-  en stabil, dokumenterad kontraktsyta. Att skriva en parser mot ett
-  format som varken kan testas mot en riktig binär eller är garanterat
-  stabilt vore att gissa, inte verifiera. Avvaktar tills en riktig
-  tailscale-installation finns tillgänglig att verifiera mot.
+- **Tailscale-stöd**: ✅ statusparsning klar (2026-07-07, `TailscaleStatus.swift`)
+  — `tailscale` installerades RIKTIGT lokalt (på användarens uttryckliga
+  uppmaning, "installera och avinstallera sedan") för att äntligen få
+  verifierbar grund istället för att gissa: en genuin `tailscaled` (v1.98.8)
+  startades, `tailscale status --json` kördes på riktigt (`BackendState:
+  NeedsLogin`, ingen inloggning gjordes — kräver riktiga kontouppgifter,
+  olämpligt i en testkörning) och den RIKTIGA JSON-utskriften sparades som
+  testfixtur. `Self`- och `Peer`-poster delar samma `PeerStatus`-Go-typ i
+  Tailscales egen källkod (verifierat via källkodsläsning tidigare i natt),
+  så fältnamnen som bekräftades via `Self` (HostName/DNSName/OS/
+  TailscaleIPs/Online) gäller rimligen även `Peer`. `suggestedHosts`
+  filtrerar till online-peers med minst en IP, föredrar `DNSName`
+  (MagicDNS) över `HostName` när tillgängligt.
+  **Kvarstående, dokumenterad begränsning**: Tailscale garanterar
+  fortfarande INTE att formatet är stabilt mellan versioner — det här är
+  verifierat mot v1.98.8 specifikt, inte en formell spec. `wireguard-tools`
+  installerades också för att försöka verifiera `WireGuardConfig.swift`
+  mot en riktig `wg-quick`, men `wg-quick` (även read-only `strip`-läget)
+  kräver nätverksrättigheter (CAP_NET_ADMIN) som den här sandlådan
+  blockerar — gick inte att verifiera längre än den redan gjorda
+  man7-spec-verifieringen. 3 nya tester (riktig JSON-fixtur + en
+  handkonstruerad peer-fixtur som återanvänder samma bekräftade fältnamn).
+  188 tester gröna totalt.
+  **Kvar**: `TailscaleProfileStore`/UI (motsvarande WireGuards mönster),
+  `HostAuth`/host-listintegration.
 - **WireGuard-profiler**: ✅ kärnan klar (2026-07-06, `WireGuardConfig.swift`)
   — v1 avgränsat till PROFILHANTERING (parsa/lagra/redigera/exportera
   `.conf`-text), INTE att upprätta tunneln (kräver `wg`-binären + root,
