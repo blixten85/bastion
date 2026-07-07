@@ -527,8 +527,24 @@ Inget nytt att bygga, bara verifiera/lansera:
   om `HOSTUP_S3_*`-miljövariabler saknas (t.ex. i CI, som medvetet inte
   har dessa hemligheter). 6 nya tester, 196 gröna totalt (1 hoppad utan
   nycklar i miljön).
-  **Kvar**: LinuxApp/App-UI (bläddra/ladda upp/ladda ner via en vy),
-  mappträd-bläddring för molnlagring-som-filkälla i stort.
+  **LinuxApp-UI + anslutningslagring** (2026-07-07): ✅ klart.
+  `S3ConnectionStore` (JSON på disk, `~/.bastion/s3connections.json`,
+  samma mönster som `WireGuardProfileStore` — nycklar i klartext, samma
+  medvetna v1-avgränsning). `S3ConnectionListView`/`S3ConnectionEditView`/
+  `S3BrowserView`: lista sparade anslutningar → bläddra buckets → objekt
+  → ladda upp/visa/spara ändringar/ta bort. Innehåll som text (klistra
+  in/redigera), inte en native filväljare — samma pragmatiska avgränsning
+  som WireGuards råtextredigering och SFTP-filhanterarens textredigerare
+  (SwiftCrossUI saknar en filväljar-API). Byggd + körd (Xvfb), rent utan
+  krasch — men avslöjade en NY byggkomplikation: `FoundationXML` (draget
+  in transitivt av `S3Client`) kräver `-Xlinker -rpath-link` utöver den
+  redan dokumenterade `LD_LIBRARY_PATH`-workarounden för libxml2-
+  kompatibilitet (se README "Om din toolchain-nedladdning..."). 4 nya
+  store-tester, 205 gröna totalt.
+  **Kvar**: App/-motsvarighet (Xcode-only, kan inte byggas/verifieras
+  här); mappträd-bläddring för molnlagring-som-filkälla i stort (bredare
+  OAuth-integrerad Dropbox/Drive/OneDrive-bläddring, separat från denna
+  S3-specifika väg).
 - **SFTP-filhanterare** — ✅ grundfunktionerna klara, både App/ och
   LinuxApp (`SFTPBrowserView`/`SFTPBrowserModel`): bläddra, navigera
   in/upp, ny mapp, döp om, ta bort. Mapp/fil skiljs via
