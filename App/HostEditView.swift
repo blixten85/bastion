@@ -26,6 +26,12 @@ struct HostEditView: View {
     /// Keychain-id för en importerad nyckel: stabilt per värd, oberoende av auth-läge.
     private static func keychainID(for host: Host) -> String { "host-key-\(host.id.uuidString)" }
 
+    /// `TextField` vill ha en `Binding<String>`; `startupCommand` är
+    /// `String?` (tomt fält = `nil`, inte `""` sparat i host.json).
+    private var startupCommandBinding: Binding<String> {
+        Binding(get: { draft.startupCommand ?? "" }, set: { draft.startupCommand = $0.isEmpty ? nil : $0 })
+    }
+
     init(host: Host, onSave: @escaping (Host) -> Void) {
         _draft = State(initialValue: host)
         _portText = State(initialValue: String(host.port))
@@ -69,6 +75,10 @@ struct HostEditView: View {
                 Section("Favorit & färg") {
                     Toggle("Favorit", isOn: $draft.isFavorite)
                     HostColorPicker(selection: $draft.colorTag)
+                }
+                Section("Vid anslutning") {
+                    TextField("Kör automatiskt (valfritt, t.ex. tmux attach)", text: startupCommandBinding)
+                        .noAutocap().autocorrectionDisabled()
                 }
                 Section("Autentisering") {
                     Picker("Metod", selection: $authKind) {

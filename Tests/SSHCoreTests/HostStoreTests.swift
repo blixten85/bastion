@@ -99,4 +99,25 @@ final class HostStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(Host.self, from: oldStyleData)
         XCTAssertEqual(decoded.platform, .posix)
     }
+
+    func testStartupCommandRoundTrip() throws {
+        var h = Host(alias: "web", hostName: "10.0.0.9", user: "deploy")
+        h.startupCommand = "cd /srv/app && tmux attach || tmux new"
+        let data = try JSONEncoder().encode(h)
+        let decoded = try JSONDecoder().decode(Host.self, from: data)
+        XCTAssertEqual(decoded.startupCommand, "cd /srv/app && tmux attach || tmux new")
+    }
+
+    /// Samma bakåtkompatibilitetsresonemang som ovan — `startupCommand`
+    /// tillkom ännu senare, så en host.json från innan DET fältet fanns
+    /// måste också gå att läsa.
+    func testDecodesOldHostWithoutStartupCommandField() throws {
+        let h = Host(alias: "legacy3", hostName: "10.0.0.1", user: "root")
+        var obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(h)) as! [String: Any]
+        obj.removeValue(forKey: "startupCommand")
+        let oldStyleData = try JSONSerialization.data(withJSONObject: obj)
+
+        let decoded = try JSONDecoder().decode(Host.self, from: oldStyleData)
+        XCTAssertNil(decoded.startupCommand)
+    }
 }
