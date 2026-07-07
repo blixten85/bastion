@@ -109,6 +109,7 @@ struct HostListView: View {
     @State private var showSettings = false
     @State private var showImport = false
     @State private var showAppLock = false
+    @State private var showWireGuard = false
     @State private var searchText = ""
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
@@ -147,6 +148,7 @@ struct HostListView: View {
                         Button { showSettings = true } label: { Label("Sync-inställningar", systemImage: "arrow.triangle.2.circlepath") }
                         Button { showImport = true } label: { Label("Importera ssh-config", systemImage: "square.and.arrow.down") }
                         Button { showAppLock = true } label: { Label("App-lås", systemImage: "faceid") }
+                        Button { showWireGuard = true } label: { Label("WireGuard-profiler", systemImage: "network.badge.shield.half.filled") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -168,6 +170,9 @@ struct HostListView: View {
             }
             .sheet(isPresented: $showAppLock) {
                 AppLockSettingsView()
+            }
+            .sheet(isPresented: $showWireGuard) {
+                WireGuardProfileListView()
             }
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager)
