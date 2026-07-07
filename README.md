@@ -90,6 +90,12 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   SyncCrypto.swift       E2E-kryptering (AES-256-GCM + PBKDF2) + krypterad provider
   OAuthPKCE.swift        PKCE-kärna (RFC 7636) för kontointegration — testad, plattformsoberoende
   SSHTypes.swift         SSHTarget, SSHAuth, SSHChunk, SSHError, HostKeyInfo
+  KeyManagement.swift    Nyckelgenerering (Ed25519) + fjärr-deploy till authorized_keys (POSIX/Windows)
+  WireGuardConfig.swift  WireGuard .conf-parser/serialiserare (profilhantering, inte tunnel-upprättning)
+  WireGuardProfileStore.swift  Persistent WireGuard-profildatabas (JSON, samma mönster som SnippetStore)
+  OpenSSHCertificate.swift  ssh-ed25519-cert-v01-parser (bara parsning, ingen signaturverifiering än)
+  SSHAgentClient.swift   ssh-agent-protokollklient över $SSH_AUTH_SOCK (lista identiteter, begär signaturer)
+  TailscaleStatus.swift  `tailscale status --json`-parser (statusläsning, ingen lagring/UI än)
 Sources/bastion-cli/   Tunn CLI runt SSHCore (bevisar mot riktig server)
 Tests/SSHCoreTests/    In-process SSH-server + end-to-end-test (ingen extern server)
 App/                   XCODE-ONLY: iOS+macOS-appen (SwiftUI, delad kod) + XcodeGen-spec
