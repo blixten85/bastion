@@ -61,16 +61,26 @@ delvis andra, av konkreta skäl:
    `SyncProvider`-implementationerna (Dropbox/Google Drive/OneDrive) är skrivna
    men aldrig byggda (Xcode-only, kan inte kompileras på Linux). Kräver ett
    registrerat klient-ID per leverantör (se README "Konton") för att testas på riktigt.
-2. **Få appen på en riktig iPhone** — 🧩 påbörjad, 2026-07-06. Apple Developer
-   Program köpt och ID-verifiering inskickad (väntar på att kontot blir
-   aktivt). CI-vägen förberedd medan verifieringen pågår: `.github/workflows/
-   testflight.yml` (manuell knapp) + `App/fastlane/Fastfile` bygger, signerar
-   helt automatiskt (App Store Connect API-nyckel, inget manuellt certifikat/
-   provisioning profile) och laddar upp till TestFlight — ingen lokal Mac
-   behövs. Se README "TestFlight utan en egen Mac" för de fyra secrets som
-   behöver sättas när kontot är aktivt. Ruby-/fastlane-syntaxen är verifierad
-   (`ruby -c`), men aldrig körd på riktigt än — kräver macOS-runnern +
-   riktiga nycklar för det sista beviset.
+2. **Få appen på en riktig iPhone** — 🧩 påbörjad, 2026-07-07. Apple Developer
+   Program-kontot aktivt. Alla fyra TestFlight-secrets satta (`APP_STORE_
+   CONNECT_TEAM_ID`/`KEY_ID`/`ISSUER_ID`/`KEY_CONTENT`, App Store Connect
+   API-nyckel med rollen App Manager, "Bastion CI"). App-ID (`se.denied.
+   bastion`) registrerat i Certificates, Identifiers & Profiles.
+   **App Store-listningsnamn ≠ projektnamn**: "Bastion" som exakt App
+   Store-namn var upptaget av en annan app (ingen hittad mjukvaru-
+   varumärkeskonflikt vid kontroll — bara en namnkrock på plattformen).
+   Löst genom att använda **`WABL SSH`** som det FORMELLA App Store-
+   listningsnamnet — rent tekniskt, påverkar INGET annat: repo, kodbas,
+   bundle-ID (`se.denied.bastion`), README/VISION.md-varumärket och hur
+   alla faktiskt pratar om projektet förblir **"Bastion"** oförändrat.
+   Skulle någon framtida ändring beröra `CFBundleDisplayName` eller annan
+   App Store-metadata, kom ihåg den här distinktionen.
+   CI-vägen förberedd: `.github/workflows/testflight.yml` (manuell knapp)
+   + `App/fastlane/Fastfile` bygger, signerar helt automatiskt (ingen
+   manuell certifikat-/provisioning-hantering) och laddar upp till
+   TestFlight — ingen lokal Mac behövs. Ruby-/fastlane-syntaxen är
+   verifierad (`ruby -c`), men aldrig körd på riktigt än — kräver
+   macOS-runnern + riktiga nycklar för det sista beviset.
 3. **Windows-GUI via `WinUIBackend`** — påbörjad och blockerad av två
    bekräftade uppströmsbuggar i swift-nio, inte något i Bastions egen kod.
    `WindowsApp/` (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs
@@ -310,8 +320,8 @@ VISION.md "Design".
 Inget nytt att bygga, bara verifiera/lansera:
 - Verifiera kontointegrationen i Xcode (Dropbox/Google Drive/OneDrive) med
   ett riktigt klient-ID.
-- Få appen på en riktig iPhone — 🧩 påbörjad, se "Nästa steg" ovan (Apple
-  Developer Program köpt, CI-vägen förberedd, väntar på kontoverifiering).
+- Få appen på en riktig iPhone — 🧩 påbörjad, se "Nästa steg" ovan (kontot
+  aktivt, secrets satta, appen skapas nu i App Store Connect).
 
 ### Fas B — UX-paritet med Termius (det folk betalar för idag)
 - **Port Forwarding**: 🧩 **lokal (`-L`) OCH fjärr (`-R`) klara i SSHCore**.
