@@ -95,7 +95,7 @@ Sources/SSHCore/       Ren SwiftNIO — bygger på Linux OCH Apple
   WireGuardProfileStore.swift  Persistent WireGuard-profildatabas (JSON, samma mönster som SnippetStore)
   OpenSSHCertificate.swift  ssh-ed25519-cert-v01-parser (bara parsning, ingen signaturverifiering än)
   SSHAgentClient.swift   ssh-agent-protokollklient över $SSH_AUTH_SOCK (lista identiteter, begär signaturer)
-  TailscaleStatus.swift  `tailscale status --json`-parser (statusläsning, ingen lagring/UI än)
+  TailscaleStatus.swift  `tailscale status --json`-parser + `fetch(over:)`/`fetchLocal()` (fjärr via SSH resp. lokal process)
 Sources/bastion-cli/   Tunn CLI runt SSHCore (bevisar mot riktig server)
 Tests/SSHCoreTests/    In-process SSH-server + end-to-end-test (ingen extern server)
 App/                   XCODE-ONLY: iOS+macOS-appen (SwiftUI, delad kod) + XcodeGen-spec
@@ -148,6 +148,7 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   SFTPBrowserView.swift  SFTP-filhanterare (modell + vy i samma fil) — motsvarar App/SFTPBrowser{Model,View}.swift
   PortForwardView.swift  Portvidarebefordran (lokal/fjärr/dynamisk -L/-R/-D), starta/stoppa — ingen App/-motsvarighet än
   KeyDeployView.swift    Generera+deploya+verifiera SSH-nyckel, byt host till nyckel-auth efter grönt ljus
+  TailscaleDiscoveryView.swift Föreslå värdar ur ett tailnet (lokalt eller via en sparad fjärrvärd), lägg till som ny värd
   AuthResolver.swift     Som App/, men `.keychainKey` ger nil (ingen Keychain på Linux)
 WindowsApp/            EGET SwiftPM-paket, samma mönster som LinuxApp/ — WinUIBackend istället för GtkBackend
   Package.swift          .package(path: "..") mot roten för SSHCore, + SwiftCrossUI/WinUIBackend

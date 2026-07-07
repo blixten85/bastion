@@ -75,4 +75,35 @@ final class TailscaleStatusTests: XCTestCase {
         XCTAssertEqual(suggested.first?.hostName, "nas.tail1234.ts.net")
         XCTAssertEqual(suggested.first?.address, "100.64.0.2")
     }
+
+    // MARK: - fetchLocal (riktig, kortlivad process — inte mockad)
+
+    /// Skriver ett riktigt, körbart `/bin/sh`-skript som skriver ut angiven
+    /// text på stdout (eller stderr + given exitkod) och returnerar dess
+    /// sökväg. Städas av `addTeardownBlock`.
+    private func makeScript(_ body: String) throws -> URL {
+        let path = NSTemporaryDirectory() + "ts-fixture-\(UUID().uuidString).sh"
+        try body.write(toFile: path, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: path)
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: path) }
+        return URL(fileURLWithPath: path)
+    }
+
+    func testFetchLocalParsesRealProcessOutput() throws {
+        let script = try makeScript("#!/bin/sh\ncat <<'EOF'\n\(withPeersJSON)\nEOF\n")
+        let status = try TailscaleStatus.fetchLocal(executableURL: script, arguments: [])
+        XCTAssertEqual(status.backendState, "Running")
+        XCTAssertEqual(status.suggestedHosts.first?.address, "100.64.0.2")
+    }
+
+    func testFetchLocalThrowsOnNonZeroExit() throws {
+        let script = try makeScript("#!/bin/sh\necho 'tailscale: not logged in' >&2\nexit 1\n")
+        XCTAssertThrowsError(try TailscaleStatus.fetchLocal(executableURL: script, arguments: [])) { error in
+            guard case TailscaleStatusError.localCommandFailed(let code, let stderr) = error else {
+                return XCTFail("fel feltyp: \(error)")
+            }
+            XCTAssertEqual(code, 1)
+            XCTAssertTrue(stderr.contains("not logged in"))
+        }
+    }
 }
