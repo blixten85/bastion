@@ -423,6 +423,13 @@ Inget nytt att bygga, bara verifiera/lansera:
   anslutning". 2 nya tester (Codable round-trip + bakåtkompatibilitet
   för gamla `host.json`-filer utan fältet), 226 gröna totalt.
 
+- **Kör kommando automatiskt vid anslutning** ("startup snippet", nytt,
+  2026-07-07, ägarfråga, se VISION.md) — inte påbörjat, men lågt hängande
+  frukt jämfört med resten av Fas B: `Snippet`/`SnippetStore` finns redan
+  och är redan testade, kräver bara ett nytt `Host`-fält (t.ex.
+  `startupCommand: String?`) + att terminalvyn kör det direkt efter
+  lyckad anslutning. Motsvarande Termius "Startup Snippet".
+
 ### Fas C — Differentiatorer bortom Termius
 - Docker-hantering ✅ redan klart (App + LinuxApp).
 - Systemstatus/dashboard ✅ redan klart.
@@ -513,6 +520,53 @@ Inget nytt att bygga, bara verifiera/lansera:
   instans -> tillbaka till text, identiskt). 171 tester gröna totalt.
   Byggd + körd (Xvfb), rent utan krasch.
   **Kvar**: App/-motsvarighet (Xcode-only, kan inte byggas/verifieras här).
+- **Native WireGuard/Tailscale — inget externt beroende** (nytt,
+  2026-07-07, uttryckligt ägarönskemål — se VISION.md "En sak att
+  prioritera högt": ska kännas komplett, inget proffs ska sakna något)
+  — INTE PÅBÖRJAT, ren designanteckning för framtida arbete. Dagens läge
+  (ovan) kräver ATT `wg`/`wg-quick` respektive `tailscale`/`tailscaled`
+  redan är installerade separat av användaren — motsatsen till "fristående
+  app" -löftet i README:s första rad. Målet: appen kan självständigt
+  upprätta båda sortens tunnlar, utan att användaren installerar något.
+  Plattformarna kräver TVÅ OLIKA arkitekturer, inte en gemensam lösning:
+  - **Linux/Windows/BSD/macOS utanför Mac App Store** (Bastion distribueras
+    redan fristående här, `.deb`/`.rpm`/direktnedladdning — se "Paketering"
+    nedan): ladda ner OFFICIELLA, plattforms-/arkitekturmatchade
+    förbyggda binärer (`wireguard-go` — WireGuards egen userspace Go-
+    implementation, INGEN kärnmodul krävs, finns för i princip alla
+    plattformar som EN binär — samt `tailscale`/`tailscaled`, som
+    Tailscale själva distribuerar på samma sätt) vid första användning
+    eller på begäran, verifiera checksum/signatur mot projektens egna
+    publicerade värden (leverantörskedjesäkerhet — vi kör en nedladdad
+    binär, samma tillitsnivå som ett `curl | sudo bash`-installations-
+    skript om det görs fel), cacha under `~/.bastion/bin/<verktyg>/<version>/`,
+    kör den direkt. LÖSER exakt ägarens konkreta önskemål: portabel (ingen
+    separat installation), alltid senaste tillgängliga version, OCH ett
+    versionsväljar-UI (fästa en specifik release — t.ex. vid en känd bugg
+    i senaste versionen, eller ett företagskrav på en godkänd version).
+  - **iOS (App Store-distribuerat, se `testflight.yml`/fastlane)**: KAN
+    INTE ladda ner och köra godtycklig binärkod — App Store Review
+    Guideline 2.5.2 förbjuder det uttryckligen, oavsett hur bekvämt det
+    vore. Rätt arkitektur här är en `NetworkExtension`
+    (`NEPacketTunnelProvider`) — ETT NYTT XCODE-TARGET, inte en byggflagga
+    — med WireGuard/Tailscales Go-kod STATISKT inbyggd vid KOMPILERINGS-
+    tillfället (inte nedladdad vid körning). Det är exakt samma arkitektur
+    de OFFICIELLA WireGuard-  (github.com/WireGuard/wireguard-apple) och
+    Tailscale-iOS-apparna (github.com/tailscale/tailscale, `ios/`-katalogen)
+    använder — båda öppen källkod (MIT/BSD), värda att läsa som referens
+    snarare än att uppfinna på nytt. macOS via Mac App Store (om Bastion
+    någonsin distribueras dit) skulle ha samma begränsning; macOS UTANFÖR
+    App Store (notariserad direktnedladdning) kan använda antingen vägen
+    ovan (nedladdad binär) eller en NetworkExtension.
+  Konsekvens att hålla i åtanke framöver: `SSHCore` förblir plattforms-
+  neutral (ren SwiftNIO) — den här funktionen hör hemma i UI-lagren
+  (`App/`, `LinuxApp/`, en framtida Windows-app), INTE i `SSHCore` självt,
+  eftersom binärhantering/NetworkExtension är fundamentalt
+  plattformsspecifikt på ett sätt SSH-kärnan inte är. Om något SSHCore-
+  arbete framöver rör processhantering/nedladdning/binärverifiering
+  generellt (t.ex. en delad "hämta+verifiera en extern binär"-hjälpare)
+  är det värt att bygga den ÅTERANVÄNDBAR för både WireGuard och
+  Tailscale, snarare än en engångslösning för det ena.
 - **tvOS** (nytt, 2026-07-06) — inte påbörjat. Nytt target i `project.yml`,
   samma SwiftUI-kod som iOS/macOS. Scopas som dashboard-/Docker-vy, inte
   en fullt interaktiv terminal (fjärrkontroll-tangentbord är ohanterbart
@@ -527,6 +581,20 @@ Inget nytt att bygga, bara verifiera/lansera:
   återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
+- **Mosh-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
+  påbörjat. Inte ett SSH-tillägg — Mosh startar via SSH men växlar sedan
+  till ett helt eget protokoll (SSP) över UDP med lokal predikering av
+  tangenttryckningar. Kräver `mosh-server` körande på fjärrsystemet
+  (startas via den initiala SSH-anslutningen) och en egen
+  `mosh-client`-motsvarighet i Bastion — större scope än något annat
+  nätverksprotokoll i den här listan, ren protokollimplementation från
+  grunden (ingen swift-nio-ssh-återanvändning möjlig, helt annat
+  protokoll).
+- **Telnet-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
+  påbörjat. Helt separat från SSH (RFC 854, okrypterat, egen
+  option-negotiation) — en egen `TelnetSession`, inte en utökning av
+  `SSHSession`. Mindre arbete än Mosh, men fortfarande en egen
+  protokollimplementation från grunden.
 - **Paketering + BSD-täckning** (nytt, 2026-07-07, se VISION.md
   "Plattforms- och paketeringsmål, fullständigt") — inte påbörjat:
   `.deb`-paket (Debian/Ubuntu), `.rpm`-paket (RHEL/Fedora), FreeBSD-bygge
