@@ -29,7 +29,16 @@ class BastionSshSession(
             .verify(timeoutSeconds, TimeUnit.SECONDS)
             .session
         s.addPasswordIdentity(password)
-        s.auth().verify(timeoutSeconds, TimeUnit.SECONDS)
+        try {
+            s.auth().verify(timeoutSeconds, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            // Misslyckad auth stänger INTE sessionen automatiskt (MINA SSHD
+            // betraktar auth som ett separat steg från själva transporten) —
+            // utan den här closen läcker den öppna sessionen, eftersom `s`
+            // aldrig tilldelas `session` och close() därför inte når den.
+            s.close(false)
+            throw e
+        }
         session = s
     }
 
@@ -39,10 +48,13 @@ class BastionSshSession(
         s.createExecChannel(command).use { channel ->
             channel.out = out
             channel.open().verify(timeoutSeconds, TimeUnit.SECONDS)
-            channel.waitFor(
+            val events = channel.waitFor(
                 EnumSet.of(ClientChannelEvent.CLOSED),
                 TimeUnit.SECONDS.toMillis(timeoutSeconds),
             )
+            check(!events.contains(ClientChannelEvent.TIMEOUT)) {
+                "Kommandot svarade inte inom ${timeoutSeconds}s: $command"
+            }
         }
         return out.toString(Charsets.UTF_8)
     }
