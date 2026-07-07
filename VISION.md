@@ -293,6 +293,13 @@ originalvisionen: "Inte kopiera Termius").
   nämner ProxyJump/Agent Forwarding).
 - **Tailscale-stöd** — koppla mot Tailscale-nätverk för värdar.
 - **WireGuard-profiler** — hantera WireGuard-konfigurationer i appen.
+- **Slutmål (tillägg, 2026-07-07): inget externt beroende.** Bastion ska
+  kunna upprätta WireGuard/Tailscale-tunnlar HELT SJÄLV — inte bara peka
+  på en `wg`/`tailscale`-installation användaren redan gjort separat.
+  "Fristående app" (se första stycket i README) ska gälla nätverkslagret
+  också, inte bara SSH-klienten i sig. Se ROADMAP.md "Native WireGuard/
+  Tailscale — inget externt beroende" för den tekniska planen (nedladdade
+  plattformsbinärer med versionsval på desktop, NetworkExtension på iOS).
 
 Se [ROADMAP.md](ROADMAP.md) för hur dessa är prioriterade in i backloggen.
 
