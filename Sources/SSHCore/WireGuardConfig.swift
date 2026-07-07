@@ -10,8 +10,8 @@ import Foundation
 /// `FwMark` (wg(8)) samt `Address`/`DNS`/`MTU`/`Table`/`PreUp`/`PostUp`/
 /// `PreDown`/`PostDown`/`SaveConfig` (wg-quick-tillägg); `[Peer]`-sektionen
 /// bär `PublicKey`/`PresharedKey`/`AllowedIPs`/`Endpoint`/`PersistentKeepalive`.
-public struct WireGuardConfig: Sendable, Equatable {
-    public struct Interface: Sendable, Equatable {
+public struct WireGuardConfig: Codable, Sendable, Equatable {
+    public struct Interface: Codable, Sendable, Equatable {
         public var privateKey: String?
         public var address: [String] = []
         public var dns: [String] = []
@@ -46,7 +46,7 @@ public struct WireGuardConfig: Sendable, Equatable {
         }
     }
 
-    public struct Peer: Sendable, Equatable {
+    public struct Peer: Codable, Sendable, Equatable {
         public var publicKey: String?
         public var presharedKey: String?
         public var allowedIPs: [String] = []

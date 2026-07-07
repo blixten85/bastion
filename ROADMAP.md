@@ -50,7 +50,7 @@ delvis andra, av konkreta skäl:
 | Linux-Docker-hantering (`DockerView`) | ✅ lista/start/stopp/omstart/logg/shell — motsvarar `App/DockerView.swift` |
 | Linux-portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa, byggd+körd (Xvfb) — ingen App/-motsvarighet än |
 | ProxyJump (`ssh -J`) | ✅ `SSHSession.connect(via:)`, `bastion-cli` läser `ProxyJump` ur ssh-config automatiskt |
-| WireGuard-profiler (parsning/serialisering) | ✅ `WireGuardConfig.swift`, testad mot verifierat `.conf`-format — 🧩 lagring + UI kvar |
+| WireGuard-profiler | ✅ parsning/serialisering + lagring + LinuxApp-UI — 🧩 App/-motsvarighet kvar (Xcode-only) |
 
 ## Nästa steg (i ordning)
 
@@ -402,9 +402,18 @@ Inget nytt att bygga, bara verifiera/lansera:
   listor, upprepade nycklar ackumuleras (flera `Address`-rader är tillåtet).
   9 tester, inklusive full round-trip (`parse -> rendered() -> parse` ger
   identiskt resultat) mot en realistisk exempelkonfiguration.
-  **Kvar**: `WireGuardProfileStore` (JSON-lagring, samma mönster som
-  `SnippetStore`) + UI för import/visning/redigering i App/ och LinuxApp —
-  inget UI byggt än, bara den testade kärnan.
+  **Lagring + LinuxApp-UI** (2026-07-06): ✅ klart. `WireGuardProfileStore`
+  (JSON på disk, `~/.bastion/wireguard.json`, exakt samma mönster som
+  `SnippetStore`). LinuxApp: `WireGuardProfileListView`/`WireGuardProfileEditView`
+  — toppnivåknapp ("WireGuard" i sidopanelen, INTE per-värd som Snippets/
+  Docker, eftersom en profil beskriver en VPN-anslutning, inte kopplad till
+  en specifik SSH-värd). Redigering sker som rå `.conf`-text (klistra in,
+  spara) snarare än ett fält-för-fält-formulär — enklare för en användare
+  som redan har filen från sin VPN-leverantör/router. 3 nya store-tester
+  (inkl. en full round-trip: text -> config -> lagrad JSON -> ny store-
+  instans -> tillbaka till text, identiskt). 171 tester gröna totalt.
+  Byggd + körd (Xvfb), rent utan krasch.
+  **Kvar**: App/-motsvarighet (Xcode-only, kan inte byggas/verifieras här).
 - **tvOS** (nytt, 2026-07-06) — inte påbörjat. Nytt target i `project.yml`,
   samma SwiftUI-kod som iOS/macOS. Scopas som dashboard-/Docker-vy, inte
   en fullt interaktiv terminal (fjärrkontroll-tangentbord är ohanterbart
