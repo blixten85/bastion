@@ -51,8 +51,8 @@ delvis andra, av konkreta skäl:
 | Linux-portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa, byggd+körd (Xvfb) — ingen App/-motsvarighet än |
 | ProxyJump (`ssh -J`) | ✅ `SSHSession.connect(via:)`, `bastion-cli` läser `ProxyJump` ur ssh-config automatiskt |
 | WireGuard-profiler | ✅ parsning/serialisering + lagring + LinuxApp-UI — 🧩 App/-motsvarighet kvar (Xcode-only) |
-| OpenSSH-certifikatparsning | ✅ `OpenSSHCertificate.swift`, testad mot RIKTIGA `ssh-keygen -s`-genererade certifikat — 🧩 signaturverifiering/auth-wiring kvar |
-| ssh-agent-protokollklient | ✅ `SSHAgentClient.swift`, testad mot en RIKTIG `ssh-agent` — 🧩 kanal-forwarding till fjärrserver kvar |
+| OpenSSH-certifikat | ✅ parsning + CA-signaturverifiering (Ed25519), `OpenSSHCertificate.swift`, testad mot RIKTIGA `ssh-keygen -s`-certifikat — 🧩 auth-wiring (använda ett cert vid inloggning) kvar |
+| ssh-agent-protokollklient | ✅ `SSHAgentClient.swift`, testad mot en RIKTIG `ssh-agent` — 🚫 kanal-forwarding till fjärrserver BLOCKERAD (se ROADMAP) |
 | Tailscale-värdförslag | ✅ `TailscaleStatus.swift` (fetch/fetchLocal) + LinuxApp `TailscaleDiscoveryView` — 🧩 App/-motsvarighet kvar (Xcode-only) |
 
 ## Nästa steg (i ordning)
@@ -269,6 +269,25 @@ delvis andra, av konkreta skäl:
   faktiskt `Gtk.Widget`, så det är tekniskt möjligt men inte en ren, stödd
   API-väg). Radvis input + kontrollknappar täcker det mesta (se "Klart" ovan)
   tills vidare.
+- **Ssh-agent-forwarding till fjärrserver** (`auth-agent@openssh.com`-
+  kanaltypen, klassisk `ssh -A`) — **arkitektoriskt blockerad i
+  swift-nio-ssh, inte något i Bastions egen kod** (verifierat 2026-07-07
+  genom att läsa bibliotekets källkod, inte gissat).
+  `SSHMessage.ChannelOpenMessage.ChannelType` (i `SSHMessages.swift`) har
+  bara tre hårdkodade fall: `.session`, `.forwardedTCPIP`, `.directTCPIP`.
+  `readChannelOpenMessage()`s `switch` på kanaltypssträngen har ett
+  `default: throw NIOSSHError.unknownPacketType(...)` — ett inkommet
+  `channel-open` av typen `auth-agent@openssh.com` (som en fjärrserver
+  skulle skicka när NÅGOT på den servern vill använda den vidarebefordrade
+  agenten) skulle alltså få biblioteket att kasta ett fel vid själva
+  paketparsningen, inte ge en hanterbar "okänd kanaltyp, avvisa den här
+  ENA kanalen"-väg. Till skillnad från globala förfrågningar (`tcpip-
+  forward` m.fl.), som HAR en uttrycklig utökningspunkt
+  (`GlobalRequestDelegate`, redan använd av `ServerRemoteForwardingDelegate`
+  i testerna), finns ingen motsvarande delegate-typ för inkommande
+  kanalöppningar av godtycklig typ. Inte fixbart utan att forka
+  swift-nio-ssh. `SSHAgentClient.swift`s lokala (Unix-socket-mot-en-
+  körande-agent) funktionalitet är opåverkad och fullt användbar.
 
 Interaktiv shell finns i kärnan (`SSHSession.openShell`) och driver både
 `App/TerminalView.swift` (SwiftTerm) och `LinuxApp`s `TerminalSessionView`.
@@ -636,7 +655,25 @@ Inget nytt att bygga, bara verifiera/lansera:
   inte en rå textbyte-sekvens. Bara Ed25519 stöds (matchar kodbasens
   nuvarande begränsning). 10 tester mot två riktiga certifikat (user +
   host, inkl. "giltig för alltid"-sentinelvärdena `0`/`UInt64.max`).
-  **Kvar**: signaturverifiering, `HostAuth`-integration, UI.
+  **Signaturverifiering** (2026-07-07): ✅ klart, `verifySignature()`.
+  Bara CA:er som signerar med `ssh-ed25519` stöds (samma Ed25519-
+  avgränsning som resten av kodbasen) — RSA/ECDSA-signerande CA:er kastar
+  `OpenSSHCertificateError.unsupportedSigningKeyType` tydligt istället för
+  att gissa. Signerad data är en SLICE av originalblobet (allt fram till
+  men inte inklusive `signatureBlob`), inte återkonstruerad ur avkodade
+  fält — undviker risken att en återkonstruktion råkar vara "nästan rätt"
+  och ge en falskt positiv verifiering. Verifierar BARA den kryptografiska
+  signaturen, inte giltighetsperiod/principals/critical options — det
+  ansvaret ligger hos anroparen. Verifierat mot samma RIKTIGA
+  `ssh-keygen -s`-certifikat som parsningstesterna, PLUS ett genuint
+  manipulationstest (flippar en byte i `publicKey`-fältet på en riktig
+  signerad blob, bekräftar att verifieringen då korrekt ger `false` — inte
+  bara att den lyckas för det oförändrade fallet, vilket ett buggigt
+  "returnera alltid true" också hade klarat). 4 nya tester, 205 gröna
+  totalt.
+  **Kvar**: `SSHUserAuth`/`HostAuth`-wiring (använda ett verifierat
+  certifikat för att faktiskt logga in, inte bara verifiera det offline),
+  UI.
 - Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
 - **256-färg + True Color i Linux-terminalen** — ✅ klart. `TerminalBuffer.applySGR`
   hanterade tidigare bara 16-färgspaletten (`SGR 30-37/40-47/90-97/100-107`).

@@ -121,6 +121,57 @@ final class OpenSSHCertificateTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - Signaturverifiering (mot samma RIKTIGA certifikat som ovan)
+
+    /// Bevisar hela vägen mot en genuint `ssh-keygen -s`-signerad blob —
+    /// verifierad genom att FAKTISKT flippa en byte i den signerade datan
+    /// (inuti publicKey-fältet) och kontrollera att signaturen då korrekt
+    /// underkänns, inte bara att den godkänns för det oförändrade fallet
+    /// (ett buggigt "returnera alltid true" skulle annars klara det testet).
+    func testVerifySignatureSucceedsForRealUserCertificate() throws {
+        let cert = try OpenSSHCertificate.parse(userCertLine)
+        XCTAssertTrue(try cert.verifySignature())
+    }
+
+    func testVerifySignatureSucceedsForRealHostCertificate() throws {
+        let cert = try OpenSSHCertificate.parse(hostCertLine)
+        XCTAssertTrue(try cert.verifySignature())
+    }
+
+    func testVerifySignatureFailsForTamperedCertificate() throws {
+        let base64 = String(userCertLine.split(separator: " ")[1])
+        var raw = [UInt8](Data(base64Encoded: base64)!)
+        raw[80] ^= 0xFF  // inuti publicKey-fältet, väl efter magic+nonce
+        let tampered = "ssh-ed25519-cert-v01@openssh.com " + Data(raw).base64EncodedString()
+        let cert = try OpenSSHCertificate.parse(tampered)
+        XCTAssertFalse(try cert.verifySignature())
+    }
+
+    func testVerifySignatureThrowsForUnsupportedSigningKeyType() throws {
+        // Bygger en syntetisk signatureKeyBlob med typsträngen "ssh-rsa" —
+        // enda delen som behöver vara syntetisk (en riktig RSA-signerande
+        // testfixtur skulle kräva en separat RSA-CA, onödigt för att bevisa
+        // att fel-typ-vägen faktiskt kastar rätt fel istället för att krascha
+        // eller tyst godkänna).
+        var cert = try OpenSSHCertificate.parse(userCertLine)
+        var fakeKeyBlob = Data()
+        let type = "ssh-rsa"
+        fakeKeyBlob.append(contentsOf: withUnsafeBytes(of: UInt32(type.utf8.count).bigEndian, Array.init))
+        fakeKeyBlob.append(contentsOf: type.utf8)
+        cert = OpenSSHCertificate(
+            nonce: cert.nonce, publicKey: cert.publicKey, serial: cert.serial, type: cert.type,
+            keyID: cert.keyID, validPrincipals: cert.validPrincipals, validAfter: cert.validAfter,
+            validBefore: cert.validBefore, criticalOptions: cert.criticalOptions,
+            extensionNames: cert.extensionNames, signatureKeyBlob: fakeKeyBlob,
+            signatureBlob: cert.signatureBlob, signedData: cert.signedData)
+        XCTAssertThrowsError(try cert.verifySignature()) { error in
+            guard case OpenSSHCertificateError.unsupportedSigningKeyType(let t) = error else {
+                return XCTFail("fel feltyp: \(error)")
+            }
+            XCTAssertEqual(t, "ssh-rsa")
+        }
+    }
 }
 
 private extension Data {
