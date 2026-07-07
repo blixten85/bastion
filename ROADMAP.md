@@ -509,9 +509,26 @@ Inget nytt att bygga, bara verifiera/lansera:
   WinFsp-filsystemsprovider backad av `SFTPClient` (`sshfs-win` bevisar
   konceptet men är en C/Cygwin-wrapper, inte återanvändbar rakt av).
   Molnlagring-som-filkälla kräver BREDARE OAuth-scope:er än de som redan
-  finns för synk (app-mapp-avgränsade idag) + ny mappträd-bläddringskod;
-  AWS-stöd (SigV4, egna nycklar, inget OAuth) skulle vara en helt separat,
-  självständig klient.
+  finns för synk (app-mapp-avgränsade idag) + ny mappträd-bläddringskod.
+  **AWS/S3-kompatibel klient**: ✅ klart (2026-07-07, `S3Client.swift`) —
+  egen AWS SigV4-signering (canonical request + string-to-sign +
+  HMAC-SHA256-kedja via `swift-crypto`), path-style URL:er, XML-parsning
+  (`Foundation.XMLParser`/`FoundationXML` på Linux) av
+  ListBuckets/ListObjects/Error-svarsformaten. `listBuckets`/`createBucket`/
+  `deleteBucket`/`listObjects`/`putObject`/`getObject`/`deleteObject`.
+  Signeringen verifierad på två sätt: en oberoende Python-referens-
+  implementation fick ett genuint 200 OK mot Hostups riktiga
+  S3-kompatibla tjänst (`s3.hostup.se`, Ceph RGW) med riktiga nycklar
+  (region `us-east-1`, path-style bekräftat), och testerna låser en
+  fixerad signeringsvektor mot regression. Ett riktigt, LIVE end-to-end-
+  test (`testLiveRoundTripAgainstRealHostupS3`) skapar en bucket, laddar
+  upp, listar, laddar ner, verifierar innehållet, städar upp — mot den
+  genuina tjänsten, inte en mockad server. Hoppar tyst över (inte fail)
+  om `HOSTUP_S3_*`-miljövariabler saknas (t.ex. i CI, som medvetet inte
+  har dessa hemligheter). 6 nya tester, 196 gröna totalt (1 hoppad utan
+  nycklar i miljön).
+  **Kvar**: LinuxApp/App-UI (bläddra/ladda upp/ladda ner via en vy),
+  mappträd-bläddring för molnlagring-som-filkälla i stort.
 - **SFTP-filhanterare** — ✅ grundfunktionerna klara, både App/ och
   LinuxApp (`SFTPBrowserView`/`SFTPBrowserModel`): bläddra, navigera
   in/upp, ny mapp, döp om, ta bort. Mapp/fil skiljs via
