@@ -1,3 +1,7 @@
+require "tempfile"
+require "base64"
+require "shellwords"
+
 default_platform(:ios)
 
 # TestFlight-uppladdning. Körs manuellt (workflow_dispatch, se
@@ -33,11 +37,25 @@ platform :ios do
       xcodeproj: "Bastion.xcodeproj",
     )
 
+    # xcodebuilds egen provisioning-uppdatering (-allowProvisioningUpdates)
+    # känner INTE av api_key-objektet ovan — den letar annars efter ett
+    # inloggat Xcode-konto, som inte finns på en engångs-CI-runner ("No
+    # Accounts" / "No profiles for 'se.denied.bastion' were found").
+    # Sedan Xcode 15 stödjer xcodebuild samma API-nyckelautentisering
+    # direkt via tre kommandoradsflaggor, men de vill ha en RIKTIG
+    # filsökväg, inte nyckelinnehållet inline — skriver ut den till en
+    # temp-fil i samma steg.
+    key_path = Tempfile.new(["AuthKey", ".p8"]).path
+    File.write(key_path, Base64.decode64(ENV.fetch("APP_STORE_CONNECT_KEY_CONTENT")))
+
     build_app(
       project: "Bastion.xcodeproj",
       scheme: "Bastion",
       export_method: "app-store",
-      xcargs: "-allowProvisioningUpdates",
+      xcargs: "-allowProvisioningUpdates " \
+        "-authenticationKeyPath #{key_path.shellescape} " \
+        "-authenticationKeyID #{ENV.fetch('APP_STORE_CONNECT_KEY_ID').shellescape} " \
+        "-authenticationKeyIssuerID #{ENV.fetch('APP_STORE_CONNECT_ISSUER_ID').shellescape}",
     )
 
     upload_to_testflight(
