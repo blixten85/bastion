@@ -1,7 +1,8 @@
 # XcodeGen-spec → genererar Bastion.xcodeproj. Kör på Mac:
 #   brew install xcodegen
 #   cd App && xcodegen generate && open Bastion.xcodeproj
-# Sätt sedan ditt signeringsteam i Xcode (Signing & Capabilities) innan arkivering.
+# DEVELOPMENT_TEAM är redan satt nedan (S6ZR2VU68T) — automatisk signering
+# fungerar direkt, både lokalt i Xcode och i testflight.yml-workflowet.
 name: Bastion
 options:
   bundleIdPrefix: se.denied
@@ -39,6 +40,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: se.denied.bastion
+        DEVELOPMENT_TEAM: S6ZR2VU68T
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: NO
@@ -71,6 +73,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: se.denied.bastion
+        DEVELOPMENT_TEAM: S6ZR2VU68T
         PRODUCT_NAME: Bastion
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
