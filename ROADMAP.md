@@ -468,6 +468,25 @@ Inget nytt att bygga, bara verifiera/lansera:
   återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
+- **Paketering + BSD-täckning** (nytt, 2026-07-07, se VISION.md
+  "Plattforms- och paketeringsmål, fullständigt") — inte påbörjat:
+  `.deb`-paket (Debian/Ubuntu), `.rpm`-paket (RHEL/Fedora), FreeBSD-bygge
+  (Swift har community-toolchains där), OpenBSD/NetBSD-undersökning
+  (oklart om Swift ens fungerar där än — måste verifieras mot en riktig
+  installation innan något annat antas). ARM64/Raspberry Pi täcks
+  naturligt av samma Linux-bygge + `.deb`-paketering, förutsatt att
+  toolchainen stödjer target-arkitekturen (gör den, för Linux ARM64).
+- **Native filhanterare-integration + molnlagring som filkälla** (nytt,
+  2026-07-07, se VISION.md "Native filhanterare-integration + molnlagring
+  som filkälla") — inte påbörjat. Apple: `FileProvider`-ramverket
+  (`NSFileProviderReplicatedExtension`) — Blink Shell gör redan detta,
+  beprövad väg, kräver ett separat extension-target. Windows: egen
+  WinFsp-filsystemsprovider backad av `SFTPClient` (`sshfs-win` bevisar
+  konceptet men är en C/Cygwin-wrapper, inte återanvändbar rakt av).
+  Molnlagring-som-filkälla kräver BREDARE OAuth-scope:er än de som redan
+  finns för synk (app-mapp-avgränsade idag) + ny mappträd-bläddringskod;
+  AWS-stöd (SigV4, egna nycklar, inget OAuth) skulle vara en helt separat,
+  självständig klient.
 - **SFTP-filhanterare** — ✅ grundfunktionerna klara, både App/ och
   LinuxApp (`SFTPBrowserView`/`SFTPBrowserModel`): bläddra, navigera
   in/upp, ny mapp, döp om, ta bort. Mapp/fil skiljs via
