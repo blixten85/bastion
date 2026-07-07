@@ -45,29 +45,31 @@ final class SSHAgentClientTests: XCTestCase {
         return RunningAgent(socketPath: socketPath, process: process)
     }
 
-    /// `Process.waitUntilExit()` visade sig hänga (upptäckt empiriskt) när
-    /// en långlivad `ssh-agent -D`-processs redan är startad via samma
-    /// Foundation-`Process`-bokföring i samma testprocess — trots att
-    /// `KeyManagementTests.swift` använder exakt samma `waitUntilExit()`-
-    /// mönster för `ssh-keygen` UTAN problem där (ingen samtidig
-    /// bakgrundsdemon). En känd kategori av swift-corelibs-foundation-kvirk
-    /// med barnprocess-reaping när flera `Process`-instanser lever samtidigt.
-    /// Rå `waitpid(2)` istället, kringgår Foundations bokföring helt.
-    /// Avgränsad väntan (`WNOHANG`-pollning + timeout + `SIGKILL`-reserv) —
-    /// annars återinför en obegränsad `waitpid(2)` exakt den "testsviten
-    /// hänger"-risk det här kringgåendet av `Process.waitUntilExit()` skulle
-    /// lösa, om barnprocessen någonsin skulle vägra avsluta (CodeRabbit-fynd,
-    /// PR #83).
-    private func waitForExit(_ pid: Int32, timeoutSeconds: Double = 10) -> Int32 {
+    /// `Process.waitUntilExit()` (den BLOCKERANDE varianten) visade sig
+    /// hänga när en långlivad `ssh-agent -D`-process redan är startad via
+    /// samma Foundation-`Process`-bokföring i samma testprocess. Rå
+    /// `waitpid(2)` (blockerande, ingen `WNOHANG`/timeout) fungerar däremot
+    /// utan problem för de KORTLIVADE processerna (`ssh-keygen`/`ssh-add`)
+    /// — bevisat både på Linux (upprepade körningar) och på macOS-CI (den
+    /// FÖRSTA `swiftpm-macos`-körningen på PR #83 misslyckades av en helt
+    /// annan orsak, en för lång Unix-socket-sökväg, INTE av att vänta på
+    /// keygen/add — de hann alltid klart där).
+    ///
+    /// Två senare, mer "försiktiga" varianter provades och båda visade sig
+    /// SÄMRE än originalet: (1) en `WNOHANG`-pollningsloop med timeout
+    /// (CodeRabbit-förslag) tajmade ut på en långsammare macOS-runner trots
+    /// att processen redan avslutats — trolig platformsskillnad i hur
+    /// Foundations `Process` interagerar med rå `waitpid` på Darwin. (2)
+    /// `Process.terminationHandler` satt EFTER `run()` missade snabbt
+    /// avslutande processer (kapplöpning: `ssh-keygen` hann klart innan
+    /// handlern sattes) och hängde på Linux. Den enkla, blockerande
+    /// `waitpid(pid, &status, 0)` är alltså den EMPIRISKT mest robusta
+    /// varianten för just kortlivade processer — komplexiteten CodeRabbit
+    /// efterfrågade löste inget verkligt problem här och införde två nya.
+    private func waitForExit(_ pid: Int32) -> Int32 {
         var status: Int32 = 0
-        let deadline = Date().addingTimeInterval(timeoutSeconds)
-        while Date() < deadline {
-            let result = waitpid(pid, &status, WNOHANG)
-            if result == pid { return (status >> 8) & 0xFF }
-            usleep(20_000)
-        }
-        kill(pid, SIGKILL)
-        return -1
+        waitpid(pid, &status, 0)
+        return (status >> 8) & 0xFF
     }
 
     private func addKey(_ keyPath: String, socketPath: String) throws {
