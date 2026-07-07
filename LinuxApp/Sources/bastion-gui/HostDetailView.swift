@@ -40,7 +40,7 @@ struct HostDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     DashboardView(host: host, password: resolvedPassword)
                     Divider()
-                    TerminalSessionView(host: host, password: resolvedPassword)
+                    TerminalSessionView(host: host, password: resolvedPassword, initialCommand: host.startupCommand)
                 }
             }
         }

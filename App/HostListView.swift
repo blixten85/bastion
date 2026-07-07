@@ -181,7 +181,8 @@ struct HostListView: View {
                 SecureField("Lösenord", text: $passwordInput)
                 Button("Anslut") {
                     if let h = passwordFor {
-                        sessionManager.open(ConnectRequest(host: h, password: passwordInput))
+                        sessionManager.open(
+                            ConnectRequest(host: h, password: passwordInput, initialCommand: h.startupCommand))
                         showSessions = true
                     }
                     passwordFor = nil; passwordInput = ""
@@ -221,7 +222,7 @@ struct HostListView: View {
         if case .askPassword = host.auth {
             passwordFor = host
         } else {
-            sessionManager.open(ConnectRequest(host: host, password: nil))
+            sessionManager.open(ConnectRequest(host: host, password: nil, initialCommand: host.startupCommand))
             showSessions = true
         }
     }

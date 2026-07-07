@@ -8,6 +8,7 @@ struct HostEditView: View {
     @State private var draft: Host
     @State private var portText: String
     @State private var tagsText: String
+    @State private var startupCommandText: String
     @State private var authKind: AuthKind
     @State private var keyPath: String
     @State private var certPath: String
@@ -55,6 +56,7 @@ struct HostEditView: View {
         self._draft = State(wrappedValue: host)
         self._portText = State(wrappedValue: String(host.port))
         self._tagsText = State(wrappedValue: host.tags.joined(separator: ", "))
+        self._startupCommandText = State(wrappedValue: host.startupCommand ?? "")
         self.onSave = onSave
         self.onCancel = onCancel
         switch host.auth {
@@ -107,6 +109,8 @@ struct HostEditView: View {
             Text("Fjärrsystem").font(.subheadline)
             Picker(of: RemotePlatform.allCases, selection: platformBinding)
 
+            TextField("Kör automatiskt vid anslutning (valfritt, t.ex. tmux attach)", text: $startupCommandText)
+
             HStack {
                 Button("Avbryt") { onCancel() }
                 Spacer()
@@ -136,6 +140,8 @@ struct HostEditView: View {
         host.port = Int(portText) ?? 22
         host.tags = tagsText.split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let trimmedStartup = startupCommandText.trimmingCharacters(in: .whitespacesAndNewlines)
+        host.startupCommand = trimmedStartup.isEmpty ? nil : trimmedStartup
         switch authKind {
         case .agent: host.auth = .agentDefault
         case .password: host.auth = .askPassword

@@ -30,6 +30,13 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
     /// PowerShell, admin- vs. standardkonto). Påverkar ingenting annat;
     /// `.posix` (default) fungerar precis som innan fältet fanns.
     public var platform: RemotePlatform
+    /// Körs automatiskt i skalet direkt efter att en INTERAKTIV terminal
+    /// öppnats för den här värden (inte vid `execute()`-baserade engångs-
+    /// kommandon som Docker-shell/Snippets — de skickar redan sitt eget
+    /// `initialCommand` och ska inte dubbelköras). Motsvarar Termius
+    /// "Startup Snippet". `nil`/tomt = ingenting körs (samma beteende som
+    /// innan fältet fanns).
+    public var startupCommand: String?
     /// När värden senast ändrades. Styr sync-mergen (nyaste ändringen vinner).
     public var modifiedAt: Date
 
@@ -44,6 +51,7 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         isFavorite: Bool = false,
         colorTag: String? = nil,
         platform: RemotePlatform = .posix,
+        startupCommand: String? = nil,
         modifiedAt: Date = Date()
     ) {
         self.id = id
@@ -56,17 +64,18 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         self.isFavorite = isFavorite
         self.colorTag = colorTag
         self.platform = platform
+        self.startupCommand = startupCommand
         self.modifiedAt = modifiedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, platform, modifiedAt
+        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, platform, startupCommand, modifiedAt
     }
 
-    /// Egen init(from:) — isFavorite/colorTag/platform tillkom efter att
-    /// fältet fanns i sparade host.json-filer. `decodeIfPresent` gör dem
-    /// valfria vid avkodning (default false/nil/.posix) istället för att
-    /// synteterad Decodable kastar på saknad nyckel.
+    /// Egen init(from:) — isFavorite/colorTag/platform/startupCommand tillkom
+    /// efter att fältet fanns i sparade host.json-filer. `decodeIfPresent`
+    /// gör dem valfria vid avkodning (default false/nil/.posix/nil) istället
+    /// för att synteterad Decodable kastar på saknad nyckel.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -79,6 +88,7 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         isFavorite = try c.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
         colorTag = try c.decodeIfPresent(String.self, forKey: .colorTag)
         platform = try c.decodeIfPresent(RemotePlatform.self, forKey: .platform) ?? .posix
+        startupCommand = try c.decodeIfPresent(String.self, forKey: .startupCommand)
         modifiedAt = try c.decode(Date.self, forKey: .modifiedAt)
     }
 

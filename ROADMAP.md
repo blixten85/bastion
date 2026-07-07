@@ -411,6 +411,17 @@ Inget nytt att bygga, bara verifiera/lansera:
   terminaler. LinuxApp oförändrad (dess `NavigationSplitView` byter fortfarande
   ut hela detaljvyn vid nytt värdval — samma begränsning som App/ hade innan
   den här ändringen, inte adresserad än).
+- **Kör kommando automatiskt vid anslutning** ("startup snippet", nytt,
+  2026-07-07, ägarfråga) — ✅ klart. Nytt `Host.startupCommand: String?`
+  (samma bakåtkompatibla `decodeIfPresent`-mönster som `isFavorite`/
+  `colorTag`/`platform`). Skickas som `initialCommand` till den
+  BEFINTLIGA `initialCommand`-mekanismen i `TerminalController`/
+  `SSHTerminalController` (som redan fanns för Docker-shell/Snippets) —
+  bara på den VANLIGA "öppna terminal"-vägen, inte de vägar som redan
+  skickar sitt eget explicita kommando (annars skulle två kommandon
+  köras i rad). LinuxApp + App/-UI: ett textfält "Kör automatiskt vid
+  anslutning". 2 nya tester (Codable round-trip + bakåtkompatibilitet
+  för gamla `host.json`-filer utan fältet), 226 gröna totalt.
 
 ### Fas C — Differentiatorer bortom Termius
 - Docker-hantering ✅ redan klart (App + LinuxApp).
