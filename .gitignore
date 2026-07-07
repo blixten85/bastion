@@ -3,6 +3,7 @@
 *.xcodeproj
 .DS_Store
 Package.resolved
+.env
 
 # fastlane (App/) — transienta körningsartefakter, inte konfiguration.
 # Gemfile.lock committas medvetet (reproducerbar CI-körning).
