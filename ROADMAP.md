@@ -51,6 +51,7 @@ delvis andra, av konkreta skäl:
 | Linux-portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa, byggd+körd (Xvfb) — ingen App/-motsvarighet än |
 | ProxyJump (`ssh -J`) | ✅ `SSHSession.connect(via:)`, `bastion-cli` läser `ProxyJump` ur ssh-config automatiskt |
 | WireGuard-profiler | ✅ parsning/serialisering + lagring + LinuxApp-UI — 🧩 App/-motsvarighet kvar (Xcode-only) |
+| OpenSSH-certifikatparsning | ✅ `OpenSSHCertificate.swift`, testad mot RIKTIGA `ssh-keygen -s`-genererade certifikat — 🧩 signaturverifiering/auth-wiring kvar |
 
 ## Nästa steg (i ordning)
 
@@ -491,6 +492,24 @@ Inget nytt att bygga, bara verifiera/lansera:
   grundidé om engångs-/kortlivad autentisering istället för en
   permanent nyckel). Ett generellt OpenSSH-certifikatstöd i SSHCore
   fångar alla fyra utan plattformsspecifik kod.
+  **Parsning** (2026-07-07): ✅ klart, `OpenSSHCertificate.swift` —
+  `ssh-ed25519-cert-v01@openssh.com` (nonce/publik nyckel/serial/typ/
+  key id/principals/giltighetstid/critical options/extensions/CA-
+  nyckelblob/signaturblob). v1 avgränsat till PARSNING, INTE
+  signaturverifiering eller `SSHUserAuth`-wiring — att verifiera CA-
+  signaturen KORREKT är säkerhetskritiskt på ett sätt ren parsning inte
+  är och förtjänar en egen, försiktig genomgång (samma avgränsningsprincip
+  som krypterade nycklar, se "Uppskjutet med avsikt"). Trådformatet
+  verifierat mot OpenSSHs `PROTOCOL.certkeys`-spec OCH empiriskt mot
+  RIKTIGA certifikat genererade lokalt med `ssh-keygen -s` (egen CA-
+  nyckel, riktig signering) — avkodade byte-för-byte med ett fristående
+  Python-skript och jämförda mot `ssh-keygen -L`s egen tolkning, inte
+  gissat ur minnet. Nästlingsdetalj upptäckt just genom den empiriska
+  koll­en: `force-command`s data-fält är i sin tur en nästlad SSH-sträng,
+  inte en rå textbyte-sekvens. Bara Ed25519 stöds (matchar kodbasens
+  nuvarande begränsning). 10 tester mot två riktiga certifikat (user +
+  host, inkl. "giltig för alltid"-sentinelvärdena `0`/`UInt64.max`).
+  **Kvar**: signaturverifiering, `HostAuth`-integration, UI.
 - Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
 - **256-färg + True Color i Linux-terminalen** — ✅ klart. `TerminalBuffer.applySGR`
   hanterade tidigare bara 16-färgspaletten (`SGR 30-37/40-47/90-97/100-107`).
