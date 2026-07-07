@@ -110,6 +110,7 @@ struct HostListView: View {
     @State private var showImport = false
     @State private var showAppLock = false
     @State private var showWireGuard = false
+    @State private var showTailscale = false
     @State private var searchText = ""
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
@@ -149,6 +150,7 @@ struct HostListView: View {
                         Button { showImport = true } label: { Label("Importera ssh-config", systemImage: "square.and.arrow.down") }
                         Button { showAppLock = true } label: { Label("App-lås", systemImage: "faceid") }
                         Button { showWireGuard = true } label: { Label("WireGuard-profiler", systemImage: "network.badge.shield.half.filled") }
+                        Button { showTailscale = true } label: { Label("Tailscale-värdar", systemImage: "point.3.filled.connected.trianglepath.dotted") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -173,6 +175,14 @@ struct HostListView: View {
             }
             .sheet(isPresented: $showWireGuard) {
                 WireGuardProfileListView()
+            }
+            .sheet(isPresented: $showTailscale) {
+                TailscaleDiscoveryView(
+                    hosts: model.hosts,
+                    onAddHost: { alias, hostName in
+                        editing = Host(alias: alias, hostName: hostName, user: "")
+                    }
+                )
             }
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager)
