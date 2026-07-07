@@ -72,29 +72,37 @@ delvis andra, av konkreta skäl:
    (`ruby -c`), men aldrig körd på riktigt än — kräver macOS-runnern +
    riktiga nycklar för det sista beviset.
 3. **Windows-GUI via `WinUIBackend`** — påbörjad och blockerad av två
-   bekräftade uppströmsbuggar, inte något i Bastions egen kod. `WindowsApp/`
-   (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs på en riktig
-   Windows Server 2025-VPS (2026-07-06, Swift 6.1-RELEASE + VS 2026 Build
-   Tools installerade manuellt för att matcha `.github/workflows/
-   windows-gui.yml` exakt) — samma två fel som i CI, nu bekräftade på
-   riktig hårdvara, inte bara `windows-latest`-runnern:
+   bekräftade uppströmsbuggar i swift-nio, inte något i Bastions egen kod.
+   `WindowsApp/` (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs
+   på en riktig Windows Server 2025-VPS. **Dubbelbekräftat två gånger**
+   (2026-07-06 med Swift 6.1-RELEASE, och igen 2026-07-07 med Swift
+   6.3.3-RELEASE — samma två fel kvarstår oförändrade trots en helt ny
+   toolchain, så det är definitivt inget som redan fixats uppströms):
    1. `NIOThread.handle: NIOLockedValueBox<ThreadOpsSystem.ThreadHandle?>`
-      (`ThreadWindows.swift`) kan inte konformera till `Sendable` under
-      Swift 6.1:s strikta concurrency, eftersom `UnsafeMutableRawPointer`
-      har `Sendable`-konformansen explicit omarkerad `unavailable` i
-      standardbiblioteket. Känt, fortfarande öppet uppströms-fel:
-      `apple/swift-nio#2065` (dubbelbekräftat av en separat duplikat-issue
-      `#3460`).
-   2. **Nytt fynd** (upptäckt på riktig hårdvara, syntes inte tydligt i
-      CI-loggarna tidigare): `System.swift:572` —
-      `static let SOL_UDP: CInt = CInt(IPPROTO_UDP)` — `IPPROTO` konformerar
-      inte till `BinaryFloatingPoint`, en typmismatch i swift-nios egen
-      Windows-portering av POSIX-konstanterna. Inte undersökt vidare ännu
-      om det redan finns en uppströms-issue för det.
+      (`ThreadWindows.swift:22`) kan inte konformera till `Sendable` under
+      Swifts strikta concurrency, eftersom `UnsafeMutableRawPointer` har
+      `Sendable`-konformansen explicit omarkerad `unavailable` i
+      standardbiblioteket. Inget exakt matchande öppet uppströms-issue
+      hittat vid sökning (en tidigare notering här pekade på
+      `apple/swift-nio#2065`, men det visade sig vid närmare granskning
+      handla om ett annat, orelaterat `log2`-importfel — rättat här).
+   2. `System.swift:572` — `static let SOL_UDP: CInt = CInt(IPPROTO_UDP)`
+      — `IPPROTO` konformerar inte till `BinaryFloatingPoint`, en
+      typmismatch i swift-nios egen Windows-portering av
+      POSIX-konstanterna.
    Ingen av dessa går att fixa i Bastions egen kod utan att forka swift-nio.
    `windowsapp-build` är inte en required check av precis den anledningen.
-   Nästa steg när/om uppströms fixar detta: porta de riktiga vyerna från
-   `LinuxApp/Sources/bastion-gui/` hit och testa på riktigt på VPS:n.
+   **Sidospår som löstes under samma utredning** (dokumenterat separat så
+   det inte återupptäcks i onödan): ett tredje, TILLFÄLLIGT fel dök upp
+   vid 2026-07-07-omtestet — `STL1000: Unexpected compiler version,
+   expected Clang 20 or newer` — orsakat av att VPS:ens Visual Studio
+   Build Tools hade auto-uppdaterats till en version som kräver nyare
+   Clang än Swift 6.1 (Clang 19.1.4) bundlar. Löst genom att uppgradera
+   till Swift 6.3.3-RELEASE (bundlar Clang 21.1.6) — inte en riktig
+   Bastion-relaterad bugg, bara toolchain-miljödrift på testmaskinen.
+   Nästa steg när/om uppströms fixar de två kvarstående swift-nio-buggarna:
+   porta de riktiga vyerna från `LinuxApp/Sources/bastion-gui/` hit och
+   testa på riktigt på VPS:n.
 4. Riktig rå tangentbordsinmatning i Linux-terminalen (kräver att gå under
    SwiftCrossUI mot GTK:s event-controllers direkt — se "Uppskjutet med avsikt").
 
