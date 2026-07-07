@@ -248,10 +248,14 @@ delvis andra, av konkreta skäl:
   in-/utloggning per leverantör. **OBS**: allt utom PKCE-kärnan är Xcode-only
   och därför obyggt/otestat här — kräver ett riktigt klient-ID per leverantör
   (se README "Konton") för att verifieras.
-- **Golden standard-repokonfiguration**: LICENSE (MIT), SECURITY.md, AGENTS.md,
-  CLAUDE.md, PR/issue-mallar, standardworkflows (auto-commit/label/merge/rebase/release,
-  ci-autofix, copilot-review-reminder, security-alerts-sync), branch-ruleset på
-  `main` med tre required checks (App/, SSHCore, LinuxApp).
+- **Golden standard-repokonfiguration**: ✅ klart (verifierat 2026-07-07,
+  sista biten tillagd). LICENSE (MIT), SECURITY.md, AGENTS.md, CLAUDE.md,
+  issue-mallar (`bug_report.yml`/`feature_request.yml`) fanns redan —
+  `.github/PULL_REQUEST_TEMPLATE.md` saknades, nu tillagd. Standardworkflows
+  (auto-commit/label/merge/rebase/release, ci-autofix, security-alerts-sync)
+  och branch-ruleset på `main` (required checks: xcodegen-and-build,
+  swiftpm-macos, linuxapp-build, CodeRabbit) verifierade befintliga via
+  `gh api repos/.../rulesets`.
 
 ## Uppskjutet med avsikt
 
@@ -672,7 +676,21 @@ Inget nytt att bygga, bara verifiera/lansera:
   barnprocess-reaping vid flera samtidiga `Process`-instanser. Fixat
   genom att helt kringgå Foundations väntemekanism: rå `kill(2)`/
   `waitpid(2)` istället, för alla subprocess-anrop i testfilen.
-  PKCS11, YubiKey, Passkeys — inte påbörjat.
+  **Auth-wiring (agenten SOM inloggningsmetod, inte bara protokollklient)
+  undersökt (2026-07-07) — arkitektoniskt blockerad**, samma kategori som
+  kanal-forwarding ovan: `NIOSSHPrivateKey`s `backingKey` (`NIOSSHPrivateKey.
+  swift`) är ett INTERNT enum med bara fyra fasta bakomliggande typer
+  (`.ed25519`/`.ecdsaP256`/`.ecdsaP384`/`.ecdsaP521`, plus `.secureEnclaveP256`
+  på Apple-plattformar) — ingen protokoll- eller delegate-baserad
+  utökningspunkt för en EXTERN signerare. `sign(_ payload:)` mönstermatchar
+  direkt mot dessa och signerar SYNKRONT i samma anrop `NIOSSHUserAuthentic
+  ationOffer` byggs. En `ssh-agent`-signaturbegäran är i sig async (en
+  separat Unix-socket-rundtur via `SSHAgentClient`) — det finns ingen väg
+  att koppla in det utan att patcha swift-nio-ssh självt. PKCS11, YubiKey,
+  Passkeys drabbas av samma begränsning (alla kräver en extern/asynkron
+  signerare). `secureEnclaveP256Key`-fallet visar att biblioteket
+  KONCEPTUELLT stödjer "nyckelmaterialet lämnar aldrig sin källa" — bara
+  hårdkodat till just Apples Secure Enclave-API, inte generellt.
 - **OpenSSH-certifikatautentisering** (nytt, 2026-07-05) — stöd för
   `ssh-keygen`-signerade/externt utfärdade SSH-certifikat som en egen
   `HostAuth`-variant, inte bara rå nyckel. De stora molnleverantörerna har
@@ -751,6 +769,19 @@ Inget nytt att bygga, bara verifiera/lansera:
   `NIOSSHCertifiedPublicKey.validate(...)` en riktig sshd använder) att en
   korrekt implementerad server SKULLE acceptera det. 4 nya tester, 213
   gröna totalt.
+  **Empiriskt bekräftat mot en RIKTIG `sshd` (2026-07-07, engångsverifiering,
+  inte en permanent CI-test)**: `openssh-server` fanns installerat lokalt —
+  startade en genuin `sshd` (unprivilegierad port, `TrustedUserCAKeys` mot
+  en riktig CA, `sudo` krävdes bara för att binda som root, inget annat) och
+  körde Bastions EGEN `SSHSession`/`SSHUserAuth` med `.certificate(seed:,
+  certificateLine:)` mot den. Tre fall, alla med korrekt utfall: giltigt
+  certifikat (rätt principal, betrodd CA) → `LYCKADES`, fel principal →
+  `authenticationFailed`, obetrodd CA → `authenticationFailed`. Upphöjer
+  "en riktig sshd SKULLE acceptera det" (ovan, resonerat + offline-
+  verifierat) till genuint bevisat, inte bara resonerat. Byggdes inte in
+  som permanent test — kräver root-processer + portgissning i CI för
+  marginell extra säkerhet utöver de redan offline-verifierade testerna,
+  en oproportionerlig skörhetsökning för den vinsten.
 - Secure Enclave-bunden nyckellagring (i dag: vanlig Keychain)
 - **256-färg + True Color i Linux-terminalen** — ✅ klart. `TerminalBuffer.applySGR`
   hanterade tidigare bara 16-färgspaletten (`SGR 30-37/40-47/90-97/100-107`).
