@@ -573,9 +573,9 @@ Inget nytt att bygga, bara verifiera/lansera:
 - **tvOS** (nytt, 2026-07-06) — inte påbörjat. Nytt target i `project.yml`,
   samma SwiftUI-kod som iOS/macOS. Scopas som dashboard-/Docker-vy, inte
   en fullt interaktiv terminal (fjärrkontroll-tangentbord är ohanterbart
-  för riktig SSH-inmatning). Se VISION.md "Plattformar (tillägg)" för
-  resonemanget bakom att tvOS men inte Android/övriga smart-TV-plattformar
-  prioriteras nu.
+  för riktig SSH-inmatning). Billigare/snabbare att lägga till än Android
+  (se nedan i Fas D) — därför före i kön, inte för att Android är
+  mindre viktigt.
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
@@ -584,7 +584,17 @@ Inget nytt att bygga, bara verifiera/lansera:
   återanvänder Snippets variabelifyllning (`CommandLibraryEntry.asSnippet`).
 
 ### Fas D — De stora bitarna (ingen ändring i prioritet)
-- **Mosh-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
+- **Android — INTE valfritt, uppdaterat 2026-07-07 (ägarbeslut, se
+  VISION.md "Plattformar")**. Tidigare "kan vänta om resurserna är
+  begränsade" — omvärderat: Bastions syfte är att ersätta Termius på
+  bred front, ingen lucka som "skaver" ska finnas, och Termius egen
+  Android-app är exakt den sortens lucka om Bastion saknar en.
+  Sekvenserad EFTER iOS/macOS/Linux/Windows (redan i gång), inte för
+  att den är mindre viktig utan för att den är den enda plattformen i
+  hela backloggen som inte återanvänder `SSHCore` direkt via ett nytt
+  Xcode-target/SwiftPM-paket — se VISION.md för de två realistiska
+  vägarna (Skip-transpilering kontra en helt separat Kotlin-
+  SSH-implementation) och avvägningen mellan dem. Inte påbörjat.
   påbörjat. Inte ett SSH-tillägg — Mosh startar via SSH men växlar sedan
   till ett helt eget protokoll (SSP) över UDP med lokal predikering av
   tangenttryckningar. Kräver `mosh-server` körande på fjärrsystemet

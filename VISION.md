@@ -274,13 +274,34 @@ originalvisionen: "Inte kopiera Termius").
   interaktiv terminal — att skriva SSH-kommandon med en Apple TV-fjärrkontroll
   är en usel upplevelse, men systemstatus/containrar på storbild är
   användbart (bygger vidare på Dashboard/Docker-vyerna som redan finns).
-- **Android** — kvarstår i backloggen som ett stort, separat initiativ
-  (inte närmast i tur). SSHCore är ren Swift; en Android-app skulle kräva
-  antingen Skip (SwiftUI→Kotlin/Compose-transpilering) eller en helt
-  separat Kotlin-app som pratar med kärnan på något sätt — en annan
-  kostnadsnivå än tvOS. Termius har redan en Android-app, så det är
-  paritet snarare än differentiering (fast "gratis för alltid" håller
-  som vinkel även där).
+- **Android — INTE valfritt, uppdaterat 2026-07-07 (ägarbeslut).**
+  Tidigare formulerat som "kan vänta" — omvärderat. Bastions uttalade
+  syfte är att ersätta Termius på BRED FRONT, inte bara på Apples
+  plattformar: "Alla frågor, förväntningar och krav en utvecklare och
+  nybörjare kan ha ska finnas där. Det ska inte finnas luckor som
+  skaver." Termius har en mogen Android-app, och sysadmins/DevOps är
+  notoriskt plattformsagnostiska — att sakna Android är exakt den sortens
+  lucka. Alltså: Android är en del av slutmålet, inte en valfri
+  utökning, även om den kommer SEKVENSERAD EFTER de plattformar som
+  redan är i gång (iOS/macOS/Linux/Windows) — inte "om resurserna
+  räcker", utan "när tur kommer".
+  Teknisk verklighet oförändrad och värd att ha i åtanke: `SSHCore` är
+  ren Swift utan Android-motsvarighet, så det här är den enda
+  plattformen i backloggen som INTE bara är ett nytt Xcode-target eller
+  SwiftPM-paket som återanvänder samma kod. Två realistiska vägar när
+  det blir aktuellt:
+  - **Skip** (skip.tools) — transpilerar SwiftUI → Kotlin/Compose,
+    skulle i teorin kunna återanvända mycket av `App/`s vylager rakt
+    av. Växande men fortfarande ett yngre verktyg — kräver en egen
+    utvärdering av hur moget det är för en app av den här komplexiteten
+    (terminalrendering, PTY, nätverkskod) den dagen det blir aktuellt,
+    inte antaget i förväg.
+  - **Separat Kotlin-app** — mer beprövad väg, men innebär i praktiken
+    en HELT EGEN SSH-implementation i Kotlin/Java (eller ett JVM-
+    kompatibelt SSH-bibliotek som t.ex. Apache MINA SSHD/JSch) parallellt
+    med `SSHCore` — dubbel underhållsbörda för varje ny SSH-funktion
+    (cert-auth, agent-protokoll, SFTP, portvidarebefordran m.m. måste
+    byggas/underhållas två gånger, en gång per språk/plattform).
 - **Övriga smart-TV-plattformar** (Tizen/webOS/Roku m.fl.) — medvetet
   bortvalda. Egna, icke-Swift-ekosystem utan någon kodåteranvändning alls
   — en separat omskrivning per plattform, för stort scope för ett
