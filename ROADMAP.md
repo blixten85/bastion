@@ -53,7 +53,7 @@ delvis andra, av konkreta skäl:
 | WireGuard-profiler | ✅ parsning/serialisering + lagring + LinuxApp-UI — 🧩 App/-motsvarighet kvar (Xcode-only) |
 | OpenSSH-certifikatparsning | ✅ `OpenSSHCertificate.swift`, testad mot RIKTIGA `ssh-keygen -s`-genererade certifikat — 🧩 signaturverifiering/auth-wiring kvar |
 | ssh-agent-protokollklient | ✅ `SSHAgentClient.swift`, testad mot en RIKTIG `ssh-agent` — 🧩 kanal-forwarding till fjärrserver kvar |
-| Tailscale-statusparsning | ✅ `TailscaleStatus.swift`, testad mot RIKTIG `tailscale status --json` (v1.98.8) — 🧩 lagring/UI/host-integration kvar |
+| Tailscale-värdförslag | ✅ `TailscaleStatus.swift` (fetch/fetchLocal) + LinuxApp `TailscaleDiscoveryView` — 🧩 App/-motsvarighet kvar (Xcode-only) |
 
 ## Nästa steg (i ordning)
 
@@ -409,9 +409,26 @@ Inget nytt att bygga, bara verifiera/lansera:
   fortfarande INTE att formatet är stabilt mellan versioner — det här är
   verifierat mot v1.98.8 specifikt, inte en formell spec. 3 nya tester
   (riktig JSON-fixtur + en handkonstruerad peer-fixtur som återanvänder
-  samma bekräftade fältnamn). 188 tester gröna totalt.
-  **Kvar**: `TailscaleProfileStore`/UI (motsvarande WireGuards mönster),
-  `HostAuth`/host-listintegration.
+  samma bekräftade fältnamn).
+  **Värdförslag + LinuxApp-UI** (2026-07-07): ✅ klart —
+  `TailscaleStatus.fetch(over:)` (SSH-remote, samma mönster som
+  `SystemProbe.snapshot(over:)`) OCH `TailscaleStatus.fetchLocal()` (lokal
+  `Process`-körning på maskinen appen själv exekverar på, som ssh-config-
+  import läser en lokal resurs) — användaren väljer källa själv, inte
+  appen (uttryckligt önskemål: "både som enskilda val eller kombinerade
+  val så får användaren bestämma vad som är bekvämast för dom").
+  `fetchLocal()` testad mot en RIKTIG, kortlivad processkörning (eget
+  `/bin/sh`-skript, inte mockad), inklusive felvägen (icke-noll exitkod +
+  stderr). `TailscaleDiscoveryView.swift` (LinuxApp): växlare "Denna
+  maskin"/"Fjärrvärd", resultatlista med "Lägg till"-knapp per förslag —
+  öppnar det vanliga redigeringsläget förifyllt med tailnet-adressen
+  (Tailscale känner inte till SSH-användarnamnet, till skillnad från
+  ssh-config-import). Byggd + körd (Xvfb), rent utan krasch. 2 nya
+  tester, 190 gröna totalt.
+  **Kvar**: `HostAuth`/host-listintegration djupare än "lägg till som ny
+  värd" (t.ex. markera en befintlig värd som nåbar via ett specifikt
+  tailnet); App/-motsvarighet (Xcode-only, kan inte byggas/verifieras
+  här).
   **WireGuard fullständigt verifierat end-to-end, inklusive en riktig
   fungerande tunnel** (2026-07-07, rättar en felaktig tidigare slutsats):
   `wireguard-tools` installerades och `WireGuardConfig.swift`s

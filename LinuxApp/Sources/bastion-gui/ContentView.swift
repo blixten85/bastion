@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var showEditor = false
     @State private var showImport = false
     @State private var showWireGuard = false
+    @State private var showTailscale = false
     @State private var searchText = ""
 
     private var filteredHosts: [Host] {
@@ -65,6 +66,17 @@ struct ContentView: View {
         .sheet(isPresented: $showWireGuard) {
             WireGuardProfileListView()
         }
+        .sheet(isPresented: $showTailscale) {
+            TailscaleDiscoveryView(
+                hosts: model.hosts,
+                onAddHost: { alias, hostName in
+                    editingHost = Host(alias: alias, hostName: hostName, user: "")
+                    showTailscale = false
+                    showEditor = true
+                },
+                onCancel: { showTailscale = false }
+            )
+        }
     }
 
     private var sidebar: some View {
@@ -76,6 +88,7 @@ struct ContentView: View {
                 }
                 Button("Importera") { showImport = true }
                 Button("WireGuard") { showWireGuard = true }
+                Button("Tailscale") { showTailscale = true }
                 Spacer()
             }
 

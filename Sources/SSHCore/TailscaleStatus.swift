@@ -65,3 +65,59 @@ public struct TailscaleStatus: Codable, Sendable, Equatable {
             .sorted { $0.0.lowercased() < $1.0.lowercased() }
     }
 }
+
+public enum TailscaleStatusError: Error, Sendable, Equatable {
+    /// Lokal `tailscale status --json`-körning gav en icke-noll exitkod.
+    case localCommandFailed(exitCode: Int32, stderr: String)
+}
+
+extension TailscaleStatus {
+    /// Kör `tailscale status --json` via SSH på en redan ansluten fjärrserver
+    /// och tolkar svaret — samma mönster som `SystemProbe.snapshot(over:)`.
+    /// Föreslår DEN SERVERNS tailnet-peers.
+    public static func fetch(over session: SSHSession) async throws -> TailscaleStatus {
+        let output = try await session.run("tailscale status --json 2>/dev/null")
+        return try parse(jsonData: Data(output.utf8))
+    }
+
+    #if !os(iOS)
+    /// Kör `tailscale status --json` LOKALT (Foundation `Process`) på
+    /// maskinen appen själv exekverar på — samma idé som ssh-config-import
+    /// läser en lokal fil, men källan här är Tailscales egen lokala daemon.
+    /// Föreslår DENNA maskins tailnet-peers.
+    ///
+    /// Finns INTE på iOS — `Foundation.Process` är otillgängligt där
+    /// (sandboxen tillåter inte att spawna godtyckliga subprocesser).
+    /// iOS-appen har bara `fetch(over:)` (SSH-remote) tillgängligt.
+    ///
+    /// `executableURL`/`arguments` är injicerbara (inte bara ett `binaryName`)
+    /// så tester kan peka på ett riktigt, kortlivat skript istället för att
+    /// mocka bort själva processkörningen — samma "verifiera mot en riktig
+    /// process"-princip som resten av SSHCores tester.
+    public static func fetchLocal(
+        executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
+        arguments: [String] = ["tailscale", "status", "--json"]
+    ) throws -> TailscaleStatus {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = arguments
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        // Kort, avslutande kommando (inte en långlivad daemon) — till skillnad
+        // från ssh-agent-testernas waitpid-lärdom är Process.waitUntilExit()
+        // här inget problem, eftersom `tailscale status` returnerar direkt.
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw TailscaleStatusError.localCommandFailed(
+                exitCode: process.terminationStatus,
+                stderr: String(data: errData, encoding: .utf8) ?? "")
+        }
+        return try parse(jsonData: data)
+    }
+    #endif
+}
