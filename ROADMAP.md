@@ -594,7 +594,20 @@ Inget nytt att bygga, bara verifiera/lansera:
   hela backloggen som inte återanvänder `SSHCore` direkt via ett nytt
   Xcode-target/SwiftPM-paket — se VISION.md för de två realistiska
   vägarna (Skip-transpilering kontra en helt separat Kotlin-
-  SSH-implementation) och avvägningen mellan dem. Inte påbörjat.
+  SSH-implementation) och avvägningen mellan dem.
+
+  **Grundarbete klart (2026-07-07)**: valde Kotlin-native-vägen (inte
+  Skip, som kräver macOS+Xcode+Android Studio — se VISION.md) för att
+  kunna börja utan att vänta på Mac-åtkomst. `Android/` är ett eget
+  Gradle/Kotlin-projekt (samma "eget paket"-princip som `LinuxApp/`),
+  med Apache MINA SSHD som SSH-motor (samma princip som SSHCore bygger
+  på swift-nio-ssh istället för att implementera protokollet från
+  grunden). `BastionSshSession` (connect/run/close) är verifierad mot
+  en riktig in-process SSH-server i `BastionSshSessionTest` — en äkta
+  anslut+autentisera+kör-kommando+läs-utdata-runda, plus ett negativt
+  test (fel lösenord avvisas). Ingen UI, ingen host-lagring, ingen
+  nyckelbaserad auth eller jump host än — bara den minsta beviskärnan.
+- **Mosh-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
   påbörjat. Inte ett SSH-tillägg — Mosh startar via SSH men växlar sedan
   till ett helt eget protokoll (SSP) över UDP med lokal predikering av
   tangenttryckningar. Kräver `mosh-server` körande på fjärrsystemet
