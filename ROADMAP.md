@@ -248,10 +248,14 @@ delvis andra, av konkreta skäl:
   in-/utloggning per leverantör. **OBS**: allt utom PKCE-kärnan är Xcode-only
   och därför obyggt/otestat här — kräver ett riktigt klient-ID per leverantör
   (se README "Konton") för att verifieras.
-- **Golden standard-repokonfiguration**: LICENSE (MIT), SECURITY.md, AGENTS.md,
-  CLAUDE.md, PR/issue-mallar, standardworkflows (auto-commit/label/merge/rebase/release,
-  ci-autofix, copilot-review-reminder, security-alerts-sync), branch-ruleset på
-  `main` med tre required checks (App/, SSHCore, LinuxApp).
+- **Golden standard-repokonfiguration**: ✅ klart (verifierat 2026-07-07,
+  sista biten tillagd). LICENSE (MIT), SECURITY.md, AGENTS.md, CLAUDE.md,
+  issue-mallar (`bug_report.yml`/`feature_request.yml`) fanns redan —
+  `.github/PULL_REQUEST_TEMPLATE.md` saknades, nu tillagd. Standardworkflows
+  (auto-commit/label/merge/rebase/release, ci-autofix, security-alerts-sync)
+  och branch-ruleset på `main` (required checks: xcodegen-and-build,
+  swiftpm-macos, linuxapp-build, CodeRabbit) verifierade befintliga via
+  `gh api repos/.../rulesets`.
 
 ## Uppskjutet med avsikt
 
