@@ -1,0 +1,201 @@
+import Crypto
+import Foundation
+import NIOCore
+import NIOPosix
+import XCTest
+@testable import SSHCore
+
+/// Testerna startar en RIKTIG `ssh-agent`-process (inte en fejkad testserver
+/// som `LoopbackServer` — här finns inget SSH-protokoll inblandat, bara det
+/// egna agent-protokollet direkt över ett Unix-socket, så det finns inget
+/// att bygga en egen server-sida för) och lägger till en riktig nyckel med
+/// `ssh-add`, precis som en användare skulle. Signaturen som agenten
+/// returnerar verifieras kryptografiskt (Curve25519) mot den riktiga
+/// publika nyckeln — inte bara att några byte kom tillbaka.
+final class SSHAgentClientTests: XCTestCase {
+    private struct RunningAgent {
+        let socketPath: String
+        let process: Process
+    }
+
+    private func startAgent() throws -> RunningAgent {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh-agent")
+        // Unix-socket-sökvägar är begränsade till `sizeof(sockaddr_un.sun_path)`
+        // — 108 byte på Linux, men bara ~104 på macOS/Darwin. `NSTemporaryDirectory()`
+        // på macOS CI-runners är en lång, sandlådebunden sökväg (t.ex.
+        // `/private/var/folders/xx/xxxxxxxxxxxxxxxxxxxxxxxxxxxx/T/`) som
+        // TILLSAMMANS med ett fullt UUID-filnamn (36 tecken) överskrider den
+        // gränsen — `ssh-agent -a` misslyckas då tyst med `bind()` och
+        // socket-filen dyker aldrig upp (CI-fynd på `swiftpm-macos`, PR #83,
+        // syntes aldrig lokalt på Linux där `/tmp/` redan är kort). Kort,
+        // rakt `/tmp/`-sökväg med en förkortad slumpsuffix håller sig
+        // gott och väl under gränsen på båda plattformarna.
+        let shortID = UUID().uuidString.prefix(8)
+        process.arguments = ["-D", "-a", "/tmp/ba-\(shortID).sock"]
+        let socketPath = process.arguments![2]
+        try process.run()
+        // `-D` (kör i förgrunden) gör att processen inte avslutar sig själv —
+        // vi behöver bara vänta tills socket-filen faktiskt existerar innan
+        // vi ansluter, annars är det en kapplöpning mot agentens egen startup.
+        for _ in 0..<50 where !FileManager.default.fileExists(atPath: socketPath) {
+            usleep(20_000)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: socketPath), "agentens socket dök aldrig upp")
+        return RunningAgent(socketPath: socketPath, process: process)
+    }
+
+    /// `Process.waitUntilExit()` (den BLOCKERANDE varianten) visade sig
+    /// hänga när en långlivad `ssh-agent -D`-process redan är startad via
+    /// samma Foundation-`Process`-bokföring i samma testprocess. Rå
+    /// `waitpid(2)` (blockerande, ingen `WNOHANG`/timeout) fungerar däremot
+    /// utan problem för de KORTLIVADE processerna (`ssh-keygen`/`ssh-add`)
+    /// — bevisat både på Linux (upprepade körningar) och på macOS-CI (den
+    /// FÖRSTA `swiftpm-macos`-körningen på PR #83 misslyckades av en helt
+    /// annan orsak, en för lång Unix-socket-sökväg, INTE av att vänta på
+    /// keygen/add — de hann alltid klart där).
+    ///
+    /// Två senare, mer "försiktiga" varianter provades och båda visade sig
+    /// SÄMRE än originalet: (1) en `WNOHANG`-pollningsloop med timeout
+    /// (CodeRabbit-förslag) tajmade ut på en långsammare macOS-runner trots
+    /// att processen redan avslutats — trolig platformsskillnad i hur
+    /// Foundations `Process` interagerar med rå `waitpid` på Darwin. (2)
+    /// `Process.terminationHandler` satt EFTER `run()` missade snabbt
+    /// avslutande processer (kapplöpning: `ssh-keygen` hann klart innan
+    /// handlern sattes) och hängde på Linux. Den enkla, blockerande
+    /// `waitpid(pid, &status, 0)` är alltså den EMPIRISKT mest robusta
+    /// varianten för just kortlivade processer — komplexiteten CodeRabbit
+    /// efterfrågade löste inget verkligt problem här och införde två nya.
+    private func waitForExit(_ pid: Int32) -> Int32 {
+        var status: Int32 = 0
+        waitpid(pid, &status, 0)
+        return (status >> 8) & 0xFF
+    }
+
+    private func addKey(_ keyPath: String, socketPath: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh-add")
+        process.arguments = [keyPath]
+        process.environment = ["SSH_AUTH_SOCK": socketPath]
+        try process.run()
+        let exitCode = waitForExit(process.processIdentifier)
+        XCTAssertEqual(exitCode, 0, "ssh-add misslyckades")
+    }
+
+    /// `Process.terminate()` + `Process.waitUntilExit()` hänger (upptäckt
+    /// empiriskt — hela testsviten fastnade i timmar innan det spårades hit)
+    /// för just den här sortens process (`ssh-agent -D`, en förgrundsdemon
+    /// vi själva startat via Foundations `Process`) på Linux, trots att en
+    /// vanlig SIGTERM via `kill(2)` fungerar perfekt utanför Foundation
+    /// (verifierat separat mot en shell-bakgrundad `ssh-agent`). En känd
+    /// kategori av swift-corelibs-foundation-kvirk med processreaping.
+    /// Kringgår hela Foundation-API:t: rå `kill(2)` + en avgränsad
+    /// pollningsloop (`kill(pid, 0)` för att kolla liv) istället för
+    /// `waitUntilExit()`.
+    private func stopAgent(_ agent: RunningAgent) {
+        let pid = agent.process.processIdentifier
+        kill(pid, SIGTERM)
+        for _ in 0..<50 where kill(pid, 0) == 0 {
+            usleep(20_000)
+        }
+        if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+        try? FileManager.default.removeItem(atPath: agent.socketPath)
+    }
+
+    func testRequestIdentitiesAndSignRoundTripAgainstRealAgent() async throws {
+        let agent = try startAgent()
+        defer { stopAgent(agent) }
+
+        let dir = NSTemporaryDirectory() + "bastion-agent-key-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let keyPath = dir + "/id_ed25519"
+
+        let keygen = Process()
+        keygen.executableURL = URL(fileURLWithPath: "/usr/bin/ssh-keygen")
+        keygen.arguments = ["-t", "ed25519", "-f", keyPath, "-N", "", "-C", "agent-test"]
+        try keygen.run()
+        XCTAssertEqual(waitForExit(keygen.processIdentifier), 0)
+
+        try addKey(keyPath, socketPath: agent.socketPath)
+
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let client = try await SSHAgentClient.connect(socketPath: agent.socketPath, group: group)
+        // Måste vara `defer`, inte bara ett anrop i slutet av funktionen —
+        // annars läcker kanalen/event loop-gruppen om ett `try await`
+        // ovan kastar (t.ex. requestIdentities()/sign() misslyckas oväntat),
+        // eftersom funktionen då returnerar tidigt (CodeRabbit-fynd, PR #83).
+        defer { Task { await client.close(); try? await group.shutdownGracefully() } }
+
+        let identities = try await client.requestIdentities()
+        XCTAssertEqual(identities.count, 1)
+        XCTAssertEqual(identities[0].comment, "agent-test")
+
+        // Jämför nyckelblobben mot den RIKTIGA publika nyckelfilen ssh-keygen
+        // skrev — inte bara att den finns, utan att den är byte-för-byte
+        // samma SSH-wire-encoding.
+        let pubLine = try String(contentsOfFile: keyPath + ".pub", encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let base64Part = pubLine.split(separator: " ")[1]
+        let expectedBlob = Data(base64Encoded: String(base64Part))!
+        XCTAssertEqual(identities[0].keyBlob, expectedBlob)
+
+        let message = Array("hello from bastion".utf8)
+        let signatureBlob = try await client.sign(keyBlob: identities[0].keyBlob, data: Data(message))
+
+        // Signaturblobben är (RFC8709): string "ssh-ed25519" + string <64-byte signatur>.
+        var reader = ByteBuffer(data: signatureBlob)
+        let sigTypeLen = reader.readInteger(as: UInt32.self)!
+        let sigType = String(decoding: reader.readBytes(length: Int(sigTypeLen))!, as: UTF8.self)
+        XCTAssertEqual(sigType, "ssh-ed25519")
+        let sigLen = reader.readInteger(as: UInt32.self)!
+        let rawSignature = Data(reader.readBytes(length: Int(sigLen))!)
+        XCTAssertEqual(rawSignature.count, 64)
+
+        // Nyckelblobben är: string "ssh-ed25519" + string <32-byte publik nyckel>.
+        var keyReader = ByteBuffer(data: identities[0].keyBlob)
+        let keyTypeLen = keyReader.readInteger(as: UInt32.self)!
+        _ = keyReader.readBytes(length: Int(keyTypeLen))
+        let keyLen = keyReader.readInteger(as: UInt32.self)!
+        let rawPublicKey = Data(keyReader.readBytes(length: Int(keyLen))!)
+
+        let publicKey = try Curve25519.Signing.PublicKey(rawRepresentation: rawPublicKey)
+        XCTAssertTrue(publicKey.isValidSignature(rawSignature, for: Data(message)))
+    }
+
+    func testSignWithUnknownKeyBlobFails() async throws {
+        let agent = try startAgent()
+        defer { stopAgent(agent) }
+
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let client = try await SSHAgentClient.connect(socketPath: agent.socketPath, group: group)
+        defer { Task { await client.close(); try? await group.shutdownGracefully() } }
+
+        // Ingen nyckel tillagd i agenten alls — vilken keyBlob som helst
+        // (matchande formatet men okänd för agenten) ska ge SSH_AGENT_FAILURE.
+        let fakeBlob = "ssh-ed25519"
+        var buf = ByteBuffer()
+        buf.writeInteger(UInt32(fakeBlob.utf8.count))
+        buf.writeBytes(Array(fakeBlob.utf8))
+        buf.writeInteger(UInt32(32))
+        buf.writeBytes([UInt8](repeating: 0, count: 32))
+
+        do {
+            _ = try await client.sign(keyBlob: Data(buf.readableBytesView), data: Data("x".utf8))
+            XCTFail("skulle ha misslyckats — okänd nyckel")
+        } catch SSHAgentError.agentFailure {
+            // förväntat
+        }
+    }
+
+    func testEmptyAgentReturnsNoIdentities() async throws {
+        let agent = try startAgent()
+        defer { stopAgent(agent) }
+
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let client = try await SSHAgentClient.connect(socketPath: agent.socketPath, group: group)
+        defer { Task { await client.close(); try? await group.shutdownGracefully() } }
+        let identities = try await client.requestIdentities()
+        XCTAssertTrue(identities.isEmpty)
+    }
+}
