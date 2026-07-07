@@ -21,7 +21,18 @@ final class SSHAgentClientTests: XCTestCase {
     private func startAgent() throws -> RunningAgent {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh-agent")
-        process.arguments = ["-D", "-a", NSTemporaryDirectory() + "bastion-agent-test-\(UUID().uuidString).sock"]
+        // Unix-socket-sökvägar är begränsade till `sizeof(sockaddr_un.sun_path)`
+        // — 108 byte på Linux, men bara ~104 på macOS/Darwin. `NSTemporaryDirectory()`
+        // på macOS CI-runners är en lång, sandlådebunden sökväg (t.ex.
+        // `/private/var/folders/xx/xxxxxxxxxxxxxxxxxxxxxxxxxxxx/T/`) som
+        // TILLSAMMANS med ett fullt UUID-filnamn (36 tecken) överskrider den
+        // gränsen — `ssh-agent -a` misslyckas då tyst med `bind()` och
+        // socket-filen dyker aldrig upp (CI-fynd på `swiftpm-macos`, PR #83,
+        // syntes aldrig lokalt på Linux där `/tmp/` redan är kort). Kort,
+        // rakt `/tmp/`-sökväg med en förkortad slumpsuffix håller sig
+        // gott och väl under gränsen på båda plattformarna.
+        let shortID = UUID().uuidString.prefix(8)
+        process.arguments = ["-D", "-a", "/tmp/ba-\(shortID).sock"]
         let socketPath = process.arguments![2]
         try process.run()
         // `-D` (kör i förgrunden) gör att processen inte avslutar sig själv —
