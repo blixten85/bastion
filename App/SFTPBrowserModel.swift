@@ -192,6 +192,82 @@ final class SFTPBrowserModel: ObservableObject {
         }
     }
 
+    /// `mode`: oktal sträng utan `0o`-prefix, t.ex. "644"/"755" — samma
+    /// notation som `chmod` på kommandoraden, vilket är vad användaren
+    /// redan känner till.
+    func chmod(_ entry: SFTPNameEntry, mode: String) async {
+        guard let value = UInt32(mode, radix: 8) else {
+            errorMessage = "Ogiltig behörighet — ange tre oktala siffror, t.ex. 644."
+            return
+        }
+        guard let client = await ensureClient() else { return }
+        do {
+            try await client.setPermissions(joined(entry.filename), mode: value)
+            await refresh()
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
+    /// `uidText`/`gidText`: NUMERISKA ID:n, inte användarnamn — SFTP
+    /// version 3 känner bara till UID/GID, aldrig namn.
+    func chown(_ entry: SFTPNameEntry, uidText: String, gidText: String) async {
+        guard let uid = UInt32(uidText), let gid = UInt32(gidText) else {
+            errorMessage = "Ogiltigt UID/GID — ange numeriska ID:n, t.ex. 1000."
+            return
+        }
+        guard let client = await ensureClient() else { return }
+        do {
+            try await client.chown(joined(entry.filename), uid: uid, gid: gid)
+            await refresh()
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
+    /// Komprimerar EN post (fil eller mapp) till ett nytt arkiv i samma
+    /// katalog. `archiveName` bör sluta på `.tar.gz`/`.zip`.
+    func compress(_ entry: SFTPNameEntry, archiveName: String, useZip: Bool) async {
+        guard let client = await ensureClient(), let session else { return }
+        do {
+            // SFTP:s currentPath och exec-kanalens arbetskatalog delar
+            // typiskt startkatalog men är INTE garanterat samma sak —
+            // realpath slår upp den FAKTISKA absoluta sökvägen.
+            let absoluteDir = try await client.realpath(currentPath)
+            if useZip {
+                try await ArchiveOperations.createZip(
+                    paths: [entry.filename], archiveName: archiveName, in: absoluteDir, over: session)
+            } else {
+                try await ArchiveOperations.createTarGz(
+                    paths: [entry.filename], archiveName: archiveName, in: absoluteDir, over: session)
+            }
+            await refresh()
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
+    /// Packar upp ett arkiv i SAMMA katalog det ligger i. Formatet avgörs
+    /// av filändelsen — okänt format avvisas tydligt istället för att
+    /// gissa fel kommando.
+    func extract(_ entry: SFTPNameEntry) async {
+        guard let client = await ensureClient(), let session else { return }
+        do {
+            let absoluteDir = try await client.realpath(currentPath)
+            if entry.filename.hasSuffix(".tar.gz") || entry.filename.hasSuffix(".tgz") {
+                try await ArchiveOperations.extractTarGz(archiveName: entry.filename, in: absoluteDir, over: session)
+            } else if entry.filename.hasSuffix(".zip") {
+                try await ArchiveOperations.extractZip(archiveName: entry.filename, in: absoluteDir, over: session)
+            } else {
+                errorMessage = "Okänt arkivformat — stödjer .tar.gz/.tgz/.zip."
+                return
+            }
+            await refresh()
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
     func disconnect() {
         // Avbryter en ev. pågående anslutning — annars kan den hinna klart
         // EFTER städningen nedan och skriva tillbaka ett levande session/

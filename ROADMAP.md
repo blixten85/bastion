@@ -772,10 +772,15 @@ Inget nytt att bygga, bara verifiera/lansera:
   arkivändelser: `.tar.gz`/`.tgz`/`.zip`) bredvid chmod/chown. v1
   avgränsat till EN fil/mapp åt gången (ingen flerval-UI i SwiftCrossUIs
   `List` ännu). 9 nya tester, 224 gröna totalt.
+  **App/-paritet**: ✅ klart (2026-07-08) — textredigering (`App/SFTPBrowserModel.swift`/
+  `SFTPBrowserView.swift`, binärt innehåll skrivskyddat, samma lärdom som
+  S3-lagringsvyn), chmod/chown/komprimera/packa upp (kontextmeny per rad
+  — long-press, inte fler swipe-actions — samt en enda enum-driven
+  sheet-presentatör för chmod/chown/komprimera, samma CodeRabbit-lärdom
+  applicerad proaktivt). Kan inte byggas/verifieras här (Xcode-only),
+  verifierad av `xcode.yml`-CI:t.
   **Kvar**: Drag & Drop, flerval för komprimering, förhandsvisning
-  (t.ex. bilder), textredigering i App/ (bara LinuxApp klart hittills),
-  syntax highlighting (se separat post nedan), chown/Zip-Tar i App/-UI
-  (bara LinuxApp klart hittills).
+  (t.ex. bilder), syntax highlighting (se separat post nedan).
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - **Agent Forwarding**: ✅ agent-PROTOKOLLKLIENTEN klar (2026-07-07,

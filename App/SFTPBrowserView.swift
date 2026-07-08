@@ -3,14 +3,35 @@ import SwiftUI
 import SSHCore
 
 /// SFTP-filhanterare — bläddra, skapa mapp, döp om, ta bort, redigera
-/// textfiler. Fas D i ROADMAP.md. Förhandsvisning/Drag & Drop/chmod/
-/// Zip-Tar är fortfarande medvetet uppskjutet.
+/// textfiler, chmod/chown, komprimera/packa upp (.tar.gz/.zip). Fas D i
+/// ROADMAP.md. Förhandsvisning/Drag & Drop är fortfarande medvetet
+/// uppskjutet.
 struct SFTPBrowserView: View {
+    /// EN sheet-presentatör för chmod/chown/komprimera — inte tre separata
+    /// `.sheet(isPresented:)` på samma vy. Lärdom från S3-lagringsvyns
+    /// CodeRabbit-fynd (#119) applicerad proaktivt här: SwiftUI garanterar
+    /// bara att den SISTA av flera sådana faktiskt presenteras
+    /// tillförlitligt.
+    private enum ActiveFileAction: Identifiable {
+        case chmod(SFTPNameEntry)
+        case chown(SFTPNameEntry)
+        case compress(SFTPNameEntry)
+
+        var id: String {
+            switch self {
+            case .chmod(let e): return "chmod-\(e.filename)"
+            case .chown(let e): return "chown-\(e.filename)"
+            case .compress(let e): return "compress-\(e.filename)"
+            }
+        }
+    }
+
     @StateObject private var model: SFTPBrowserModel
     @State private var renaming: SFTPNameEntry?
     @State private var renameText = ""
     @State private var showNewFolder = false
     @State private var newFolderName = ""
+    @State private var activeFileAction: ActiveFileAction?
 
     init(request: ConnectRequest) {
         _model = StateObject(wrappedValue: SFTPBrowserModel(request: request))
@@ -79,6 +100,25 @@ struct SFTPBrowserView: View {
                 onCancel: { model.editingFile = nil }
             )
         }
+        .sheet(item: $activeFileAction) { action in
+            switch action {
+            case .chmod(let entry):
+                ChmodSheet(entry: entry, onSave: { mode in
+                    activeFileAction = nil
+                    Task { await model.chmod(entry, mode: mode) }
+                }, onCancel: { activeFileAction = nil })
+            case .chown(let entry):
+                ChownSheet(entry: entry, onSave: { uid, gid in
+                    activeFileAction = nil
+                    Task { await model.chown(entry, uidText: uid, gidText: gid) }
+                }, onCancel: { activeFileAction = nil })
+            case .compress(let entry):
+                CompressSheet(entry: entry, onCreate: { name, useZip in
+                    activeFileAction = nil
+                    Task { await model.compress(entry, archiveName: name, useZip: useZip) }
+                }, onCancel: { activeFileAction = nil })
+            }
+        }
     }
 
     private var list: some View {
@@ -96,8 +136,28 @@ struct SFTPBrowserView: View {
                             Label("Döp om", systemImage: "pencil")
                         }.tint(.blue)
                     }
+                    .contextMenu {
+                        Button { activeFileAction = .chmod(entry) } label: {
+                            Label("Ändra behörighet (chmod)", systemImage: "lock.shield")
+                        }
+                        Button { activeFileAction = .chown(entry) } label: {
+                            Label("Ändra ägare (chown)", systemImage: "person.badge.key")
+                        }
+                        Button { activeFileAction = .compress(entry) } label: {
+                            Label("Komprimera", systemImage: "archivebox")
+                        }
+                        if isArchive(entry.filename) {
+                            Button { Task { await model.extract(entry) } } label: {
+                                Label("Packa upp", systemImage: "shippingbox")
+                            }
+                        }
+                    }
             }
         }
+    }
+
+    private func isArchive(_ filename: String) -> Bool {
+        filename.hasSuffix(".tar.gz") || filename.hasSuffix(".tgz") || filename.hasSuffix(".zip")
     }
 
     private func row(_ entry: SFTPNameEntry) -> some View {
@@ -163,6 +223,116 @@ private struct SFTPFileEditorView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Spara") { onSave(content) }
                         .disabled(file.isBinary)
+                }
+            }
+        }
+    }
+}
+
+private struct ChmodSheet: View {
+    let entry: SFTPNameEntry
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+
+    @State private var mode = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Behörighet (t.ex. 644)", text: $mode)
+                    #if os(iOS)
+                    .keyboardType(.numberPad)
+                    #endif
+            }
+            .navigationTitle("chmod: \(entry.filename)")
+            .navInlineTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { onCancel() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Spara") {
+                        let trimmed = mode.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        onSave(trimmed)
+                    }
+                    .disabled(mode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+}
+
+private struct ChownSheet: View {
+    let entry: SFTPNameEntry
+    let onSave: (String, String) -> Void
+    let onCancel: () -> Void
+
+    @State private var uidText = ""
+    @State private var gidText = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("UID (t.ex. 1000)", text: $uidText)
+                    #if os(iOS)
+                    .keyboardType(.numberPad)
+                    #endif
+                TextField("GID (t.ex. 1000)", text: $gidText)
+                    #if os(iOS)
+                    .keyboardType(.numberPad)
+                    #endif
+            }
+            .navigationTitle("chown: \(entry.filename)")
+            .navInlineTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { onCancel() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Spara") {
+                        let uid = uidText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let gid = gidText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !uid.isEmpty, !gid.isEmpty else { return }
+                        onSave(uid, gid)
+                    }
+                    .disabled(uidText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || gidText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+}
+
+private struct CompressSheet: View {
+    let entry: SFTPNameEntry
+    let onCreate: (String, Bool) -> Void
+    let onCancel: () -> Void
+
+    @State private var archiveName: String
+    @State private var useZip = false
+
+    init(entry: SFTPNameEntry, onCreate: @escaping (String, Bool) -> Void, onCancel: @escaping () -> Void) {
+        self.entry = entry
+        self.onCreate = onCreate
+        self.onCancel = onCancel
+        self._archiveName = State(wrappedValue: entry.filename + ".tar.gz")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Arkivnamn", text: $archiveName)
+                    .noAutocap().autocorrectionDisabled()
+                Toggle("Zip (istället för tar.gz)", isOn: $useZip)
+            }
+            .navigationTitle("Komprimera: \(entry.filename)")
+            .navInlineTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { onCancel() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Skapa") {
+                        let trimmed = archiveName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        onCreate(trimmed, useZip)
+                    }
+                    .disabled(archiveName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
