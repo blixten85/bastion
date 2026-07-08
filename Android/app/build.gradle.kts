@@ -37,7 +37,7 @@ dependencies {
     implementation("org.apache.sshd:sshd-core:2.14.0")
     implementation("org.apache.sshd:sshd-common:2.14.0")
 
-    testImplementation("org.apache.sshd:sshd-scp:2.14.0")
+    testImplementation("org.apache.sshd:sshd-scp:2.18.0")
     testImplementation(kotlin("test"))
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.bouncycastle:bcprov-jdk18on:1.79")
