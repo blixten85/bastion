@@ -29,6 +29,18 @@ targets:
           - "project.yml"
           - "*.md"
           - "*.entitlements"
+          # macOS-målets Info.plist saknades här (macOS-målet exkluderar
+          # omvänt redan iOS "Info.plist" nedan) — utan den här bäddades
+          # den in RÅ (ingen $(VARIABEL)-substitution, ingen
+          # CFBundleSupportedPlatforms) i den arkiverade iOS-appen som en
+          # extra resursfil. Xcodes arkivvalidering verkar skanna alla
+          # bäddade plist-liknande filer, inte bara appens egen Info.plist
+          # — den trasiga filen fick exporten att misslyckas med
+          # "Couldn't find platform family for Bastion.app", trots att
+          # appens EGEN Info.plist redan hade rätt nyckel (tolfte riktiga
+          # testflight.yml-körningen, 2026-07-08 — hittat genom att
+          # faktiskt inspektera .xcarchive-innehållet, inte gissat).
+          - "Info-macOS.plist"
     info:
       path: Info.plist
       properties:
