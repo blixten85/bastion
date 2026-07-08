@@ -97,16 +97,21 @@ delvis andra, av konkreta skäl:
       (`ThreadWindows.swift:22`) kan inte konformera till `Sendable` under
       Swifts strikta concurrency, eftersom `UnsafeMutableRawPointer` har
       `Sendable`-konformansen explicit omarkerad `unavailable` i
-      standardbiblioteket. Inget exakt matchande öppet uppströms-issue
-      hittat vid sökning (en tidigare notering här pekade på
-      `apple/swift-nio#2065`, men det visade sig vid närmare granskning
-      handla om ett annat, orelaterat `log2`-importfel — rättat här).
+      standardbiblioteket.
    2. `System.swift:572` — `static let SOL_UDP: CInt = CInt(IPPROTO_UDP)`
       — `IPPROTO` konformerar inte till `BinaryFloatingPoint`, en
       typmismatch i swift-nios egen Windows-portering av
       POSIX-konstanterna.
-   Ingen av dessa går att fixa i Bastions egen kod utan att forka swift-nio.
-   `windowsapp-build` är inte en required check av precis den anledningen.
+   **Rapporterat uppströms, 2026-07-08: `apple/swift-nio#3647`.** Fanns
+   redan rapporterat en gång (#3460), men den stängdes felaktigt som
+   duplicate av `#2065` — vid granskning visade sig #2065 handla om ett
+   HELT annat, orelaterat `log2`-importfel (Swift 5.5, 2022), inte
+   Sendable/IPPROTO alls. En tyst tumme-upp på en felaktigt stängd
+   issue hade aldrig synts, så en ny, fullständigt dokumenterad rapport
+   skickades istället — med alla tre bekräftade toolchain-körningarna
+   (6.1/6.2/6.3.3) som bevis. Ingen av buggarna går att fixa i Bastions
+   egen kod utan att forka swift-nio. `windowsapp-build` är inte en
+   required check av precis den anledningen.
    **Sidospår som löstes under samma utredning** (dokumenterat separat så
    det inte återupptäcks i onödan): ett tredje, TILLFÄLLIGT fel dök upp
    vid 2026-07-07-omtestet — `STL1000: Unexpected compiler version,
