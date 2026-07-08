@@ -68,19 +68,18 @@ targets:
         # utvecklingsprofil-vägen helt.
         CODE_SIGN_STYLE: Manual
       # Manual signering kräver en UTTRYCKLIG PROVISIONING_PROFILE_
-      # SPECIFIER — sjätte riktiga testflight.yml-körningen (2026-07-07)
-      # misslyckades med ""Bastion" requires a provisioning profile"
-      # utan den. Namnen nedan finns INTE sedan tidigare (inget
-      # certifikat/profil har någonsin skapats för det här App-ID:t) —
-      # -allowProvisioningUpdates skapar en NY profil med exakt det
-      # namnet, den behöver inte finnas i förväg.
+      # SPECIFIER. Release-profilnamnet måste matcha exakt vad `fastlane
+      # match` faktiskt skapade och sparade i blixten85/bastion-certificates
+      # (2026-07-08) — matchs standardnamngivning ("match <type> <bundle
+      # id>"), inte det tidigare påhittade "Bastion App Store" (som
+      # -allowProvisioningUpdates ALDRIG lyckades skapa i CI, se Fastfile).
       configs:
         Debug:
           CODE_SIGN_IDENTITY: "Apple Development"
           PROVISIONING_PROFILE_SPECIFIER: "Bastion Development"
         Release:
           CODE_SIGN_IDENTITY: "Apple Distribution"
-          PROVISIONING_PROFILE_SPECIFIER: "Bastion App Store"
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore se.denied.bastion"
     dependencies:
       - package: SwiftTerm
       - package: Bastion

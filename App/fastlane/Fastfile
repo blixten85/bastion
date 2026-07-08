@@ -1,15 +1,19 @@
-require "tmpdir"
-require "base64"
-require "shellwords"
-
 default_platform(:ios)
 
 # TestFlight-uppladdning. Körs manuellt (workflow_dispatch, se
-# .github/workflows/testflight.yml) — inte på varje push, eftersom varje körning
-# konsumerar ett byggnummer hos Apple. Signering är helt automatisk (ingen
-# fastlane match/manuellt certifikat att underhålla) — Xcode skapar/hanterar
-# certifikat och provisioning profile själv via App Store Connect API-nyckeln,
-# så länge nyckeln har "App Manager"-rollen eller högre.
+# .github/workflows/testflight.yml) — inte på varje push, eftersom varje
+# körning konsumerar ett byggnummer hos Apple.
+#
+# Signering via `match` (readonly), INTE `-allowProvisioningUpdates` längre
+# — den senare visade sig, efter åtta misslyckade riktiga CI-körningar
+# (2026-07-07/08), tyst ALDRIG skapa ett distributionscertifikat på en
+# engångs-CI-runner (bara utvecklingscertifikat), oavsett hur många gånger
+# den kördes. Certifikat/profil är istället skapade EN gång (manuellt,
+# 2026-07-08, på en riktig Mac — `security`/Keychain-operationer kräver en
+# inloggad GUI-session, fungerar inte över ren SSH) och sparade krypterat
+# i `blixten85/bastion-certificates` (privat repo, `MATCH_PASSWORD`-skyddat).
+# CI hämtar bara — skapar aldrig nya, för att inte krocka med Apples gräns
+# på antal distributionscertifikat (redan träffad en gång under felsökningen).
 platform :ios do
   desc "Bygg och ladda upp till TestFlight"
   lane :beta do
@@ -37,33 +41,26 @@ platform :ios do
       xcodeproj: "Bastion.xcodeproj",
     )
 
-    # xcodebuilds egen provisioning-uppdatering (-allowProvisioningUpdates)
-    # känner INTE av api_key-objektet ovan — den letar annars efter ett
-    # inloggat Xcode-konto, som inte finns på en engångs-CI-runner ("No
-    # Accounts" / "No profiles for 'se.denied.bastion' were found").
-    # Sedan Xcode 15 stödjer xcodebuild samma API-nyckelautentisering
-    # direkt via tre kommandoradsflaggor, men de vill ha en RIKTIG
-    # filsökväg, inte nyckelinnehållet inline — skriver ut den till en
-    # fil i samma steg.
-    #
-    # INTE Tempfile: Tempfile har en GC-finalizer som raderar filen så
-    # fort Ruby skräpsamlar objektet — vi sparade bara `.path` (en
-    # String), aldrig själva Tempfile-objektet, så filen kunde försvinna
-    # innan xcodebuild hann läsa den ("The -authenticationKeyPath flag
-    # must be an absolute path to an existing file", trots att sökvägen
-    # var korrekt formaterad). En vanlig fil i samma temp-katalog har
-    # ingen sådan livstidskoppling till en Ruby-variabel.
-    key_path = File.join(Dir.tmpdir, "bastion-asc-authkey.p8")
-    File.write(key_path, Base64.decode64(ENV.fetch("APP_STORE_CONNECT_KEY_CONTENT")))
+    # Skapar en TILLFÄLLIG Keychain och pekar match mot den — utan den
+    # här kan CI-runnern råka ut för samma Keychain-krångel som
+    # bootstrap-körningen gjorde på den hyrda Mac:en (CodeRabbit-fynd).
+    # `provider:` behövs inte för GitHub Actions — auto-detekteras via
+    # GITHUB_ACTIONS-miljövariabeln.
+    setup_ci if ENV["CI"]
+
+    match(
+      api_key: api_key,
+      type: "appstore",
+      app_identifier: "se.denied.bastion",
+      team_id: ENV.fetch("APP_STORE_CONNECT_TEAM_ID"),
+      git_url: "git@github.com:blixten85/bastion-certificates.git",
+      readonly: true,
+    )
 
     build_app(
       project: "Bastion.xcodeproj",
       scheme: "Bastion",
       export_method: "app-store",
-      xcargs: "-allowProvisioningUpdates " \
-        "-authenticationKeyPath #{key_path.shellescape} " \
-        "-authenticationKeyID #{ENV.fetch('APP_STORE_CONNECT_KEY_ID').shellescape} " \
-        "-authenticationKeyIssuerID #{ENV.fetch('APP_STORE_CONNECT_ISSUER_ID').shellescape}",
     )
 
     upload_to_testflight(

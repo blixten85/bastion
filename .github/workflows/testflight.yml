@@ -2,9 +2,12 @@ name: TestFlight-uppladdning
 
 # Manuell knapp, INTE på varje push/PR — varje körning konsumerar ett
 # byggnummer hos Apple och laddar upp en riktig build till TestFlight.
-# Signering är helt automatisk via App Store Connect API-nyckeln (se
-# App/fastlane/Fastfile) — inget certifikat/provisioning profile att
-# underhålla manuellt.
+#
+# Signering via `fastlane match` (readonly) — certifikat/profil skapades
+# EN gång manuellt (2026-07-08, kräver en riktig Mac med inloggad GUI-
+# session; `-allowProvisioningUpdates` visade sig aldrig lyckas skapa ett
+# distributionscertifikat på en engångs-CI-runner, se App/fastlane/Fastfile)
+# och ligger krypterat i det privata repot blixten85/bastion-certificates.
 #
 # Secrets som krävs (Settings -> Secrets and variables -> Actions):
 #   APP_STORE_CONNECT_TEAM_ID       10-teckens Team ID (Membership-sidan)
@@ -12,6 +15,9 @@ name: TestFlight-uppladdning
 #   APP_STORE_CONNECT_ISSUER_ID     Issuer ID (samma sida)
 #   APP_STORE_CONNECT_KEY_CONTENT   .p8-filens innehåll, base64-kodat
 #                                   (base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy)
+#   MATCH_PASSWORD                  Lösenfras som krypterar bastion-certificates
+#   MATCH_DEPLOY_KEY                Privat SSH-nyckel, skrivbehörig deploy key
+#                                   på blixten85/bastion-certificates
 on:
   workflow_dispatch:
 
@@ -41,6 +47,18 @@ jobs:
           bundler-cache: true
           working-directory: App
 
+      # match klonar/pushar bastion-certificates över SSH — samma
+      # deploy-key-mönster som filtered-movies redan använder för sin
+      # PAT-baserade motsvarighet, fast SSH-nyckel-baserat här. Skriven
+      # direkt till en tempfil (inte via ssh-agent-tredjepartsaction) för
+      # att hålla beroendegrafen minimal, samma linje som resten av repot.
+      - name: Sätt upp SSH-nyckel för bastion-certificates
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.MATCH_DEPLOY_KEY }}" > ~/.ssh/match_deploy_key
+          chmod 600 ~/.ssh/match_deploy_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+
       - name: fastlane beta
         working-directory: App
         env:
@@ -48,4 +66,6 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          GIT_SSH_COMMAND: "ssh -i ~/.ssh/match_deploy_key -o IdentitiesOnly=yes"
         run: bundle exec fastlane beta
