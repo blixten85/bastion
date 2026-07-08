@@ -43,16 +43,21 @@ final class ArchiveOperationsTests: XCTestCase {
             "cd '/home/x' && tar xzf 'out.tar.gz'")
     }
 
+    /// `./`-prefix på arkivnamnet OCH `--` före sökvägarna — till skillnad
+    /// från `tar -f` tar `zip` arkivnamnet som ett rent positionellt
+    /// argument, så ett namn eller filnamn som börjar med `-` skulle
+    /// annars tolkas som en flagga (CodeRabbit-fynd, #125, verifierat
+    /// empiriskt mot en riktig `zip`-binär innan fixen skrevs).
     func testCreateZipCommand() {
         XCTAssertEqual(
             ArchiveOperations.createZipCommand(paths: ["a.txt"], archiveName: "out.zip", in: "/home/x"),
-            "cd '/home/x' && zip -r -q 'out.zip' 'a.txt'")
+            "cd '/home/x' && zip -r -q './out.zip' -- 'a.txt'")
     }
 
     func testExtractZipCommand() {
         XCTAssertEqual(
             ArchiveOperations.extractZipCommand(archiveName: "out.zip", in: "/home/x"),
-            "cd '/home/x' && unzip -o -q 'out.zip'")
+            "cd '/home/x' && unzip -o -q './out.zip'")
     }
 
     // MARK: - Riktig körning mot en RIKTIG tar/zip (LoopbackServer realExec: true)
@@ -130,6 +135,37 @@ final class ArchiveOperationsTests: XCTestCase {
             paths: [malicious], archiveName: "bundle2.tar.gz", in: server.sftpRoot, over: session)
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: proofPath))
+
+        await session.close()
+    }
+
+    /// Ett filnamn (SFTP-post som ska arkiveras) OCH ett arkivnamn (helt
+    /// användarstyrt i App/LinuxApp:s UI) som börjar med `-` ska packas
+    /// och packas upp korrekt, inte tolkas som `zip`/`unzip`-flaggor.
+    /// Utan `--`/`./`-fixen (CodeRabbit-fynd, #125) misslyckas det ena
+    /// TYST med "Nothing to do!" och det andra ÄNNU TYSTARE (skriver bara
+    /// ut hjälptext, extraherar ingenting, avslutar med kod 0) — verifierat
+    /// manuellt mot en riktig zip/unzip-binär innan fixen skrevs, se
+    /// kommentarerna i ArchiveOperations.swift.
+    func testCreateThenExtractZipHandlesDashPrefixedNamesAgainstRealZip() async throws {
+        let server = try LoopbackServer.start(password: "hunter2", realExec: true)
+        defer { server.shutdown() }
+        let session = try await connectedRealExecSession(server)
+
+        try "dash-prefix-innehåll".write(toFile: server.sftpRoot + "/-T", atomically: true, encoding: .utf8)
+
+        try await ArchiveOperations.createZip(
+            paths: ["-T"], archiveName: "-dashed.zip", in: server.sftpRoot, over: session)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: server.sftpRoot + "/-dashed.zip"))
+
+        let extractDir = server.sftpRoot + "/extracted-zip-dash"
+        try FileManager.default.createDirectory(atPath: extractDir, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(
+            atPath: server.sftpRoot + "/-dashed.zip", toPath: extractDir + "/-dashed.zip")
+        try await ArchiveOperations.extractZip(archiveName: "-dashed.zip", in: extractDir, over: session)
+
+        XCTAssertEqual(
+            try String(contentsOfFile: extractDir + "/-T", encoding: .utf8), "dash-prefix-innehåll")
 
         await session.close()
     }
