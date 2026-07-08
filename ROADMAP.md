@@ -84,10 +84,14 @@ delvis andra, av konkreta skäl:
 3. **Windows-GUI via `WinUIBackend`** — påbörjad och blockerad av två
    bekräftade uppströmsbuggar i swift-nio, inte något i Bastions egen kod.
    `WindowsApp/` (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs
-   på en riktig Windows Server 2025-VPS. **Dubbelbekräftat två gånger**
-   (2026-07-06 med Swift 6.1-RELEASE, och igen 2026-07-07 med Swift
-   6.3.3-RELEASE — samma två fel kvarstår oförändrade trots en helt ny
-   toolchain, så det är definitivt inget som redan fixats uppströms):
+   på en riktig Windows Server 2025-VPS (`windowsapp-build`-CI-jobbet). **Nu
+   trippelbekräftat** (2026-07-06 med Swift 6.1-RELEASE, 2026-07-07 med
+   Swift 6.3.3-RELEASE PÅ VPS:en, och en tredje gång 2026-07-07 natt via
+   `windows-gui.yml`-CI:t med Swift 6.2-RELEASE — samma två fel kvarstår
+   ORD FÖR ORD identiska i alla tre körningar, oförändrade trots tre olika
+   toolchain-versioner spridda över flera minor-versioner. Definitivt inget
+   som redan fixats uppströms, och inte något en toolchain-bump ensam kan
+   lösa):
    1. `NIOThread.handle: NIOLockedValueBox<ThreadOpsSystem.ThreadHandle?>`
       (`ThreadWindows.swift:22`) kan inte konformera till `Sendable` under
       Swifts strikta concurrency, eftersom `UnsafeMutableRawPointer` har
