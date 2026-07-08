@@ -4,6 +4,18 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>Bastion</string>
+	<!-- GENERATE_INFOPLIST_FILE är NO (manuellt underhållen Info.plist),
+	     så Xcode auto-injicerar ALDRIG den här nyckeln — normalt görs det
+	     bara vid GENERATE_INFOPLIST_FILE: YES. Utan den kunde arkivet
+	     byggas men EXPORTEN misslyckades: "Couldn't find platform family
+	     for 'Bastion.app'" (tionde riktiga testflight.yml-körningen,
+	     2026-07-08 — arkiveringen lyckades då för första gången, vilket
+	     var precis vad som avslöjade det här, tidigare aldrig nådda,
+	     steget). -->
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>iPhoneOS</string>
+	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Lås upp Bastion med Face ID i stället för att skriva ett lösenord varje gång.</string>
 	<key>UILaunchScreen</key>
