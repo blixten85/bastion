@@ -321,6 +321,18 @@ private struct CompressSheet: View {
                 TextField("Arkivnamn", text: $archiveName)
                     .noAutocap().autocorrectionDisabled()
                 Toggle("Zip (istället för tar.gz)", isOn: $useZip)
+                    // Utan den här: arkivnamnets filändelse följer inte med
+                    // växeln — resultatet blir t.ex. en .zip-fil som heter
+                    // "bild.tar.gz", och extract()s ändelsebaserade val av
+                    // uppackningskommando försöker då köra fel verktyg mot
+                    // den (CodeRabbit-fynd, #125).
+                    .onChange(of: useZip) { _, newValue in
+                        if newValue, archiveName.hasSuffix(".tar.gz") {
+                            archiveName = String(archiveName.dropLast(".tar.gz".count)) + ".zip"
+                        } else if !newValue, archiveName.hasSuffix(".zip") {
+                            archiveName = String(archiveName.dropLast(".zip".count)) + ".tar.gz"
+                        }
+                    }
             }
             .navigationTitle("Komprimera: \(entry.filename)")
             .navInlineTitle()
