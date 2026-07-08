@@ -48,12 +48,13 @@ delvis andra, av konkreta skäl:
 | Linux-GUI (`bastion-gui`, SwiftCrossUI/GTK4) | ✅ byggd och körd (Xvfb) + egen CI-lane (`linux-gui.yml`, required check) |
 | Linux-terminal (VT100/ANSI-tolk, bestående PTY-shell) | ✅ 17 fristående parser-tester gröna, körd (Xvfb) — radvis input (ingen rå key-API i SwiftCrossUI) |
 | Linux-Docker-hantering (`DockerView`) | ✅ lista/start/stopp/omstart/logg/shell — motsvarar `App/DockerView.swift` |
-| Linux-portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa, byggd+körd (Xvfb) — ingen App/-motsvarighet än |
+| Portvidarebefordran (`PortForwardView`) | ✅ lokal/fjärr/dynamisk, starta/stoppa — LinuxApp (byggd+körd, Xvfb) OCH App/ (2026-07-08, Xcode-only) |
 | ProxyJump (`ssh -J`) | ✅ `SSHSession.connect(via:)`, `bastion-cli` läser `ProxyJump` ur ssh-config automatiskt |
-| WireGuard-profiler | ✅ parsning/serialisering + lagring + LinuxApp-UI — 🧩 App/-motsvarighet kvar (Xcode-only) |
+| WireGuard-profiler | ✅ parsning/serialisering + lagring — LinuxApp OCH App/-UI (2026-07-08, Xcode-only) |
 | OpenSSH-certifikat | ✅ parsning + CA-signaturverifiering + `SSHUserAuth`/`HostAuth`-wiring (`.certificateFile`) — testad mot RIKTIGA `ssh-keygen -s`-certifikat, LinuxApp+App-UI klar |
 | ssh-agent-protokollklient | ✅ `SSHAgentClient.swift`, testad mot en RIKTIG `ssh-agent` — 🚫 kanal-forwarding till fjärrserver BLOCKERAD (se ROADMAP) |
-| Tailscale-värdförslag | ✅ `TailscaleStatus.swift` (fetch/fetchLocal) + LinuxApp `TailscaleDiscoveryView` — 🧩 App/-motsvarighet kvar (Xcode-only) |
+| Tailscale-värdförslag | ✅ `TailscaleStatus.swift` (fetch/fetchLocal) — LinuxApp OCH App/-UI (2026-07-08, Xcode-only; `fetchLocal` villkorsstyrd bort på iOS, `Foundation.Process` saknas där) |
+| S3-kompatibel objektlagring | ✅ `S3Client.swift` + `S3ConnectionStore` — LinuxApp OCH App/-UI (2026-07-08, Xcode-only) |
 
 ## Nästa steg (i ordning)
 
@@ -391,8 +392,9 @@ Inget nytt att bygga, bara verifiera/lansera:
     toolchainen (se README "Bygg Linux-GUI:t" för varför stabil 6.1.3
     kraschar på ett känt, öppet kompilatorfel — inte relaterat till den
     här koden).
-  - **Kvar**: App/-yta (iOS/macOS, Xcode-only — kan inte byggas/verifieras
-    här) helt saknas för `-L`/`-R`/`-D`.
+  - **App/-yta** (iOS/macOS): ✅ klart (2026-07-08, `App/PortForwardView.swift`)
+    — samma modell/beteende som LinuxApp, native SwiftUI. Kan inte byggas/
+    verifieras här (Xcode-only), verifierad av `xcode.yml`-CI:t.
 - **Face ID/Touch ID-app-lås** — ✅ klart i App/. `AppLockManager` (LocalAuthentication,
   `.deviceOwnerAuthentication` — Face ID/Touch ID/lösenkod-fallback), låser vid
   bakgrund (`scenePhase`), egen inställningsyta (menyn i värdlistan, av som
@@ -473,10 +475,14 @@ Inget nytt att bygga, bara verifiera/lansera:
   (Tailscale känner inte till SSH-användarnamnet, till skillnad från
   ssh-config-import). Byggd + körd (Xvfb), rent utan krasch. 2 nya
   tester, 190 gröna totalt.
+  **App/-motsvarighet**: ✅ klart (2026-07-08, `App/TailscaleDiscoveryView.swift`)
+  — `fetchLocal()` villkorsstyrd bort på iOS (`#if !os(iOS)`, `Foundation.
+  Process` saknas i sandlådan där, dokumenterat i SSHCore-källan); iOS visar
+  bara fjärrvärd-källan, macOS båda. Kan inte byggas/verifieras här
+  (Xcode-only), verifierad av `xcode.yml`-CI:t.
   **Kvar**: `HostAuth`/host-listintegration djupare än "lägg till som ny
   värd" (t.ex. markera en befintlig värd som nåbar via ett specifikt
-  tailnet); App/-motsvarighet (Xcode-only, kan inte byggas/verifieras
-  här).
+  tailnet) — oförändrat, ingen plattform har det än.
   **WireGuard fullständigt verifierat end-to-end, inklusive en riktig
   fungerande tunnel** (2026-07-07, rättar en felaktig tidigare slutsats):
   `wireguard-tools` installerades och `WireGuardConfig.swift`s
@@ -526,7 +532,9 @@ Inget nytt att bygga, bara verifiera/lansera:
   (inkl. en full round-trip: text -> config -> lagrad JSON -> ny store-
   instans -> tillbaka till text, identiskt). 171 tester gröna totalt.
   Byggd + körd (Xvfb), rent utan krasch.
-  **Kvar**: App/-motsvarighet (Xcode-only, kan inte byggas/verifieras här).
+  **App/-motsvarighet**: ✅ klart (2026-07-08, `App/WireGuardProfileView.swift`)
+  — samma modell, native SwiftUI. Kan inte byggas/verifieras här
+  (Xcode-only), verifierad av `xcode.yml`-CI:t.
 - **Native WireGuard/Tailscale — inget externt beroende** (nytt,
   2026-07-07, uttryckligt ägarönskemål — se VISION.md "En sak att
   prioritera högt": ska kännas komplett, inget proffs ska sakna något)
@@ -673,8 +681,10 @@ Inget nytt att bygga, bara verifiera/lansera:
   redan dokumenterade `LD_LIBRARY_PATH`-workarounden för libxml2-
   kompatibilitet (se README "Om din toolchain-nedladdning..."). 4 nya
   store-tester, 205 gröna totalt.
-  **Kvar**: App/-motsvarighet (Xcode-only, kan inte byggas/verifieras
-  här); mappträd-bläddring för molnlagring-som-filkälla i stort (bredare
+  **App/-motsvarighet**: ✅ klart (2026-07-08, `App/S3ConnectionView.swift`)
+  — samma modell, native SwiftUI. Kan inte byggas/verifieras här
+  (Xcode-only), verifierad av `xcode.yml`-CI:t.
+  **Kvar**: mappträd-bläddring för molnlagring-som-filkälla i stort (bredare
   OAuth-integrerad Dropbox/Drive/OneDrive-bläddring, separat från denna
   S3-specifika väg).
 - **SFTP-filhanterare** — ✅ grundfunktionerna klara, både App/ och
