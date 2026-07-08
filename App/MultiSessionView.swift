@@ -8,6 +8,7 @@ import SSHCore
 /// bakgrundssessioner faktiskt anslutna, utan någon egen livscykel-kod här.
 struct MultiSessionView: View {
     @ObservedObject var manager: SessionManager
+    let store: HostStore
 
     var body: some View {
         TabView(selection: Binding(
@@ -15,7 +16,7 @@ struct MultiSessionView: View {
             set: { manager.selectedID = $0 }
         )) {
             ForEach(manager.sessions) { session in
-                HostDetailView(request: session, onClose: { manager.close(session.id) })
+                HostDetailView(request: session, store: store, onClose: { manager.close(session.id) })
                     .tabItem {
                         Label(
                             session.host.alias.isEmpty ? session.host.hostName : session.host.alias,

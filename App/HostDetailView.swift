@@ -6,6 +6,15 @@ import SSHCore
 struct HostDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let request: ConnectRequest
+    // Injicerad, INTE en egen `HostStore()`-instans — en fristående instans
+    // läser en FÄRSK disksnapshot vid skapandet, och `upsert()` skriver
+    // tillbaka HELA den snapshotten. Eftersom `HostDetailView` är ett
+    // värdetyp-struct som SwiftUI kan återskapa ofta (varje gång
+    // föräldravyn ritas om) skulle en egen instans läsa in en potentiellt
+    // inaktuell kopia och sedan skriva över en samtidig ändring gjord via
+    // HostListViews instans (CodeRabbit-fynd, #126). Samma instans som
+    // HostListView.swift delas hela vägen ner via MultiSessionView istället.
+    let store: HostStore
     /// Stänger (kopplar från) den här sessionen helt — skiljer sig från
     /// "Klar" (`dismiss()`), som bara tar bort den ur sikte och lämnar den
     /// ansluten i bakgrunden. `nil` när vyn inte ingår i en flikväxlare
@@ -49,6 +58,11 @@ struct HostDetailView: View {
                             }
                             NavigationLink { PortForwardView(request: request) } label: {
                                 Label("Portvidarebefordran", systemImage: "arrow.left.arrow.right")
+                            }
+                            NavigationLink {
+                                KeyDeployView(request: request) { updated in store.upsert(updated) }
+                            } label: {
+                                Label("SSH-nyckel", systemImage: "key")
                             }
                             if let onClose {
                                 Button(role: .destructive) { onClose() } label: {

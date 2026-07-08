@@ -5,7 +5,10 @@ import SSHCore
 /// Delar host-databasen till vyerna och håller den observerbar.
 @MainActor
 final class HostListModel: ObservableObject {
-    private let store = HostStore()
+    // Inte `private` — HostListView behöver dela SAMMA instans med
+    // MultiSessionView/HostDetailView (se HostDetailView.swift, CodeRabbit-
+    // fynd #126), inte låta dem skapa sina egna.
+    let store = HostStore()
     @Published var hosts: [Host] = []
 
     init() { reload() }
@@ -200,7 +203,7 @@ struct HostListView: View {
                 S3ConnectionListView()
             }
             .cover(isPresented: $showSessions) {
-                MultiSessionView(manager: sessionManager)
+                MultiSessionView(manager: sessionManager, store: model.store)
             }
             // Sista fliken stängd -> tillbaka till värdlistan automatiskt,
             // inte kvar på en tom flikväxlare.
