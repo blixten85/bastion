@@ -49,6 +49,26 @@ targets:
           UIColorName: LaunchBackground
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
+        # UISupportedInterfaceOrientations(~ipad) finns redan i den
+        # RÅA Info.plist-filen (path: ovan), men de verkar tystas ut
+        # under arkiveringen — bara nycklar satta HÄR under `properties`
+        # visade sig faktiskt hamna i det byggda paketet (trettonde
+        # riktiga testflight.yml-körningen, 2026-07-08: arkivering,
+        # export och signering lyckades äntligen helt, men den RIKTIGA
+        # uppladdningen mot Apples servrar avvisades — "Invalid bundle.
+        # No orientations were specified... To support iPad
+        # multitasking" — verifierat direkt genom att inspektera den
+        # faktiskt byggda Info.plist:en, orienteringsnycklarna saknades
+        # helt trots att källfilen hade dem).
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: se.denied.bastion
