@@ -34,7 +34,7 @@ dependencies {
     // SSH-implementation (klient OCH server, den senare används bara i
     // testerna nedan för en riktig, självständig round-trip-verifiering
     // utan att röra systemets egna sshd).
-    implementation("org.apache.sshd:sshd-core:2.14.0")
+    implementation("org.apache.sshd:sshd-core:2.18.0")
     implementation("org.apache.sshd:sshd-common:2.18.0")
 
     testImplementation("org.apache.sshd:sshd-scp:2.18.0")
