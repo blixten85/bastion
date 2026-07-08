@@ -23,7 +23,18 @@ final class TailscaleDiscoveryModel: ObservableObject {
             let status: TailscaleStatus
             switch source {
             case .local:
+                #if !os(iOS)
                 status = try TailscaleStatus.fetchLocal()
+                #else
+                // `fetchLocal()` finns inte på iOS (Foundation.Process
+                // otillgängligt i sandlådan) — UI:t nedan visar aldrig
+                // "Denna enhet"-alternativet på iOS, så den här grenen ska
+                // aldrig nås i praktiken. `LoadState.failed` istället för
+                // `fatalError` om den ändå skulle nås (t.ex. framtida
+                // UI-ändring som missar plattformskontrollen).
+                state = .failed("Inte tillgängligt på iOS.")
+                return
+                #endif
             case .remote(let host):
                 guard let auth = resolveAuth(for: host, password: password) else {
                     state = .failed("Kan inte autentisera värden.")
@@ -51,7 +62,14 @@ struct TailscaleDiscoveryView: View {
     let onAddHost: (_ alias: String, _ hostName: String) -> Void
 
     @StateObject private var model = TailscaleDiscoveryModel()
+    // "Denna enhet" finns bara på macOS (fetchLocal() kräver Foundation.
+    // Process, otillgängligt i iOS-sandlådan) — iOS börjar därför direkt på
+    // fjärrvärd, ingen källväljare att visa alls.
+    #if os(iOS)
+    @State private var useLocal = false
+    #else
     @State private var useLocal = true
+    #endif
     @State private var selectedHostID: Host.ID?
     @State private var password = ""
 
@@ -63,6 +81,10 @@ struct TailscaleDiscoveryView: View {
         NavigationStack {
             Form {
                 Section {
+                    #if os(iOS)
+                    Text("Föreslå SSH-värdar ur ett tailnet via en redan sparad fjärrvärd.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    #else
                     Text("Föreslå SSH-värdar ur ett tailnet — antingen den här enhetens, eller en redan sparad fjärrvärds.")
                         .font(.footnote).foregroundStyle(.secondary)
                     Picker("Källa", selection: $useLocal) {
@@ -70,6 +92,7 @@ struct TailscaleDiscoveryView: View {
                         Text("Fjärrvärd").tag(false)
                     }
                     .pickerStyle(.segmented)
+                    #endif
 
                     if !useLocal {
                         Picker("Värd", selection: $selectedHostID) {
