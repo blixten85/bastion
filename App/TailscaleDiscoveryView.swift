@@ -20,11 +20,18 @@ final class TailscaleDiscoveryModel: ObservableObject {
     func fetch(source: Source, password: String?) async {
         state = .loading
         do {
-            let status: TailscaleStatus
+            let suggestions: [(hostName: String, address: String)]
             switch source {
             case .local:
                 #if !os(iOS)
-                status = try TailscaleStatus.fetchLocal()
+                // `fetchLocal()` är synkron och väntar in att `tailscale`-
+                // processen avslutas (`waitUntilExit()`) — körd direkt här
+                // hade fryst hela sheeten under tiden, eftersom `fetch(...)`
+                // körs på `@MainActor` (CodeRabbit-fynd, #115). `Task.detached`
+                // flyttar den blockerande väntan av huvudtråden.
+                suggestions = try await Task.detached(priority: .userInitiated) {
+                    try TailscaleStatus.fetchLocal().suggestedHosts
+                }.value
                 #else
                 // `fetchLocal()` finns inte på iOS (Foundation.Process
                 // otillgängligt i sandlådan) — UI:t nedan visar aldrig
@@ -43,9 +50,10 @@ final class TailscaleDiscoveryModel: ObservableObject {
                 let session = SSHSession(target: host.target, auth: auth)
                 try await session.connect()
                 defer { Task { await session.close() } }
-                status = try await TailscaleStatus.fetch(over: session)
+                let status = try await TailscaleStatus.fetch(over: session)
+                suggestions = status.suggestedHosts
             }
-            state = .loaded(status.suggestedHosts)
+            state = .loaded(suggestions)
         } catch {
             state = .failed("\(error)")
         }

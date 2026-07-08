@@ -111,6 +111,7 @@ struct HostListView: View {
     @State private var showAppLock = false
     @State private var showWireGuard = false
     @State private var showTailscale = false
+    @State private var pendingHostFromDiscovery: Host?
     @State private var searchText = ""
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
@@ -176,11 +177,20 @@ struct HostListView: View {
             .sheet(isPresented: $showWireGuard) {
                 WireGuardProfileListView()
             }
-            .sheet(isPresented: $showTailscale) {
+            .sheet(isPresented: $showTailscale, onDismiss: {
+                // Sätts INTE direkt i onAddHost — den sheeten är fortfarande
+                // på väg att stängas då, och att sätta $editing samtidigt
+                // krockar med SwiftUIs single-sheet-hantering (CodeRabbit-
+                // fynd, #115). Vänta tills Tailscale-sheeten faktiskt stängt.
+                if let pending = pendingHostFromDiscovery {
+                    pendingHostFromDiscovery = nil
+                    editing = pending
+                }
+            }) {
                 TailscaleDiscoveryView(
                     hosts: model.hosts,
                     onAddHost: { alias, hostName in
-                        editing = Host(alias: alias, hostName: hostName, user: "")
+                        pendingHostFromDiscovery = Host(alias: alias, hostName: hostName, user: "")
                     }
                 )
             }
