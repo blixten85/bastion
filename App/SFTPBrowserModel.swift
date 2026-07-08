@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import Foundation
 import SSHCore
 
 /// Håller SFTP-anslutningen och den aktuella katalogvyn — samma
@@ -265,6 +266,75 @@ final class SFTPBrowserModel: ObservableObject {
             await refresh()
         } catch {
             errorMessage = "\(error)"
+        }
+    }
+
+    /// Laddar upp en eller flera drag-and-drop:ade lokala filer/mappar till
+    /// den katalog som VISAS just nu (`currentPath`) — anslutningen som
+    /// redan hålls öppen av `ensureClient()` medan man bläddrar återanvänds
+    /// rakt av, ingen ny session öppnas. Mappar laddas upp REKURSIVT.
+    func uploadDropped(_ urls: [URL]) async {
+        for url in urls {
+            await uploadOne(url)
+        }
+        await refresh()
+    }
+
+    private func uploadOne(_ localURL: URL) async {
+        // macOS App Sandbox ger tillfällig läsbehörighet för drag-and-drop-
+        // ade filer/mappar UTAN egen entitlement (samma undantag som en
+        // NSOpenPanel-vald fil), men bara mellan start/stop-anropen.
+        let accessing = localURL.startAccessingSecurityScopedResource()
+        defer { if accessing { localURL.stopAccessingSecurityScopedResource() } }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: localURL.path, isDirectory: &isDirectory) else {
+            errorMessage = "Hittar inte \(localURL.lastPathComponent)."
+            return
+        }
+
+        let remotePath = joined(localURL.lastPathComponent)
+        if isDirectory.boolValue {
+            await uploadDirectory(localURL, remotePath: remotePath)
+        } else {
+            await uploadFile(localURL, remotePath: remotePath)
+        }
+    }
+
+    private func uploadFile(_ localURL: URL, remotePath: String) async {
+        guard let client = await ensureClient() else { return }
+        do {
+            let data = try Data(contentsOf: localURL)
+            try await client.writeFile(remotePath, data: Array(data))
+        } catch {
+            errorMessage = "\(localURL.lastPathComponent): \(error)"
+        }
+    }
+
+    /// `mkdir`-fel ignoreras medvetet — SFTP version 3 (den version den
+    /// här klienten talar) har ingen egen "finns redan"-statuskod (den
+    /// kom först i v6), så ett fel HÄR kan lika gärna betyda "mappen
+    /// finns redan" (ofarligt vid omuppladdning) som ett riktigt problem —
+    /// då misslyckas ändå filuppladdningarna in i den mappen nedan, med
+    /// sitt eget tydliga fel per fil.
+    private func uploadDirectory(_ localURL: URL, remotePath: String) async {
+        guard let client = await ensureClient() else { return }
+        try? await client.mkdir(remotePath)
+
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: localURL, includingPropertiesForKeys: [.isDirectoryKey])
+        else {
+            errorMessage = "Kunde inte läsa mappen \(localURL.lastPathComponent)."
+            return
+        }
+        for entry in entries {
+            let childRemotePath = remotePath + "/" + entry.lastPathComponent
+            let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if isDir {
+                await uploadDirectory(entry, remotePath: childRemotePath)
+            } else {
+                await uploadFile(entry, remotePath: childRemotePath)
+            }
         }
     }
 

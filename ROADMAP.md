@@ -786,8 +786,25 @@ Inget nytt att bygga, bara verifiera/lansera:
   sheet-presentatör för chmod/chown/komprimera, samma CodeRabbit-lärdom
   applicerad proaktivt). Kan inte byggas/verifieras här (Xcode-only),
   verifierad av `xcode.yml`-CI:t.
-  **Kvar**: Drag & Drop, flerval för komprimering, förhandsvisning
-  (t.ex. bilder), syntax highlighting (se separat post nedan).
+  **Drag & Drop, App/ klart (2026-07-08)**: `.dropDestination(for: URL.self)`
+  på filistan — släpp filer/mappar från Finder (macOS) laddar upp dem till
+  den katalog som visas, via SAMMA redan öppna SFTP-anslutning som
+  bläddringen använder (ingen ny session). Mappar laddas upp REKURSIVT
+  (`mkdir` + rekursiv `contentsOfDirectory`-gång). `startAccessing
+  SecurityScopedResource()`/`stop...` runt hela operationen — macOS App
+  Sandbox ger tillfällig läsbehörighet för drop:ade filer utan egen
+  entitlement (samma undantag som `NSOpenPanel`), verifierat mot
+  `Bastion-macOS.entitlements` (bara `app-sandbox`+`network.client`, inget
+  filbehörighets-entitlement finns eller behövs). `mkdir`-fel vid
+  omuppladdning ignoreras medvetet (SFTP v3 saknar en egen "finns
+  redan"-statuskod, den kom i v6 — se kodkommentar). Kan inte byggas/
+  verifieras här (Xcode-only), verifierad av `xcode.yml`-CI:t.
+  **Kvar**: LinuxApp-motsvarigheten (SwiftCrossUIs `Gtk`-paket saknar en
+  färdig Swift-omslag för GTK4:s `GtkDropTarget`, till skillnad från
+  `CSSProvider` — skulle kräva rå GObject/C-interop-kod, medvetet
+  avvaktat tills det känns värt tiden), flerval för komprimering,
+  förhandsvisning (t.ex. bilder), syntax highlighting (se separat post
+  nedan).
 - Inbyggd editor med syntax highlighting
 - Plugin-system (Proxmox, TrueNAS, Unraid, Cloudflare, GitHub, Kubernetes)
 - **Agent Forwarding**: ✅ agent-PROTOKOLLKLIENTEN klar (2026-07-07,

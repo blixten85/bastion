@@ -3,9 +3,9 @@ import SwiftUI
 import SSHCore
 
 /// SFTP-filhanterare — bläddra, skapa mapp, döp om, ta bort, redigera
-/// textfiler, chmod/chown, komprimera/packa upp (.tar.gz/.zip). Fas D i
-/// ROADMAP.md. Förhandsvisning/Drag & Drop är fortfarande medvetet
-/// uppskjutet.
+/// textfiler, chmod/chown, komprimera/packa upp (.tar.gz/.zip), släpp
+/// filer/mappar (Finder på macOS) för uppladdning. Fas D i ROADMAP.md.
+/// Förhandsvisning är fortfarande medvetet uppskjutet.
 struct SFTPBrowserView: View {
     /// EN sheet-presentatör för chmod/chown/komprimera — inte tre separata
     /// `.sheet(isPresented:)` på samma vy. Lärdom från S3-lagringsvyns
@@ -38,6 +38,7 @@ struct SFTPBrowserView: View {
     @State private var showNewFolder = false
     @State private var newFolderName = ""
     @State private var activeFileAction: ActiveFileAction?
+    @State private var isDropTargeted = false
 
     init(request: ConnectRequest) {
         _model = StateObject(wrappedValue: SFTPBrowserModel(request: request))
@@ -167,6 +168,25 @@ struct SFTPBrowserView: View {
                             }
                         }
                     }
+            }
+        }
+        // Släpp filer/mappar från Finder (macOS) direkt i den katalog som
+        // visas. Anslutningen som redan hålls öppen medan man bläddrar
+        // återanvänds — se SFTPBrowserModel.uploadDropped. macOS App
+        // Sandbox ger tillfällig läsbehörighet för drop:ade filer utan
+        // egen entitlement (samma undantag som NSOpenPanel).
+        .dropDestination(for: URL.self) { urls, _ in
+            Task { await model.uploadDropped(urls) }
+            return true
+        } isTargeted: { targeted in
+            isDropTargeted = targeted
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.accentColor, lineWidth: 3)
+                    .padding(4)
+                    .allowsHitTesting(false)
             }
         }
     }
