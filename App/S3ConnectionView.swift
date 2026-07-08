@@ -77,10 +77,22 @@ final class S3BrowserModel: ObservableObject {
         } catch { errorMessage = "\(error)" }
     }
 
-    func download(bucket: String, key: String) async -> String? {
+    enum DownloadResult {
+        case text(String)
+        /// Data gick inte att avkoda som UTF8 — spara-knappen i visaren
+        /// måste inaktiveras för det här fallet (CodeRabbit-fynd, #119):
+        /// annars skulle "Spara ändringar" ladda upp en placeholder-sträng
+        /// och tyst skriva över det RIKTIGA binära innehållet.
+        case binary(sizeBytes: Int)
+    }
+
+    func download(bucket: String, key: String) async -> DownloadResult? {
         do {
             let data = try await client.getObject(bucket: bucket, key: key)
-            return String(data: data, encoding: .utf8) ?? "(binärt innehåll, \(data.count) bytes — kan inte visas som text)"
+            if let text = String(data: data, encoding: .utf8) {
+                return .text(text)
+            }
+            return .binary(sizeBytes: data.count)
         } catch {
             errorMessage = "\(error)"
             return nil
@@ -102,15 +114,28 @@ struct S3BrowserView: View {
     @Environment(\.dismiss) private var dismiss
     let connection: S3Connection
 
+    /// EN sheet-presentatör istället för tre separata `.sheet(isPresented:)`
+    /// på samma vy — SwiftUI garanterar bara att den SISTA av flera sådana
+    /// faktiskt presenteras tillförlitligt (CodeRabbit-fynd, #119).
+    private enum ActiveSheet: Identifiable {
+        case newBucket
+        case upload
+        case viewer(key: String, content: String, isBinary: Bool)
+
+        var id: String {
+            switch self {
+            case .newBucket: return "newBucket"
+            case .upload: return "upload"
+            case .viewer(let key, _, _): return "viewer-\(key)"
+            }
+        }
+    }
+
     @StateObject private var model: S3BrowserModel
-    @State private var showNewBucket = false
+    @State private var activeSheet: ActiveSheet?
     @State private var newBucketName = ""
-    @State private var showUpload = false
     @State private var uploadKey = ""
     @State private var uploadContent = ""
-    @State private var showViewer = false
-    @State private var viewerKey: String?
-    @State private var viewerContent = ""
 
     init(connection: S3Connection) {
         self.connection = connection
@@ -132,23 +157,47 @@ struct S3BrowserView: View {
             .navInlineTitle()
             .task { await model.loadBuckets() }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Stäng") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    switch model.level {
+                    case .buckets:
+                        Button("Stäng") { dismiss() }
+                    case .objects:
+                        // Alltid synlig oavsett tom/laddar/fel-tillstånd
+                        // (CodeRabbit-fynd, #119 — tidigare satt bara i
+                        // Listans safeAreaInset, försvann i de andra
+                        // tillstånden och lämnade ingen väg tillbaka utom
+                        // att stänga hela sheeten).
+                        Button {
+                            model.level = .buckets
+                            Task { await model.loadBuckets() }
+                        } label: {
+                            Label("Buckets", systemImage: "chevron.left")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     switch model.level {
                     case .buckets:
-                        Button { newBucketName = ""; showNewBucket = true } label: {
+                        Button { newBucketName = ""; activeSheet = .newBucket } label: {
                             Image(systemName: "plus")
                         }
                     case .objects:
-                        Button { uploadKey = ""; uploadContent = ""; showUpload = true } label: {
+                        Button { uploadKey = ""; uploadContent = ""; activeSheet = .upload } label: {
                             Image(systemName: "square.and.arrow.up")
                         }
                     }
                 }
             }
-            .sheet(isPresented: $showNewBucket) { newBucketSheet }
-            .sheet(isPresented: $showUpload) { uploadSheet }
-            .sheet(isPresented: $showViewer) { viewerSheet }
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .newBucket:
+                    newBucketSheet
+                case .upload:
+                    uploadSheet
+                case .viewer(let key, let content, let isBinary):
+                    viewerSheet(key: key, initialContent: content, isBinary: isBinary)
+                }
+            }
         }
     }
 
@@ -201,26 +250,20 @@ struct S3BrowserView: View {
                         }
                     }
                 }
-                .safeAreaInset(edge: .bottom) {
-                    Button {
-                        model.level = .buckets
-                        Task { await model.loadBuckets() }
-                    } label: {
-                        Label("Tillbaka till buckets", systemImage: "chevron.left")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .padding()
-                }
             }
         }
     }
 
     private func openViewer(bucket: String, key: String) async {
-        if let text = await model.download(bucket: bucket, key: key) {
-            viewerContent = text
-            viewerKey = key
-            showViewer = true
+        guard let result = await model.download(bucket: bucket, key: key) else { return }
+        switch result {
+        case .text(let text):
+            activeSheet = .viewer(key: key, content: text, isBinary: false)
+        case .binary(let sizeBytes):
+            activeSheet = .viewer(
+                key: key,
+                content: "(binärt innehåll, \(sizeBytes) bytes — kan inte visas eller redigeras som text)",
+                isBinary: true)
         }
     }
 
@@ -233,13 +276,13 @@ struct S3BrowserView: View {
             .navigationTitle("Ny bucket")
             .navInlineTitle()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { showNewBucket = false } }
+                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { activeSheet = nil } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Skapa") {
                         let name = newBucketName.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !name.isEmpty else { return }
                         Task { await model.createBucket(name) }
-                        showNewBucket = false
+                        activeSheet = nil
                     }
                     .disabled(newBucketName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -264,14 +307,14 @@ struct S3BrowserView: View {
             .navigationTitle("Ladda upp objekt")
             .navInlineTitle()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { showUpload = false } }
+                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { activeSheet = nil } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Ladda upp") {
                         guard case .objects(let bucket) = model.level else { return }
                         let key = uploadKey.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !key.isEmpty else { return }
                         Task { await model.upload(bucket: bucket, key: key, content: uploadContent) }
-                        showUpload = false
+                        activeSheet = nil
                     }
                     .disabled(uploadKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -279,29 +322,73 @@ struct S3BrowserView: View {
         }
     }
 
-    private var viewerSheet: some View {
-        NavigationStack {
-            TextEditor(text: $viewerContent)
-                .font(.system(.footnote, design: .monospaced))
-                .noAutocap().autocorrectionDisabled()
-                .padding()
-                .navigationTitle(viewerKey ?? "")
-                .navInlineTitle()
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Stäng") { showViewer = false } }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Spara ändringar") {
-                            guard case .objects(let bucket) = model.level, let key = viewerKey else { return }
-                            Task { await model.upload(bucket: bucket, key: key, content: viewerContent) }
-                            showViewer = false
-                        }
-                    }
-                }
-        }
+    private func viewerSheet(key: String, initialContent: String, isBinary: Bool) -> some View {
+        S3ObjectViewerSheet(
+            key: key,
+            initialContent: initialContent,
+            isBinary: isBinary,
+            onSave: { content in
+                guard case .objects(let bucket) = model.level else { return }
+                Task { await model.upload(bucket: bucket, key: key, content: content) }
+                activeSheet = nil
+            },
+            onCancel: { activeSheet = nil }
+        )
     }
 
     static func formatBytes(_ n: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: n, countStyle: .binary)
+    }
+}
+
+/// Egen vy (inte bara en beräknad `body`-egenskap) eftersom den behöver sin
+/// egen `@State` för det redigerbara innehållet, initierat från parametrar —
+/// samma mönster som `WireGuardProfileEditView`.
+private struct S3ObjectViewerSheet: View {
+    let key: String
+    let isBinary: Bool
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+
+    @State private var content: String
+
+    init(key: String, initialContent: String, isBinary: Bool, onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        self.key = key
+        self.isBinary = isBinary
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self._content = State(wrappedValue: initialContent)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 0) {
+                if isBinary {
+                    // CodeRabbit-fynd, #119: binärt innehåll visas bara som
+                    // en platshållartext (kan inte avkodas som UTF8) — spara
+                    // MÅSTE vara avstängt här, annars skriver "Spara
+                    // ändringar" tyst över det RIKTIGA binära innehållet med
+                    // den här platshållarsträngen.
+                    Text("Skrivskyddat — binärt innehåll kan inte redigeras och sparas som text.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .padding()
+                }
+                TextEditor(text: $content)
+                    .disabled(isBinary)
+                    .font(.system(.footnote, design: .monospaced))
+                    .noAutocap().autocorrectionDisabled()
+                    .padding(isBinary ? [.horizontal, .bottom] : .all)
+            }
+            .navigationTitle(key)
+            .navInlineTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Stäng") { onCancel() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Spara ändringar") { onSave(content) }
+                        .disabled(isBinary)
+                }
+            }
+        }
     }
 }
 
@@ -391,9 +478,15 @@ struct S3ConnectionEditView: View {
         self._secretAccessKey = State(wrappedValue: connection.secretAccessKey)
     }
 
+    /// `URL(string:)` accepterar ogiltiga värden som "s3.example.com" (inget
+    /// schema) — sparas ett sådant slår `S3BrowserModel.init`s fallback till
+    /// `https://localhost` in, vilket ger förvirrande anslutningsfel mot
+    /// localhost istället för ett tydligt valideringsfel (CodeRabbit-fynd,
+    /// #119). Kräv schema OCH host uttryckligen.
     private var canSave: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && URL(string: endpoint) != nil
+        guard let url = URL(string: endpoint), let scheme = url.scheme, !scheme.isEmpty,
+              let host = url.host, !host.isEmpty else { return false }
+        return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !accessKeyID.isEmpty
             && !secretAccessKey.isEmpty
     }
