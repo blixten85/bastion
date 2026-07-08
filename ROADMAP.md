@@ -70,12 +70,17 @@ delvis andra, av konkreta skäl:
    **App Store-listningsnamn ≠ projektnamn**: "Bastion" som exakt App
    Store-namn var upptaget av en annan app (ingen hittad mjukvaru-
    varumärkeskonflikt vid kontroll — bara en namnkrock på plattformen).
-   Löst genom att använda **`WABL SSH`** som det FORMELLA App Store-
-   listningsnamnet — rent tekniskt, påverkar INGET annat: repo, kodbas,
-   bundle-ID (`se.denied.bastion`), README/VISION.md-varumärket och hur
-   alla faktiskt pratar om projektet förblir **"Bastion"** oförändrat.
-   Skulle någon framtida ändring beröra `CFBundleDisplayName` eller annan
-   App Store-metadata, kom ihåg den här distinktionen.
+   Löst genom `WABL SSH` som ett första FORMELLT App Store-listningsnamn,
+   sedan bytt igen 2026-07-08 till **`Pantalongen`** (ägarbeslut) — satt
+   direkt via App Store Connect API:t (`Spaceship::ConnectAPI::
+   AppInfoLocalization#update`, samma autentisering som testflight.yml
+   redan använder, `en-GB`-lokaliseringen — appen registrerades med den
+   som primärt språk, inte `en-US`). Rent tekniskt, påverkar INGET annat:
+   repo, kodbas, bundle-ID (`se.denied.bastion`), README/VISION.md-
+   varumärket och hur alla faktiskt pratar om projektet förblir
+   **"Bastion"** oförändrat. Skulle någon framtida ändring beröra
+   `CFBundleDisplayName` eller annan App Store-metadata, kom ihåg den
+   här distinktionen.
    CI-vägen förberedd: `.github/workflows/testflight.yml` (manuell knapp)
    + `App/fastlane/Fastfile` bygger, signerar helt automatiskt (ingen
    manuell certifikat-/provisioning-hantering) och laddar upp till
