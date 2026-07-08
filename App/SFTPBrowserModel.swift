@@ -12,6 +12,18 @@ final class SFTPBrowserModel: ObservableObject {
     @Published var entries: [SFTPNameEntry] = []
     @Published var errorMessage: String?
     @Published var loading = false
+    @Published var editingFile: EditingFile?
+
+    struct EditingFile: Identifiable {
+        let path: String
+        var content: String
+        /// Data gick inte att avkoda som UTF8 — spara MÅSTE vara avstängt
+        /// för det här fallet (samma lärdom som S3-lagringsvyn, #119: annars
+        /// skriver "Spara" tyst över det riktiga binära innehållet med en
+        /// platshållarsträng).
+        let isBinary: Bool
+        var id: String { path }
+    }
 
     private let request: ConnectRequest
     private var session: SSHSession?
@@ -100,9 +112,37 @@ final class SFTPBrowserModel: ObservableObject {
     }
 
     func open(_ entry: SFTPNameEntry) async {
-        guard entry.attributes.isDirectory else { return }
-        currentPath = joined(entry.filename)
-        await refresh()
+        if entry.attributes.isDirectory {
+            currentPath = joined(entry.filename)
+            await refresh()
+            return
+        }
+        guard let client = await ensureClient() else { return }
+        let path = joined(entry.filename)
+        do {
+            let bytes = try await client.readFile(path)
+            if let text = String(bytes: bytes, encoding: .utf8) {
+                editingFile = EditingFile(path: path, content: text, isBinary: false)
+            } else {
+                editingFile = EditingFile(
+                    path: path,
+                    content: "(binärt innehåll, \(bytes.count) bytes — kan inte visas eller redigeras som text)",
+                    isBinary: true)
+            }
+        } catch {
+            errorMessage = "\(error)"
+        }
+    }
+
+    func saveEditingFile() async {
+        guard let file = editingFile, !file.isBinary else { return }
+        guard let client = await ensureClient() else { return }
+        do {
+            try await client.writeFile(file.path, data: Array(file.content.utf8))
+            editingFile = nil
+        } catch {
+            errorMessage = "\(error)"
+        }
     }
 
     var canNavigateUp: Bool { currentPath != "." }

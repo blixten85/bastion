@@ -2,10 +2,9 @@
 import SwiftUI
 import SSHCore
 
-/// SFTP-filhanterare — bläddra, skapa mapp, döp om, ta bort. Fas D i
-/// ROADMAP.md. Förhandsvisning/textredigering/Drag & Drop/chmod/Zip-Tar är
-/// medvetet uppskjutet till ett senare steg; det här är den första,
-/// användbara versionen (motsvarar en enkel Finder/Files-lista).
+/// SFTP-filhanterare — bläddra, skapa mapp, döp om, ta bort, redigera
+/// textfiler. Fas D i ROADMAP.md. Förhandsvisning/Drag & Drop/chmod/
+/// Zip-Tar är fortfarande medvetet uppskjutet.
 struct SFTPBrowserView: View {
     @StateObject private var model: SFTPBrowserModel
     @State private var renaming: SFTPNameEntry?
@@ -70,6 +69,16 @@ struct SFTPBrowserView: View {
             }
             Button("Avbryt", role: .cancel) { renaming = nil }
         }
+        .sheet(item: $model.editingFile) { file in
+            SFTPFileEditorView(
+                file: file,
+                onSave: { newContent in
+                    model.editingFile?.content = newContent
+                    Task { await model.saveEditingFile() }
+                },
+                onCancel: { model.editingFile = nil }
+            )
+        }
     }
 
     private var list: some View {
@@ -112,8 +121,51 @@ struct SFTPBrowserView: View {
             }
             .contentShape(Rectangle())
         }
-        .disabled(!isDir)
         .buttonStyle(.plain)
+    }
+}
+
+/// Egen vy (inte bara en beräknad `body`-egenskap) eftersom den behöver sin
+/// egen `@State` för det redigerbara innehållet, initierat från parametrar —
+/// samma mönster som S3-lagringsvyns `S3ObjectViewerSheet`.
+private struct SFTPFileEditorView: View {
+    let file: SFTPBrowserModel.EditingFile
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+
+    @State private var content: String
+
+    init(file: SFTPBrowserModel.EditingFile, onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        self.file = file
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self._content = State(wrappedValue: file.content)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 0) {
+                if file.isBinary {
+                    Text("Skrivskyddat — binärt innehåll kan inte redigeras och sparas som text.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .padding()
+                }
+                TextEditor(text: $content)
+                    .disabled(file.isBinary)
+                    .font(.system(.footnote, design: .monospaced))
+                    .noAutocap().autocorrectionDisabled()
+                    .padding(file.isBinary ? [.horizontal, .bottom] : .all)
+            }
+            .navigationTitle((file.path as NSString).lastPathComponent)
+            .navInlineTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Stäng") { onCancel() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Spara") { onSave(content) }
+                        .disabled(file.isBinary)
+                }
+            }
+        }
     }
 }
 #endif
