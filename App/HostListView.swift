@@ -110,6 +110,8 @@ struct HostListView: View {
     @State private var showImport = false
     @State private var showAppLock = false
     @State private var showWireGuard = false
+    @State private var showTailscale = false
+    @State private var pendingHostFromDiscovery: Host?
     @State private var searchText = ""
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
@@ -149,6 +151,7 @@ struct HostListView: View {
                         Button { showImport = true } label: { Label("Importera ssh-config", systemImage: "square.and.arrow.down") }
                         Button { showAppLock = true } label: { Label("App-lås", systemImage: "faceid") }
                         Button { showWireGuard = true } label: { Label("WireGuard-profiler", systemImage: "network.badge.shield.half.filled") }
+                        Button { showTailscale = true } label: { Label("Tailscale-värdar", systemImage: "point.3.filled.connected.trianglepath.dotted") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -173,6 +176,23 @@ struct HostListView: View {
             }
             .sheet(isPresented: $showWireGuard) {
                 WireGuardProfileListView()
+            }
+            .sheet(isPresented: $showTailscale, onDismiss: {
+                // Sätts INTE direkt i onAddHost — den sheeten är fortfarande
+                // på väg att stängas då, och att sätta $editing samtidigt
+                // krockar med SwiftUIs single-sheet-hantering (CodeRabbit-
+                // fynd, #115). Vänta tills Tailscale-sheeten faktiskt stängt.
+                if let pending = pendingHostFromDiscovery {
+                    pendingHostFromDiscovery = nil
+                    editing = pending
+                }
+            }) {
+                TailscaleDiscoveryView(
+                    hosts: model.hosts,
+                    onAddHost: { alias, hostName in
+                        pendingHostFromDiscovery = Host(alias: alias, hostName: hostName, user: "")
+                    }
+                )
             }
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager)
