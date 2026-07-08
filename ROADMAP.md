@@ -216,11 +216,18 @@ delvis andra, av konkreta skäl:
     bara att sluta FRÅGA efter det (`.askPassword` → `.keyFile`); LinuxApp
     sparade aldrig själva lösenordsvärdet till att börja med. Byggd + körd
     (Xvfb), rent utan krasch.
-  - **Kvar**: samma flöde i `App/` (iOS/macOS, Xcode-only) — där finns en
-    riktig Keychain-hemlighet att faktiskt radera efter grönt ljus, till
-    skillnad från LinuxApp. Ingen import/export-UI (nyckelgenerering/-export
-    finns bara som SSHCore-API än, ingen "klistra in befintlig nyckel och
-    deploya den"-knapp).
+  - **App/-flödet klart** (2026-07-08, `App/KeyDeployView.swift`): samma
+    generera→deploya→verifiera-ordning, men lagrar nyckeln i Keychain
+    (`.keychainKey`, samma ID-schema `host-key-<uuid>` som `HostEditView`
+    redan använder för manuellt importerade nycklar) istället för en fil på
+    disk — det mer iOS-idiomatiska valet, till skillnad från LinuxApp som
+    saknar Keychain-åtkomst. Ny "SSH-nyckel"-post i `HostDetailView`s meny.
+    Kan inte byggas/verifieras här (Xcode-only) — verifieras av
+    `xcode.yml`-CI:t.
+  - **Kvar**: en "klistra in en befintlig nyckel och DEPLOYA den till en ny
+    server"-knapp — skiljer sig från `HostEditView`s importflöde (som bara
+    använder en redan existerande nyckel för AUTENTISERING, aldrig
+    installerar den publika halvan på fjärrsidan).
 - **App-ikon + launch screen**: `App/Assets.xcassets` (genererad från en SVG med
   `rsvg-convert`, opak PNG utan alfakanal enligt Apples krav — alla iOS- och
   macOS-storlekar) + en mörk `LaunchBackground`-färg som matchar ikonen.

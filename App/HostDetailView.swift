@@ -6,6 +6,10 @@ import SSHCore
 struct HostDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let request: ConnectRequest
+    // Egen instans, precis som HostListView.swift — HostStore är en tunn,
+    // trådsäker JSON-fil-backad databas, ingen delad singleton krävs för
+    // en enstaka upsert().
+    private let store = HostStore()
     /// Stänger (kopplar från) den här sessionen helt — skiljer sig från
     /// "Klar" (`dismiss()`), som bara tar bort den ur sikte och lämnar den
     /// ansluten i bakgrunden. `nil` när vyn inte ingår i en flikväxlare
@@ -49,6 +53,11 @@ struct HostDetailView: View {
                             }
                             NavigationLink { PortForwardView(request: request) } label: {
                                 Label("Portvidarebefordran", systemImage: "arrow.left.arrow.right")
+                            }
+                            NavigationLink {
+                                KeyDeployView(request: request) { updated in store.upsert(updated) }
+                            } label: {
+                                Label("SSH-nyckel", systemImage: "key")
                             }
                             if let onClose {
                                 Button(role: .destructive) { onClose() } label: {
