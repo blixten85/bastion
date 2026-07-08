@@ -81,12 +81,49 @@ delvis andra, av konkreta skäl:
    **"Bastion"** oförändrat. Skulle någon framtida ändring beröra
    `CFBundleDisplayName` eller annan App Store-metadata, kom ihåg den
    här distinktionen.
-   CI-vägen förberedd: `.github/workflows/testflight.yml` (manuell knapp)
-   + `App/fastlane/Fastfile` bygger, signerar helt automatiskt (ingen
-   manuell certifikat-/provisioning-hantering) och laddar upp till
-   TestFlight — ingen lokal Mac behövs. Ruby-/fastlane-syntaxen är
-   verifierad (`ruby -c`), men aldrig körd på riktigt än — kräver
-   macOS-runnern + riktiga nycklar för det sista beviset.
+
+   **App/-koden bevisad bygga på riktig Xcode** (2026-07-08, en hyrd
+   MacInCloud-session): `xcodegen generate` + `xcodebuild -destination
+   'generic/platform=iOS Simulator' build` → **BUILD SUCCEEDED**, första
+   gången någonsin. (Krävde en separat nedladdning av Metal Toolchain,
+   `xcodebuild -downloadComponent MetalToolchain` — Xcode 26.5 bundlar
+   den inte längre, SwiftTerms Metal-shader kompilerar annars inte.)
+
+   **TestFlight-signeringssagan, löst (2026-07-08)**: åtta riktiga
+   `testflight.yml`-körningar (2026-07-07/08) misslyckades alla med
+   varianter av "No profile ... found"/"No signing certificate ... found".
+   Rotorsak, till slut bekräftad via App Store Connect API:t direkt:
+   `-allowProvisioningUpdates` skapade ALDRIG ett distributionscertifikat
+   på den engångskörda CI-runnern — bara ett utvecklingscertifikat, om
+   ens det. Löst genom att helt byta signeringsmodell till `fastlane
+   match` (readonly i CI): certifikat+profil skapas EN gång, sparas
+   krypterat i det nya privata repot `blixten85/bastion-certificates`
+   (`MATCH_PASSWORD`-skyddat, `MATCH_DEPLOY_KEY` skrivbehörig deploy key
+   avgränsad till bara det repot). `App/project.yml`s Release-
+   `PROVISIONING_PROFILE_SPECIFIER` bytt till `match AppStore
+   se.denied.bastion` (matchs egen namngivningskonvention) från det
+   påhittade "Bastion App Store" som `-allowProvisioningUpdates` aldrig
+   lyckades skapa.
+
+   Bootstrap-steget (`fastlane match ... readonly: false`, den ENDA
+   gången ett nytt certifikat/profil behöver skapas) visade sig kräva en
+   RIKTIG Mac med en INLOGGAD GUI-session — `security`/Keychain-
+   operationer (`SecKeychainItemImport`) vägrar interagera över ren SSH
+   utan fönsterserver, oavsett rätt lösenord. Löstes med: (1) en egen,
+   fristående Keychain (`security create-keychain`, inte inloggnings-
+   Keychain, som verkar ha en extra begränsning specifik för det här
+   hyrda kontot) + (2) `git config --global user.email/user.name` (saknades
+   helt på den hyrda maskinen, blockerade den sista `git push` in i
+   certifikatförvaret). Träffade Apples gräns för antal distributions-
+   certifikat en gång under felsökningen (många omförsök skapade fem
+   föräldralösa certifikat) — städat, ett rent bootstrap-försök lyckades
+   sedan hela vägen: **`fastlane.tools finished successfully`**,
+   verifierat att `certs/`/`profiles/` faktiskt commitades till
+   `bastion-certificates`.
+
+   `.github/workflows/testflight.yml` uppdaterad att sätta upp
+   `MATCH_DEPLOY_KEY`/`MATCH_PASSWORD` innan `fastlane beta` körs. Nästa
+   riktiga körning ska verifiera hela kedjan end-to-end.
 3. **Windows-GUI via `WinUIBackend`** — påbörjad och blockerad av två
    bekräftade uppströmsbuggar i swift-nio, inte något i Bastions egen kod.
    `WindowsApp/` (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs
