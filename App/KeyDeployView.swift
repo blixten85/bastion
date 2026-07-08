@@ -50,7 +50,12 @@ final class KeyDeployModel: ObservableObject {
     }
 
     func deployAndVerify() async {
-        guard let key = generatedKey else { return }
+        // Samma vakt som generate() — utan den kan ett andra, samtidigt
+        // anrop (t.ex. dubbel-aktivering via tillgänglighetsverktyg) starta
+        // en till SSH-session som kör race mot samma @Published-tillstånd
+        // (CodeRabbit-fynd, #126). Knappens `.disabled(model.busy)` räcker
+        // inte ensamt — den är UI-lagret, inte en garanti.
+        guard !busy, let key = generatedKey else { return }
         busy = true
         deployed = false
         verified = false

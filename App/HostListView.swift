@@ -200,7 +200,7 @@ struct HostListView: View {
                 S3ConnectionListView()
             }
             .cover(isPresented: $showSessions) {
-                MultiSessionView(manager: sessionManager)
+                MultiSessionView(manager: sessionManager, store: store)
             }
             // Sista fliken stängd -> tillbaka till värdlistan automatiskt,
             // inte kvar på en tom flikväxlare.

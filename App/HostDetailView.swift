@@ -6,10 +6,15 @@ import SSHCore
 struct HostDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let request: ConnectRequest
-    // Egen instans, precis som HostListView.swift — HostStore är en tunn,
-    // trådsäker JSON-fil-backad databas, ingen delad singleton krävs för
-    // en enstaka upsert().
-    private let store = HostStore()
+    // Injicerad, INTE en egen `HostStore()`-instans — en fristående instans
+    // läser en FÄRSK disksnapshot vid skapandet, och `upsert()` skriver
+    // tillbaka HELA den snapshotten. Eftersom `HostDetailView` är ett
+    // värdetyp-struct som SwiftUI kan återskapa ofta (varje gång
+    // föräldravyn ritas om) skulle en egen instans läsa in en potentiellt
+    // inaktuell kopia och sedan skriva över en samtidig ändring gjord via
+    // HostListViews instans (CodeRabbit-fynd, #126). Samma instans som
+    // HostListView.swift delas hela vägen ner via MultiSessionView istället.
+    let store: HostStore
     /// Stänger (kopplar från) den här sessionen helt — skiljer sig från
     /// "Klar" (`dismiss()`), som bara tar bort den ur sikte och lämnar den
     /// ansluten i bakgrunden. `nil` när vyn inte ingår i en flikväxlare
