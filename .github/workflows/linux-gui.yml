@@ -71,3 +71,8 @@ jobs:
         run: |
           cd LinuxApp
           swift build --product bastion-gui
+
+      - name: Testa bastion-gui (TerminalBuffer m.fl.)
+        run: |
+          cd LinuxApp
+          swift test
