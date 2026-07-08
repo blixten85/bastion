@@ -112,6 +112,7 @@ struct HostListView: View {
     @State private var showWireGuard = false
     @State private var showTailscale = false
     @State private var pendingHostFromDiscovery: Host?
+    @State private var showS3 = false
     @State private var searchText = ""
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
@@ -152,6 +153,7 @@ struct HostListView: View {
                         Button { showAppLock = true } label: { Label("App-lås", systemImage: "faceid") }
                         Button { showWireGuard = true } label: { Label("WireGuard-profiler", systemImage: "network.badge.shield.half.filled") }
                         Button { showTailscale = true } label: { Label("Tailscale-värdar", systemImage: "point.3.filled.connected.trianglepath.dotted") }
+                        Button { showS3 = true } label: { Label("S3-lagring", systemImage: "externaldrive.badge.icloud") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -193,6 +195,9 @@ struct HostListView: View {
                         pendingHostFromDiscovery = Host(alias: alias, hostName: hostName, user: "")
                     }
                 )
+            }
+            .sheet(isPresented: $showS3) {
+                S3ConnectionListView()
             }
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager)
