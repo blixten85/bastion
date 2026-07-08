@@ -69,19 +69,3 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/match_deploy_key -o IdentitiesOnly=yes"
         run: bundle exec fastlane beta
-
-      # TILLFÄLLIGT diagnostikst​eg (2026-07-08) — "Couldn't find platform
-      # family for Bastion.app ... CFBundleSupportedPlatforms" kvarstår
-      # trots att App/Info.plist har nyckeln. Forumtrådar pekar mot att
-      # felet ofta kommer från ett INBÄDDAT resurspaket (t.ex. SwiftTerms
-      # egna SPM-genererade .bundle), inte appens egen Info.plist — kan
-      # inte verifieras utan att faktiskt se innehållet i .xcarchive.
-      # Ta bort det här steget igen när felet är löst.
-      - name: Ladda upp .xcarchive för diagnos (vid fel)
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: bastion-xcarchive-debug
-          path: ~/Library/Developer/Xcode/Archives/**/*.xcarchive
-          retention-days: 3
-          if-no-files-found: warn

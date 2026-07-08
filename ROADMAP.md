@@ -62,7 +62,13 @@ delvis andra, av konkreta skäl:
    `SyncProvider`-implementationerna (Dropbox/Google Drive/OneDrive) är skrivna
    men aldrig byggda (Xcode-only, kan inte kompileras på Linux). Kräver ett
    registrerat klient-ID per leverantör (se README "Konton") för att testas på riktigt.
-2. **Få appen på en riktig iPhone** — 🧩 påbörjad, 2026-07-07. Apple Developer
+2. **Få appen på en riktig iPhone (TestFlight)** — ✅ KLART, 2026-07-08.
+   Fjortonde riktiga `testflight.yml`-körningen lyckades helt: byggd,
+   signerad och uppladdad — "Successfully uploaded the new binary to App
+   Store Connect", verifierat äkta genom att leta upp den exakta raden i
+   CI-loggen (inte bara "jobbet blev grönt"). Historik nedan.
+
+   Apple Developer
    Program-kontot aktivt. Alla fyra TestFlight-secrets satta (`APP_STORE_
    CONNECT_TEAM_ID`/`KEY_ID`/`ISSUER_ID`/`KEY_CONTENT`, App Store Connect
    API-nyckel med rollen App Manager, "Bastion CI"). App-ID (`se.denied.
@@ -122,8 +128,43 @@ delvis andra, av konkreta skäl:
    `bastion-certificates`.
 
    `.github/workflows/testflight.yml` uppdaterad att sätta upp
-   `MATCH_DEPLOY_KEY`/`MATCH_PASSWORD` innan `fastlane beta` körs. Nästa
-   riktiga körning ska verifiera hela kedjan end-to-end.
+   `MATCH_DEPLOY_KEY`/`MATCH_PASSWORD` innan `fastlane beta` körs.
+
+   **Tre sista, distinkta fel innan grönt** (alla hittade genom att
+   faktiskt inspektera CI-loggar/artefakter, inte gissade i förväg —
+   ett tillfälligt `actions/upload-artifact`-diagnostiksteg i
+   `testflight.yml`, borttaget igen efter att sista felet löstes):
+   1. **`Info-macOS.plist` läckte in i iOS-appen.** `Bastion`
+      (iOS)-targetets `sources.excludes`-lista i `App/project.yml`
+      exkluderade aldrig macOS-motsvarighetens Info.plist (macOS-
+      targetet exkluderar omvänt redan iOS "Info.plist") — den bäddades
+      in RÅ (ingen `$(VARIABEL)`-substitution) som en extra resursfil.
+      Xcodes arkivvalidering skannar tydligen alla bäddade plist-
+      liknande filer, inte bara appens egen — den trasiga kopian gav
+      "Couldn't find platform family for Bastion.app", trots att
+      appens EGEN Info.plist redan hade en korrekt
+      `CFBundleSupportedPlatforms`.
+   2. **`UISupportedInterfaceOrientations`(`~ipad`) tystades ut under
+      arkiveringen.** Fanns i den råa `Info.plist`-filen men syntes
+      aldrig i den faktiskt byggda appen (verifierat genom att
+      inspektera den byggda plisten direkt) — Apple avvisade
+      uppladdningen: "Invalid bundle. No orientations were specified".
+      Fix: flyttade nycklarna till XcodeGens egna `info.properties`-
+      block i `project.yml` (samma mönster som redan fungerade
+      pålitligt för `CFBundleDisplayName`/`UILaunchScreen`/
+      `UIApplicationSceneManifest`) — bara nycklar satta DÄR verkar
+      garanterat överleva byggprocessen när `GENERATE_INFOPLIST_FILE`
+      är `NO`.
+   3. Efter dessa två: **fjortonde riktiga körningen, helt grön** —
+      "Successfully uploaded the new binary to App Store Connect."
+
+   Fjorton riktiga körningar totalt (2026-07-07/08) för att komma hela
+   vägen: fem olika, äkta rotorsaker hittade och fixade i tur och
+   ordning (saknat certifikat, saknad profil, fel profilnamn,
+   Keychain-interaktion/git-identitet vid bootstrap, två läckande/
+   tystade Info.plist-nycklar) — ingen av dem en gissning som råkade
+   fungera, alla verifierade direkt mot antingen App Store Connect
+   API:t eller det faktiska byggda innehållet.
 3. **Windows-GUI via `WinUIBackend`** — påbörjad och blockerad av två
    bekräftade uppströmsbuggar i swift-nio, inte något i Bastions egen kod.
    `WindowsApp/` (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs
