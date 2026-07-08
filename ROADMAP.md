@@ -934,6 +934,43 @@ Inget nytt att bygga, bara verifiera/lansera:
   för `TerminalBuffer` (upptäckt under arbetet — en tidigare sammanfattning
   påstod felaktigt 17 testfall; verifierat inte sant), så färgmatematiken
   verifierades manuellt (xterm-referensvärden: 196=röd, 46=grön, 21=blå,
-  232/255=gråskale-ändpunkter) + byggd/körd (Xvfb) utan krasch. **Kvar**:
-  Ligatures, musstöd. Terminalfärger i App/ (SwiftTerm) är opåverkade —
-  SwiftTerm har redan eget stöd för det här.
+  232/255=gråskale-ändpunkter) + byggd/körd (Xvfb) utan krasch.
+  **Testtäckning tillagd (2026-07-08)**: `TerminalBuffer` hade INGEN
+  testfil — README:ts "testad, se nedan" pekade på ingenting, och en
+  tidigare sammanfattning påstod felaktigt 17 testfall. Nytt testmål
+  `LinuxApp/Tests/bastion-guiTests/` (`.testTarget` som `@testable
+  import`:ar `.executableTarget`:et direkt, ingen omstrukturering
+  behövdes), 42 tester: markörflytt/radbrytning/scroll, CSI-radering
+  (J/K, alla lägen), SGR (grundfärger/bold/reset/256-färg/True Color,
+  xterm-referensvärdena 196=röd/46=grön/21=blå/232+255=gråskale-
+  ändpunkter kodade som riktiga assertions istället för bara manuellt
+  verifierade), trasiga/ofullständiga färgsekvenser (ska inte krascha),
+  escape-sekvens delad över två `feed()`-anrop. Hittade i processen en
+  smal, oadresserad kvirk: `newline()` (ren `\n`) återställer inte
+  `cursorCol` (korrekt VT100-beteende i sig — `\n` ska bara flytta
+  raden), men om markören redan står i "väntande radbrytning"-läge
+  (`cursorCol == cols`, efter att exakt ha fyllt en rad) ger nästa
+  tecken en extra oavsiktlig scroll. Träffar sällan i praktiken (riktiga
+  SSH-PTY:er skickar nästan alltid `\r\n` ihop, termios `ONLCR`), men
+  inte fixat — dokumenterat här istället för en oövervägd
+  beteendeändring. `swift test` i `LinuxApp/` kräver samma
+  `-rpath-link`-tillägg som `swift build` (se README).
+  **Musstöd/ligaturer, undersökt och avfört (2026-07-08)**: BÅDA blockerade
+  av samma klass SwiftCrossUI-begränsning. Musstöd: `onTapGesture` ger
+  ingen klickposition alls (bara en tom callback), och det finns ingen
+  `DragGesture`/scrollhjuls-API i det publika API:t — SGR-musrapportering
+  kräver exakt kolumn/rad + tryck/släpp + knappnummer, ingetdera går att
+  få ut. Ligaturer: `Font.Resolved.Identifier` har bara EN identifierare
+  (`.system`) — inget sätt att välja ett namngivet typsnitt (t.ex. Fira
+  Code) via den publika API:n. En kringgång EXISTERAR (`Gtk`-paketet som
+  swift-cross-ui redan beror på exponerar `CSSProvider`/rå CSS, skulle gå
+  att lägga till som eget beroende i `LinuxApp/Package.swift`), men kräver
+  dels att gå runt SwiftCrossUIs abstraktion helt, dels ett overifierat
+  antagande (att Pango faktiskt tillämpar `liga`/`calt`-ligaturer på en
+  `GtkLabel` utan extra Pango-attributnivå-kod som inte är åtkomlig genom
+  Swift-bindningen), dels ett installerat ligatur-typsnitt på målmaskinen
+  — bedömt för bräckligt för att bygga blint. Kräver antingen en
+  uppströms SwiftCrossUI-funktion (riktig gest-position-API, namngivet
+  typsnitt-API) eller ett byte av renderingslager för att göra rätt.
+  Terminalfärger i App/ (SwiftTerm) är opåverkade av allt ovan — SwiftTerm
+  har redan eget stöd för både musrapportering och ligaturer.

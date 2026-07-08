@@ -27,6 +27,16 @@ let package = Package(
                 // Gtk + CGtk, inga sådana problem.
                 .product(name: "GtkBackend", package: "swift-cross-ui"),
             ]
-        )
+        ),
+        // Ett `.testTarget` kan `@testable import` ett `.executableTarget`
+        // direkt (Swift 5.5+) — ingen omstrukturering till ett separat
+        // bibliotekstarget krävs bara för att kunna testa.
+        .testTarget(
+            name: "bastion-guiTests",
+            dependencies: [
+                "bastion-gui",
+                .product(name: "SwiftCrossUI", package: "swift-cross-ui"),
+            ]
+        ),
     ]
 )

@@ -141,7 +141,7 @@ LinuxApp/              EGET SwiftPM-paket (se "Bygg Linux-GUI:t" — varför det
   ImportConfigView.swift Klistra in ssh-config för import
   HostDetailView.swift   Lösenordsgrind + dashboard + terminal för vald värd
   DashboardView.swift    Samma auto-poll-modell som App/, SwiftCrossUI-vyer
-  TerminalBuffer.swift   Egen VT100/ANSI-tolk (markör, SGR-färg, radering) — testad, se nedan
+  TerminalBuffer.swift   Egen VT100/ANSI-tolk (markör, SGR-färg, radering) — 42 tester i Tests/bastion-guiTests/
   TerminalGridView.swift Renderar buffern som hopslagna Text-körningar (ingen Canvas i SwiftCrossUI)
   TerminalSessionView.swift Bestående PTY-shell + radvis input + kontrollknappar (piltangenter/Home/End/PgUp/PgDn/Ctrl+C/Tab/Esc)
   DockerView.swift       Docker: lista/start/stopp/omstart/logg/shell — motsvarar App/DockerView.swift
@@ -203,6 +203,11 @@ cd LinuxApp
 swift build --product bastion-gui         # med en toolchain där buggen är fixad
 ./.build/debug/bastion-gui
 ```
+
+`swift test` funkar likadant (`bastion-guiTests`, `@testable import bastion_gui`
+— ett testmål kan importera ett `.executableTarget` direkt, ingen omstrukturering
+till ett bibliotekstarget krävs). Om `S3Client`/`FoundationXML` är inbyggt, se
+`-rpath-link`-tillägget nedan — det behövs för både `build` och `test`.
 
 Beror på `GtkBackend` direkt i stället för `DefaultBackend` (se kommentar i
 `LinuxApp/Package.swift`) — `DefaultBackend`s plattformsvillkorade
