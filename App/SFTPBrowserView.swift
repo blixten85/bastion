@@ -16,12 +16,18 @@ struct SFTPBrowserView: View {
         case chmod(SFTPNameEntry)
         case chown(SFTPNameEntry)
         case compress(SFTPNameEntry)
+        /// Textredigeraren hörde tidigare till en EGEN, separat
+        /// `.sheet(item: $model.editingFile)` på samma vy — exakt den
+        /// presentatörskrock den här enumen skulle undvika, bara missad
+        /// för det HÄR fallet (CodeRabbit-fynd, #125).
+        case editor(SFTPBrowserModel.EditingFile)
 
         var id: String {
             switch self {
             case .chmod(let e): return "chmod-\(e.filename)"
             case .chown(let e): return "chown-\(e.filename)"
             case .compress(let e): return "compress-\(e.filename)"
+            case .editor(let f): return "editor-\(f.path)"
             }
         }
     }
@@ -90,18 +96,27 @@ struct SFTPBrowserView: View {
             }
             Button("Avbryt", role: .cancel) { renaming = nil }
         }
-        .sheet(item: $model.editingFile) { file in
-            SFTPFileEditorView(
-                file: file,
-                onSave: { newContent in
-                    model.editingFile?.content = newContent
-                    Task { await model.saveEditingFile() }
-                },
-                onCancel: { model.editingFile = nil }
-            )
+        // model.editingFile sätts av model.open() (modell-drivet) — speglas
+        // in i den GEMENSAMMA sheet-presentatören nedan istället för en
+        // egen `.sheet(item:)` på samma vy, se ActiveFileAction.editor.
+        .onChange(of: model.editingFile) { _, newValue in
+            if let newValue { activeFileAction = .editor(newValue) }
         }
         .sheet(item: $activeFileAction) { action in
             switch action {
+            case .editor(let file):
+                SFTPFileEditorView(
+                    file: file,
+                    onSave: { newContent in
+                        model.editingFile?.content = newContent
+                        activeFileAction = nil
+                        Task { await model.saveEditingFile() }
+                    },
+                    onCancel: {
+                        activeFileAction = nil
+                        model.editingFile = nil
+                    }
+                )
             case .chmod(let entry):
                 ChmodSheet(entry: entry, onSave: { mode in
                     activeFileAction = nil

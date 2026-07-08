@@ -26,13 +26,32 @@ public enum ArchiveOperations {
         "cd \(shellQuote(directory)) && tar xzf \(shellQuote(archiveName))"
     }
 
+    /// `zip`, till skillnad från `tar -f`, tar arkivnamnet som ett RENT
+    /// positionellt argument — inte kopplat till en flagga som konsumerar
+    /// sitt värde oavsett innehåll. Två separata, EMPIRISKT verifierade
+    /// (2026-07-08, CodeRabbit-fynd, #125) motmedel krävs därför:
+    /// 1. `--` FÖRE sökvägslistan (EFTER arkivnamnet — `zip` vägrar uttryckligen
+    ///    "-- before archive name") skyddar filnamn som börjar med `-`
+    ///    (t.ex. en fil döpt `-T`, som annars tolkas som zips egen
+    ///    testarkiv-flagga och ger "Nothing to do!" istället för att
+    ///    packas).
+    /// 2. `./`-prefix på arkivnamnet SJÄLVT (helt användarstyrt i UI:t)
+    ///    löser samma problem för namnet — `--` fungerar INTE där (zip
+    ///    vägrar starta), men `./-namn.zip` gör namnet otvetydigt till en
+    ///    sökväg istället för en flaggsträng.
     public static func createZipCommand(paths: [String], archiveName: String, in directory: String) -> String {
         let quotedPaths = paths.map(shellQuote).joined(separator: " ")
-        return "cd \(shellQuote(directory)) && zip -r -q \(shellQuote(archiveName)) \(quotedPaths)"
+        let safeArchiveName = "./" + archiveName
+        return "cd \(shellQuote(directory)) && zip -r -q \(shellQuote(safeArchiveName)) -- \(quotedPaths)"
     }
 
+    /// Samma `./`-prefix-behov som `createZipCommand` — `unzip` tolkar ett
+    /// arkivnamn som börjar med `-` som en flaggsträng, TYST (den skriver
+    /// bara ut sin hjälptext och avslutar med kod 0 — ser ut som en
+    /// lyckad körning men extraherar ingenting alls, verifierat
+    /// empiriskt, 2026-07-08).
     public static func extractZipCommand(archiveName: String, in directory: String) -> String {
-        "cd \(shellQuote(directory)) && unzip -o -q \(shellQuote(archiveName))"
+        "cd \(shellQuote(directory)) && unzip -o -q \(shellQuote("./" + archiveName))"
     }
 
     // MARK: - Körning över SSH

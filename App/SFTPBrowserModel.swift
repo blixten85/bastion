@@ -14,7 +14,7 @@ final class SFTPBrowserModel: ObservableObject {
     @Published var loading = false
     @Published var editingFile: EditingFile?
 
-    struct EditingFile: Identifiable {
+    struct EditingFile: Identifiable, Equatable {
         let path: String
         var content: String
         /// Data gick inte att avkoda som UTF8 — spara MÅSTE vara avstängt
