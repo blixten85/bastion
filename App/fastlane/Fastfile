@@ -41,6 +41,13 @@ platform :ios do
       xcodeproj: "Bastion.xcodeproj",
     )
 
+    # Skapar en TILLFÄLLIG Keychain och pekar match mot den — utan den
+    # här kan CI-runnern råka ut för samma Keychain-krångel som
+    # bootstrap-körningen gjorde på den hyrda Mac:en (CodeRabbit-fynd).
+    # `provider:` behövs inte för GitHub Actions — auto-detekteras via
+    # GITHUB_ACTIONS-miljövariabeln.
+    setup_ci if ENV["CI"]
+
     match(
       api_key: api_key,
       type: "appstore",
