@@ -1,0 +1,45 @@
+name: Android-bygge
+
+# Bygger Android/ (Kotlin/Gradle, Apache MINA SSHD som SSH-motor — se
+# BastionSshSession.kt) — eget Gradle-projekt, samma "eget paket"-princip
+# som LinuxApp/WindowsApp. Har saknat CI helt sedan grundarbetet (PR #108,
+# 2026-07-07): bara Renovate-versionsbumpar har rört Android/ sedan dess,
+# aldrig faktiskt byggverifierade. path-filtret nedan gör att workflowet
+# bara körs när Android/ faktiskt ändras.
+on:
+  push:
+    branches: [main]
+    paths: ["Android/**"]
+  pull_request:
+    branches: [main]
+    paths: ["Android/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: android-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Sätt upp JDK 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9  # v4.8.0
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Bygg + testa (gradlew build kör redan test via check-tasken)
+        run: |
+          cd Android
+          chmod +x gradlew
+          ./gradlew build --stacktrace
