@@ -20,10 +20,16 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+}
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+// kotlinOptions{jvmTarget} (KGP:s gamla android-plugin-DSL) är inte
+// registrerad utan det separata org.jetbrains.kotlin.android-pluginet,
+// trots att Googles egen migreringsguide (kotl.in/gradle/agp-built-in-kotlin)
+// säger att den ska vara bakåtkompatibel — verifierat fel empiriskt
+// (CI: "Unresolved reference 'kotlinOptions'"), inte antaget. jvmToolchain
+// är AGP 9:s inbyggda Kotlin-stöds egen, rekommenderade ersättning.
+kotlin {
+    jvmToolchain(17)
 }
 
 dependencies {
