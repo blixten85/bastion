@@ -69,6 +69,12 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # Samma tystnads-bugg som orienteringsnycklarna ovan: fanns redan i
+        # RÅA Info.plist (PR #140) men Build 2 (2026-07-09) visade ändå
+        # `uses_non_exempt_encryption: nil` / `MISSING_EXPORT_COMPLIANCE`
+        # via App Store Connect-API:t efter uppladdning — måste alltså
+        # även sättas HÄR för att faktiskt hamna i det byggda paketet.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: se.denied.bastion
