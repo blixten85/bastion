@@ -302,10 +302,18 @@ delvis andra, av konkreta skäl:
     saknar Keychain-åtkomst. Ny "SSH-nyckel"-post i `HostDetailView`s meny.
     Kan inte byggas/verifieras här (Xcode-only) — verifieras av
     `xcode.yml`-CI:t.
-  - **Kvar**: en "klistra in en befintlig nyckel och DEPLOYA den till en ny
-    server"-knapp — skiljer sig från `HostEditView`s importflöde (som bara
-    använder en redan existerande nyckel för AUTENTISERING, aldrig
-    installerar den publika halvan på fjärrsidan).
+  - **"Klistra in befintlig nyckel och deploya"-klart** (2026-07-09):
+    `KeyDeployModel.importExisting(pem:)` (LinuxApp OCH App/) — parsar
+    klistrad OpenSSH PEM-text (`OpenSSHPrivateKey.parse`), avvisar
+    tydligt om den inte är Ed25519 eller är lösenfras-skyddad. Ny
+    SSHCore-funktion `KeyGenerator.fromExisting(seed:comment:)` (`throws`,
+    till skillnad från `generateEd25519()` som alltid får ett giltigt frö
+    från Curve25519 självt) härleder samma `GeneratedKeyPair`-form ur ett
+    BEFINTLIGT frö — resten av flödet (deploy/verifiera/spara) återanvänds
+    rakt av, ingen duplicerad logik. 3 nya SSHCore-tester (härledning
+    matchar `generateEd25519`, avvisar fel frölängd, full export→parse→
+    fromExisting-rundresa). UI: en "Klistra in befintlig nyckel istället"-
+    knapp bredvid "Generera nyckel", visar en textruta + Importera/Avbryt.
 - **App-ikon + launch screen**: `App/Assets.xcassets` (genererad från en SVG med
   `rsvg-convert`, opak PNG utan alfakanal enligt Apples krav — alla iOS- och
   macOS-storlekar) + en mörk `LaunchBackground`-färg som matchar ikonen.

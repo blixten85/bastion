@@ -15,6 +15,25 @@ public enum KeyGenerator {
     /// rent kosmetiskt, ingen del av själva nyckelmaterialet.
     public static func generateEd25519(comment: String = "") -> GeneratedKeyPair {
         let privateKey = Curve25519.Signing.PrivateKey()
+        // rawRepresentation kommer alltid vara giltig här (precis genererad
+        // av Curve25519 självt) — try! är säkert bara på den HÄR interna
+        // anropsvägen, till skillnad från den publika fromExisting(seed:)
+        // nedan som MÅSTE kunna kasta ett tydligt fel för godtyckliga,
+        // användarinmatade frön.
+        return try! fromExisting(seed: privateKey.rawRepresentation, comment: comment)
+    }
+
+    /// Bygger ett `GeneratedKeyPair` (för `deployPublicKey`/`verifyKeyAuthWorks`)
+    /// ur ett REDAN BEFINTLIGT Ed25519-frö istället för att slumpa fram ett
+    /// nytt — samma härledningslogik som `generateEd25519`, bara med fröet
+    /// som indata. Används av "klistra in en befintlig nyckel och deploya
+    /// den"-flödet (`KeyDeployModel.importExisting`): en användare som redan
+    /// har en nyckel de vill INSTALLERA på en ny server, inte generera en
+    /// helt ny för. Kastar (istället för att krascha) om `seed` inte är ett
+    /// giltigt 32-byte Ed25519-frö — skiljer sig från `generateEd25519` där
+    /// fröet alltid kommer från Curve25519 självt och därför alltid är giltigt.
+    public static func fromExisting(seed: Data, comment: String = "") throws -> GeneratedKeyPair {
+        let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
         let nioKey = NIOSSHPrivateKey(ed25519Key: privateKey)
         var line = String(openSSHPublicKey: nioKey.publicKey)
         if !comment.isEmpty { line += " " + comment }

@@ -24,6 +24,40 @@ final class KeyGeneratorTests: XCTestCase {
         let parts = pair.publicKeyLine.split(separator: " ")
         XCTAssertEqual(parts.count, 2)
     }
+
+    /// fromExisting(seed:) måste härleda EXAKT samma publika nyckel som
+    /// generateEd25519() redan gjorde för samma frö — annars skulle
+    /// "klistra in en befintlig nyckel"-flödet deploya en publik nyckel som
+    /// inte matchar den privata nyckeln användaren faktiskt har.
+    func testFromExistingDerivesSamePublicKeyAsOriginalGeneration() throws {
+        let original = KeyGenerator.generateEd25519(comment: "original")
+        let rebuilt = try KeyGenerator.fromExisting(seed: original.seed, comment: "different-comment")
+        // Jämför bara den publika nyckel-DELEN (utan kommentar) — den delen
+        // är vad som faktiskt måste matcha, kommentaren är fri text.
+        let originalKeyPart = original.publicKeyLine.split(separator: " ").prefix(2).joined(separator: " ")
+        let rebuiltKeyPart = rebuilt.publicKeyLine.split(separator: " ").prefix(2).joined(separator: " ")
+        XCTAssertEqual(originalKeyPart, rebuiltKeyPart)
+        XCTAssertEqual(rebuilt.seed, original.seed)
+    }
+
+    func testFromExistingRejectsWrongSeedLength() {
+        XCTAssertThrowsError(try KeyGenerator.fromExisting(seed: Data([1, 2, 3])))
+    }
+
+    /// Hela vägen runt: export -> parse -> fromExisting -> samma publika
+    /// nyckel som den ALLRA första generate()-anropet gav — bevisar att en
+    /// nyckel som lämnat Bastion (exporterad, t.ex. till en fil) och sedan
+    /// klistras in igen ger tillbaka samma deploybara publika nyckel.
+    func testRoundTripThroughExportParseFromExisting() throws {
+        let original = KeyGenerator.generateEd25519(comment: "roundtrip")
+        let pem = try OpenSSHPrivateKey.export(seed: original.seed, comment: "roundtrip")
+        let auth = try OpenSSHPrivateKey.parse(pem)
+        guard case .ed25519Seed(let parsedSeed) = auth else {
+            return XCTFail("förväntade .ed25519Seed, fick \(auth)")
+        }
+        let rebuilt = try KeyGenerator.fromExisting(seed: parsedSeed, comment: "roundtrip")
+        XCTAssertEqual(rebuilt.publicKeyLine, original.publicKeyLine)
+    }
 }
 
 final class OpenSSHPrivateKeyExportTests: XCTestCase {
