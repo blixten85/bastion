@@ -18,6 +18,19 @@
 	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Lås upp Bastion med Face ID i stället för att skriva ett lösenord varje gång.</string>
+	<!-- Krypteringsexport-deklaration (Apples App Store Connect frågar annars
+	     interaktivt vid varje uppladdning, eller sätter builden i "Missing
+	     Compliance"-status tills någon svarar manuellt). Bastion använder
+	     endast STANDARDprotokoll/-bibliotek (SwiftNIO SSH, AES-256-GCM via
+	     Apples egen CryptoKit) — ingen egen/proprietär krypteringsalgoritm
+	     — vilket är det klassiska "exempt"-fallet enligt amerikansk export-
+	     lagstiftning (samma mönster som praktiskt taget alla jämförbara
+	     SSH-klienter på App Store). OBS (2026-07-09): satt baserat på
+	     allmän kunskap om det vanliga mönstret, INTE en verifierad läsning
+	     av Apples egen livesida (två hämtningsförsök misslyckades med att
+	     faktiskt läsa in sidinnehållet) — värt en snabb manuell koll. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

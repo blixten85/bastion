@@ -18,6 +18,7 @@ final class KeyDeployModel: ObservableObject {
     @Published var deployed = false
     @Published var verified = false
     @Published var statusMessage: String?
+    @Published var importError: String?
     @Published var busy = false
     private let host: Host
     private let password: String?
@@ -35,6 +36,33 @@ final class KeyDeployModel: ObservableObject {
     /// innan den lägger till.
     private static func keychainID(for host: Host) -> String { "host-key-\(host.id.uuidString)" }
 
+    /// Importerar en BEFINTLIG privat nyckel (klistrad OpenSSH PEM-text)
+    /// istället för att generera en ny — samma efterföljande deploy+verify-
+    /// flöde återanvänds rakt av, `generatedKey` sätts bara från en annan
+    /// källa. Skiljer sig från HostEditViews importflöde: DEN vägen
+    /// använder en redan existerande nyckel bara för AUTENTISERING (kopplar
+    /// den till en host-profil), aldrig installerar den publika halvan på
+    /// en fjärrserver — den här funktionen gör precis det.
+    func importExisting(pem: String) {
+        guard !busy else { return }
+        importError = nil
+        do {
+            let auth = try OpenSSHPrivateKey.parse(pem)
+            guard case .ed25519Seed(let seed) = auth else {
+                importError = "Bara Ed25519-nycklar stöds."
+                return
+            }
+            generatedKey = try KeyGenerator.fromExisting(seed: seed, comment: comment)
+            deployed = false
+            verified = false
+            statusMessage = nil
+        } catch SSHKeyError.encrypted {
+            importError = "Lösenfras-skyddade nycklar stöds inte än."
+        } catch {
+            importError = "Kunde inte tolka nyckeln: \(error)"
+        }
+    }
+
     func generate() {
         // Busy-vakten hindrar att en pågående deployAndVerify() jobbar mot
         // en nyckel som hunnit bytas ut under tiden — samma CodeRabbit-fynd
@@ -47,6 +75,7 @@ final class KeyDeployModel: ObservableObject {
         deployed = false
         verified = false
         statusMessage = nil
+        importError = nil
     }
 
     func deployAndVerify() async {
@@ -124,6 +153,12 @@ struct KeyDeployView: View {
     @StateObject private var model: KeyDeployModel
     @State private var switchAuthAfterVerify = false
     @State private var saveError: String?
+    // "Klistra in befintlig" är ett HELT SKILT flöde från import på
+    // värdredigeringssidan (HostEditView) — den använder bara en befintlig
+    // nyckel för AUTENTISERING, aldrig installerar den publika halvan på en
+    // fjärrserver. Den här knappen gör precis det.
+    @State private var showPasteImport = false
+    @State private var pastedKey = ""
     let onHostUpdated: (Host) -> Void
 
     init(request: ConnectRequest, onHostUpdated: @escaping (Host) -> Void) {
@@ -137,6 +172,29 @@ struct KeyDeployView: View {
                 Text("Genererar en ny Ed25519-nyckel, installerar den på fjärrservern och "
                      + "verifierar att den fungerar innan något ändras lokalt.")
                     .font(.footnote).foregroundStyle(.secondary)
+            }
+
+            if showPasteImport {
+                Section("Klistra in befintlig nyckel") {
+                    TextEditor(text: $pastedKey)
+                        .font(.system(.footnote, design: .monospaced))
+                        .frame(minHeight: 120)
+                        .noAutocap().autocorrectionDisabled()
+                    if let e = model.importError {
+                        Text(e).foregroundStyle(.red)
+                    }
+                    HStack {
+                        Button("Avbryt") { showPasteImport = false; pastedKey = "" }
+                        Spacer()
+                        Button("Importera") {
+                            model.importExisting(pem: pastedKey)
+                            switchAuthAfterVerify = false
+                            saveError = nil
+                            if model.importError == nil { showPasteImport = false; pastedKey = "" }
+                        }
+                        .disabled(pastedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
             }
 
             if let key = model.generatedKey {
@@ -161,8 +219,17 @@ struct KeyDeployView: View {
                     model.generate()
                     switchAuthAfterVerify = false
                     saveError = nil
+                    showPasteImport = false
                 }
                 .disabled(model.busy)
+
+                if !showPasteImport {
+                    Button("Klistra in befintlig nyckel istället") {
+                        showPasteImport = true
+                        pastedKey = ""
+                    }
+                    .disabled(model.busy)
+                }
 
                 if model.generatedKey != nil {
                     Button(model.busy ? "Arbetar…" : "Deploya + verifiera") {
