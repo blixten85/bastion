@@ -66,12 +66,15 @@ jobs:
 
             # Nyaste CodeRabbit-kommentaren (summary-kommentaren redigeras in-place,
             # så updated_at speglar senaste tillståndet).
-            cr=$(printf '%s' "$comments" | jq -c '[.[] | select(.user.login=="coderabbitai")] | max_by(.updated_at) // empty')
+            # OBS: på issues/comments-REST-endpointen (till skillnad från gh pr view
+            # --json comments, som normaliserar bort suffixet) är CodeRabbits
+            # user.login bokstavligen "coderabbitai[bot]" — verifierat empiriskt.
+            cr=$(printf '%s' "$comments" | jq -c '[.[] | select(.user.login=="coderabbitai[bot]")] | max_by(.updated_at) // empty')
 
             # Nyaste review-nudge från vem som helst UTOM CodeRabbit själv (loop-skydd:
             # en re-trigger per rate-limit-notis). Författar-agnostiskt så det funkar
             # både med github.token och CR_PAT, och respekterar manuella nudges.
-            nudge_ts=$(printf '%s' "$comments" | jq -r '[.[] | select((.user.login != "coderabbitai") and (.body | test("@coderabbitai review")))] | max_by(.created_at).created_at // empty')
+            nudge_ts=$(printf '%s' "$comments" | jq -r '[.[] | select((.user.login != "coderabbitai[bot]") and (.body | test("@coderabbitai review")))] | max_by(.created_at).created_at // empty')
             nudge_epoch=0
             [ -n "$nudge_ts" ] && nudge_epoch=$(date -d "$nudge_ts" +%s)
 

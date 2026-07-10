@@ -446,7 +446,11 @@ haka i plattformens egna verktyg snarare än att uppfinna egna).
 - **Dövhet/hörselnedsättning** — appen är redan textbaserad och ljudoberoende i
   sin natur. Kravet framåt: alla framtida notiser/larm (tappad anslutning,
   långkörande kommando klart, etc.) måste ha visuell + haptisk feedback, aldrig
-  enbart en ljudsignal.
+  enbart en ljudsignal. Visuell + haptisk feedback räcker dock INTE ensamt för
+  blinda VoiceOver-användare (dövblindhet, eller synskadad utan hörselnedsättning
+  som ändå missar en ren visuell toast) — samma notiser måste även exponera en
+  tillgänglig status/announcement (t.ex. `UIAccessibility.post(.announcement)`),
+  inte bara synas/kännas.
 - **Dynamic Type / kontrast** — terminaltemana (se D-passet i
   iOS-TestFlight-backloggen, 20–25 teman) bör inkludera hög-kontrast-varianter;
   chrome-text (ej terminalcell-grid, som har egen fontstorleksinställning) ska

@@ -16,7 +16,12 @@ name: Claude assign-trigger
 on:
   issues:
     types: [labeled]
-  pull_request:
+  # pull_request_target (inte pull_request): med den vanliga pull_request-triggern
+  # tvingar GitHub fram ett read-only GITHUB_TOKEN för fork-PR:er, så
+  # issues.createComment skulle ge 403 där. Säkert här eftersom workflowen aldrig
+  # checkar ut eller kör någon kod från själva PR:en — bara postar en fast
+  # textkommentar baserat på PR-numret.
+  pull_request_target:
     types: [labeled]
 
 permissions:
