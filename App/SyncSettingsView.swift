@@ -56,9 +56,15 @@ struct SyncSettingsView: View {
                         }
                         .fileImporter(isPresented: $showFolderPicker, allowedContentTypes: [.folder],
                                       allowsMultipleSelection: false) { result in
-                            if case .success(let urls) = result, let url = urls.first,
-                               let name = SyncFolder.save(url) {
-                                folderPath = name
+                            if case .success(let urls) = result, let url = urls.first {
+                                if let name = SyncFolder.save(url) {
+                                    folderPath = name
+                                    status = nil  // Rensa eventuellt tidigare felmeddelande
+                                } else {
+                                    status = "Kunde inte spara mappåtkomst. Försök igen."
+                                }
+                            } else if case .failure(let error) = result {
+                                status = "Mappval misslyckades: \(error.localizedDescription)"
                             }
                         }
                     } else if let provider = OAuthProviders.all.first(where: { $0.id == transport }) {

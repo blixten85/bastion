@@ -55,7 +55,21 @@ enum SyncFolder {
     /// inaktuellt (staleness) så åtkomsten inte tappas över tid. Anroparen
     /// ansvarar för `startAccessingSecurityScopedResource()` runt sin I/O.
     static func resolve() -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: SyncKeys.folderBookmark) else { return nil }
+        guard let data = UserDefaults.standard.data(forKey: SyncKeys.folderBookmark) else {
+            // Migrera från äldre versioner som sparade enbart en sökväg utan bookmark
+            if let legacyPath = UserDefaults.standard.string(forKey: SyncKeys.folderPath),
+               !legacyPath.isEmpty {
+                let url = URL(fileURLWithPath: legacyPath)
+                _ = save(url)  // Försöker skapa bookmark; returnerar nil om det misslyckas
+                // Försök igen, nu med det nya bookmarket (eller returera nil om save misslyckades)
+                return UserDefaults.standard.data(forKey: SyncKeys.folderBookmark).flatMap { data in
+                    var stale = false
+                    return try? URL(resolvingBookmarkData: data, options: resolveOptions,
+                                    relativeTo: nil, bookmarkDataIsStale: &stale)
+                }
+            }
+            return nil
+        }
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: data, options: resolveOptions,
                                  relativeTo: nil, bookmarkDataIsStale: &stale) else {
