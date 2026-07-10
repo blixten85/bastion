@@ -21,7 +21,7 @@ enum FileImport {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else { return nil }
-        return String(decoding: data, as: UTF8.self)
+        return String(bytes: data, encoding: .utf8)
     }
 }
 
