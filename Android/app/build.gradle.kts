@@ -20,6 +20,18 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    // sshd-core och sshd-common bäddar båda in en identisk
+    // META-INF/DEPENDENCIES-fil — Androids resursmerge tillåter inte två
+    // jar:ar med samma META-INF-sökväg utan en explicit regel (verifierat
+    // i CI: "2 files found with path 'META-INF/DEPENDENCIES'"). Innehållet
+    // är bara en läslig beroendelista, ingen kodfunktion — säkert att bara
+    // droppa filen helt istället för att välja en av de två godtyckligt.
+    packaging {
+        resources {
+            excludes += "META-INF/DEPENDENCIES"
+        }
+    }
 }
 
 // kotlinOptions{jvmTarget} (KGP:s gamla android-plugin-DSL) är inte
