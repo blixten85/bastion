@@ -94,7 +94,8 @@ struct HostEditView: View {
                             Label("Välj nyckelfil…", systemImage: "doc.badge.plus")
                         }
                         .fileImporter(isPresented: $showKeyImporter,
-                                      allowedContentTypes: FileImport.textLike) { result in
+                                      allowedContentTypes: FileImport.textLike,
+                                      allowsMultipleSelection: false) { result in
                             if let content = FileImport.readText(from: result) { keyText = content }
                         }
                         TextEditor(text: $keyText)

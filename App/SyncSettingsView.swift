@@ -54,7 +54,8 @@ struct SyncSettingsView: View {
                                     .font(.footnote).foregroundStyle(.tertiary)
                             }
                         }
-                        .fileImporter(isPresented: $showFolderPicker, allowedContentTypes: [.folder]) { result in
+                        .fileImporter(isPresented: $showFolderPicker, allowedContentTypes: [.folder],
+                                      allowsMultipleSelection: false) { result in
                             if case .success(let urls) = result, let url = urls.first,
                                let name = SyncFolder.save(url) {
                                 folderPath = name

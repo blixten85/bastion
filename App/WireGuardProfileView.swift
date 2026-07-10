@@ -111,7 +111,8 @@ struct WireGuardProfileEditView: View {
                         Label("Välj .conf-fil…", systemImage: "doc.badge.plus")
                     }
                     .fileImporter(isPresented: $showFileImporter,
-                                  allowedContentTypes: FileImport.textLike) { result in
+                                  allowedContentTypes: FileImport.textLike,
+                                  allowsMultipleSelection: false) { result in
                         if let content = FileImport.readText(from: result) { text = content }
                     }
                     TextEditor(text: $text)

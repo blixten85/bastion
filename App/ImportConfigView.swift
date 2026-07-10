@@ -23,7 +23,8 @@ struct ImportConfigView: View {
                 }
                 .padding(.horizontal)
                 .fileImporter(isPresented: $showFileImporter,
-                              allowedContentTypes: FileImport.textLike) { result in
+                              allowedContentTypes: FileImport.textLike,
+                              allowsMultipleSelection: false) { result in
                     if let content = FileImport.readText(from: result) { text = content }
                 }
                 Text("…eller klistra in innehållet i din ssh-config:")
