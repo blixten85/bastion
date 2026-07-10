@@ -45,6 +45,22 @@ jobs:
       - name: Visa Swift-version
         run: swift --version
 
+      # swift build körde ~21 av byggets ~22 minuter helt utan cache — hela
+      # beroendeträdet (SwiftCrossUI, WinUIBackend, SSHCore) kompilerades om
+      # från grunden varje gång. .build innehåller både uppackade dependency-
+      # checkouts och kompilerade artefakter, så en träff hoppar över båda.
+      # Ingen Package.resolved committad här → nyckla på Package.swift-hashen
+      # (både WindowsApp/ och rot-paketet, eftersom WindowsApp beror på
+      # .package(path: "..")); restore-keys ger en delvis träff även när
+      # manifestet ändrats.
+      - name: Cacha .build (SwiftPM-beroenden + byggartefakter)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: WindowsApp/.build
+          key: windows-swiftpm-build-${{ hashFiles('WindowsApp/Package.swift', 'Package.swift') }}
+          restore-keys: |
+            windows-swiftpm-build-
+
       - name: Bygg bastion-gui
         # -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH: windows-latest-runnerns
         # MSVC-STL (14.51, VS 2026) kräver Clang 20+ i sina headers, men
