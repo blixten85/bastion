@@ -56,7 +56,11 @@ class BastionSshSession(
                 "Kommandot svarade inte inom ${timeoutSeconds}s: $command"
             }
         }
-        return out.toString(Charsets.UTF_8)
+        // ByteArrayOutputStream.toString(Charset) kräver API 33 (minSdk är
+        // 26 — verifierat i CI: "Call requires API level 33"). Kotlins
+        // String(bytes, charset)-konstruktor gör exakt samma sak men är
+        // ren Kotlin stdlib, ingen java.io-nivåbegränsning.
+        return String(out.toByteArray(), Charsets.UTF_8)
     }
 
     override fun close() {
