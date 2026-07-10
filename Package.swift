@@ -17,14 +17,15 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.14.0"),
-        // EXPERIMENT (claude/experiment-nio-pin-windows): pinnad till 2.86.2,
-        // sista swift-nio-releasen med swift-tools-version:5.10 (2.87.0+ gick
-        // till 6.0/6.1) — testar hypotesen att swift-nios EGEN Sendable/IPPROTO-
-        // bugg på Windows (apple/swift-nio#3647) bara triggas när dess källor
-        // kompileras i Swift 6-strict-concurrency-läge, vilket styrs av
-        // PAKETETS EGEN deklarerade tools-version, inte konsumentens. Om
-        // windows-gui.yml går grönt här: permanent fix tills uppströms löser
-        // #3647 riktigt. Om inte: reverteras, ingen skada (egen branch).
+        // Pinnad till 2.86.2 (senast med swift-tools-version:5.10 — 2.87.0+
+        // gick till 6.0/6.1) för att kringgå apple/swift-nio#3647: swift-nios
+        // EGNA Sendable/IPPROTO-kompileringsfel på Windows, som bara triggas
+        // när dess källor kompileras i Swift 6-strict-concurrency-läge —
+        // styrs av PAKETETS EGEN deklarerade tools-version, inte konsumentens.
+        // Bekräftat: windows-gui.yml gick grönt första gången någonsin med
+        // den här pinningen (74 misslyckade körningar innan, 0 lyckade).
+        // Ta bort pinningen och gå tillbaka till `from:` när uppströms
+        // löser #3647 på riktigt.
         .package(url: "https://github.com/apple/swift-nio.git", exact: "2.86.2"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "4.5.0"),
     ],
