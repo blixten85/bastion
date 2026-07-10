@@ -1,6 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 import SSHCore
+import UniformTypeIdentifiers
 
 @MainActor
 final class WireGuardProfileListModel: ObservableObject {
@@ -84,6 +85,7 @@ struct WireGuardProfileEditView: View {
 
     @State private var name: String
     @State private var text: String
+    @State private var showFileImporter = false
 
     init(profile: WireGuardProfile, onSave: @escaping (WireGuardProfile) -> Void, onCancel: @escaping () -> Void) {
         self.profile = profile
@@ -102,7 +104,17 @@ struct WireGuardProfileEditView: View {
                     TextField("Namn", text: $name)
                         .noAutocap().autocorrectionDisabled()
                 }
-                Section("Klistra in innehållet från en .conf-fil") {
+                Section("Välj en .conf-fil eller klistra in innehållet") {
+                    Button {
+                        showFileImporter = true
+                    } label: {
+                        Label("Välj .conf-fil…", systemImage: "doc.badge.plus")
+                    }
+                    .fileImporter(isPresented: $showFileImporter,
+                                  allowedContentTypes: FileImport.textLike,
+                                  allowsMultipleSelection: false) { result in
+                        if let content = FileImport.readText(from: result) { text = content }
+                    }
                     TextEditor(text: $text)
                         .frame(minHeight: 220)
                         .font(.system(.footnote, design: .monospaced))
