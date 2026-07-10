@@ -75,8 +75,29 @@ final class AppLockManager: ObservableObject {
             return false
         }
         noAuthMethodAvailable = false
+
+        // Begär biometri EXPLICIT först. Med enbart den kombinerade
+        // .deviceOwnerAuthentication-policyn hoppar iOS ofta direkt till
+        // lösenkoden i stället för att ens visa Face ID/Touch ID — användaren
+        // fick skriva sin PIN varje gång (TestFlight-feedback 2026-07-10).
+        // .deviceOwnerAuthenticationWithBiometrics tvingar fram biometri när
+        // enheten har det inrullat; misslyckas/avbryts det faller vi vidare
+        // till lösenkoden nedan.
+        var bioError: NSError?
+        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &bioError),
+           let ok = try? await context.evaluatePolicy(
+               .deviceOwnerAuthenticationWithBiometrics, localizedReason: "Lås upp Bastion"),
+           ok {
+            isUnlocked = true
+            isObscured = false
+            return true
+        }
+
+        // Biometri saknas/nekades/misslyckades → lösenkod. En förbrukad
+        // LAContext återanvänds inte, så skapa en färsk.
+        let fallback = LAContext()
         do {
-            let success = try await context.evaluatePolicy(
+            let success = try await fallback.evaluatePolicy(
                 .deviceOwnerAuthentication, localizedReason: "Lås upp Bastion")
             isUnlocked = success
             if success { isObscured = false }

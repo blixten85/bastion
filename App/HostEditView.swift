@@ -1,6 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 import SSHCore
+import UniformTypeIdentifiers
 
 /// Lägg till / ändra en värd. Enkla fält; taggar kommaseparerade.
 struct HostEditView: View {
@@ -12,6 +13,7 @@ struct HostEditView: View {
     @State private var keyPath: String
     @State private var certPath: String
     @State private var keyText: String
+    @State private var showKeyImporter = false
     let onSave: (Host) -> Void
 
     enum AuthKind: String, CaseIterable, Identifiable {
@@ -68,18 +70,9 @@ struct HostEditView: View {
                         .noAutocap().autocorrectionDisabled()
                     TextField("Port", text: $portText).numberPad()
                 }
-                Section("Taggar") {
-                    TextField("prod, homelab, …", text: $tagsText)
-                        .noAutocap().autocorrectionDisabled()
-                }
-                Section("Favorit & färg") {
-                    Toggle("Favorit", isOn: $draft.isFavorite)
-                    HostColorPicker(selection: $draft.colorTag)
-                }
-                Section("Vid anslutning") {
-                    TextField("Kör automatiskt (valfritt, t.ex. tmux attach)", text: startupCommandBinding)
-                        .noAutocap().autocorrectionDisabled()
-                }
+                // Autentiseringen ligger näst överst — det är det man MÅSTE välja
+                // rätt för att ens kunna ansluta; tidigare låg den sist och
+                // användare hittade aldrig lösenordsvalet (TestFlight-feedback).
                 Section("Autentisering") {
                     Picker("Metod", selection: $authKind) {
                         ForEach(AuthKind.allCases) { Text($0.rawValue).tag($0) }
@@ -95,6 +88,15 @@ struct HostEditView: View {
                             .noAutocap().autocorrectionDisabled()
                     }
                     if authKind == .keychainImport {
+                        Button {
+                            showKeyImporter = true
+                        } label: {
+                            Label("Välj nyckelfil…", systemImage: "doc.badge.plus")
+                        }
+                        .fileImporter(isPresented: $showKeyImporter,
+                                      allowedContentTypes: FileImport.textLike) { result in
+                            if let content = FileImport.readText(from: result) { keyText = content }
+                        }
                         TextEditor(text: $keyText)
                             .font(.system(.footnote, design: .monospaced))
                             .frame(minHeight: 140)
@@ -106,10 +108,22 @@ struct HostEditView: View {
                             Label("Giltig nyckel", systemImage: "checkmark.circle")
                                 .font(.caption).foregroundStyle(.green)
                         }
-                        Text("Klistra in innehållet i din privata nyckelfil (t.ex. ~/.ssh/id_ed25519). "
+                        Text("Välj din privata nyckelfil (t.ex. id_ed25519) eller klistra in den. "
                              + "Nyckeln krypteras av systemet i Keychain och lämnar aldrig enheten.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
+                }
+                Section("Taggar") {
+                    TextField("prod, homelab, …", text: $tagsText)
+                        .noAutocap().autocorrectionDisabled()
+                }
+                Section("Favorit & färg") {
+                    Toggle("Favorit", isOn: $draft.isFavorite)
+                    HostColorPicker(selection: $draft.colorTag)
+                }
+                Section("Vid anslutning") {
+                    TextField("Kör automatiskt (valfritt, t.ex. tmux attach)", text: startupCommandBinding)
+                        .noAutocap().autocorrectionDisabled()
                 }
             }
             .navigationTitle(draft.alias.isEmpty ? "Ny värd" : "Ändra värd")

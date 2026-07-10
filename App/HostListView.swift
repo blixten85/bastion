@@ -45,6 +45,9 @@ final class HostListModel: ObservableObject {
         }
 
         let provider: SyncProvider
+        // Security-scoped mapp-URL som måste hållas öppen HELA vägen genom
+        // store.sync(); stängs i defer efter synkrundan.
+        var scopedFolder: URL?
         switch transport {
         case "dropbox":
             if let err = requireLogin(OAuthProviders.dropbox) { return err }
@@ -56,11 +59,15 @@ final class HostListModel: ObservableObject {
             if let err = requireLogin(OAuthProviders.oneDrive) { return err }
             provider = OneDriveSyncProvider(passphrase: pass)
         default:
-            let folder = UserDefaults.standard.string(forKey: SyncKeys.folderPath) ?? ""
-            guard !folder.isEmpty else { return "Ingen synkmapp vald." }
-            let file = (folder as NSString).appendingPathComponent("bastion-sync.enc")
+            guard let url = SyncFolder.resolve() else { return "Ingen synkmapp vald." }
+            guard url.startAccessingSecurityScopedResource() else {
+                return "Kommer inte åt synkmappen — välj den igen i Sync-inställningarna."
+            }
+            scopedFolder = url
+            let file = url.appendingPathComponent("bastion-sync.enc").path
             provider = EncryptedFolderSyncProvider(path: file, passphrase: pass)
         }
+        defer { scopedFolder?.stopAccessingSecurityScopedResource() }
         do {
             try store.sync(with: provider)
             reload()
@@ -162,7 +169,7 @@ struct HostListView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button { editing = Host(alias: "", hostName: "", user: "") } label: {
+                    Button { editing = Self.newHost } label: {
                         Image(systemName: "plus")
                     }
                 }
@@ -249,6 +256,18 @@ struct HostListView: View {
                 }
             }
         }
+    }
+
+    /// En tom värd för "+"-knappen. På iOS defaultar auth till lösenord —
+    /// `.agentDefault` letar efter `~/.ssh/id_ed25519`, som inte finns på en
+    /// sandlådad iPhone, så nya värdar kunde annars inte ansluta alls utan att
+    /// användaren först grävde i auth-väljaren (TestFlight-feedback 2026-07-10).
+    private static var newHost: Host {
+        #if os(iOS)
+        Host(alias: "", hostName: "", user: "", auth: .askPassword)
+        #else
+        Host(alias: "", hostName: "", user: "")
+        #endif
     }
 
     private func start(_ host: Host) {
