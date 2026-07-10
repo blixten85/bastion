@@ -165,17 +165,30 @@ delvis andra, av konkreta skäl:
    tystade Info.plist-nycklar) — ingen av dem en gissning som råkade
    fungera, alla verifierade direkt mot antingen App Store Connect
    API:t eller det faktiska byggda innehållet.
-3. **Windows-GUI via `WinUIBackend`** — påbörjad och blockerad av två
-   bekräftade uppströmsbuggar i swift-nio, inte något i Bastions egen kod.
-   `WindowsApp/` (eget SwiftPM-paket, samma mönster som `LinuxApp/`) byggs
-   på en riktig Windows Server 2025-VPS (`windowsapp-build`-CI-jobbet). **Nu
-   trippelbekräftat** (2026-07-06 med Swift 6.1-RELEASE, 2026-07-07 med
-   Swift 6.3.3-RELEASE PÅ VPS:en, och en tredje gång 2026-07-07 natt via
-   `windows-gui.yml`-CI:t med Swift 6.2-RELEASE — samma två fel kvarstår
-   ORD FÖR ORD identiska i alla tre körningar, oförändrade trots tre olika
-   toolchain-versioner spridda över flera minor-versioner. Definitivt inget
-   som redan fixats uppströms, och inte något en toolchain-bump ensam kan
-   lösa):
+3. **Windows-GUI via `WinUIBackend`** — ✅ **`windowsapp-build` grönt för
+   första gången någonsin (2026-07-10)**, efter 74 raka misslyckade
+   körningar sedan CI:t skapades (2026-07-04). Rotorsaken var två
+   bekräftade uppströmsbuggar i swift-nio, inte något i Bastions egen kod
+   (historik nedan) — men FIXEN gick att göra i Bastion självt, utan att
+   vänta på eller forka uppströms:
+
+   **Fixen**: `Package.swift` pinnar nu `swift-nio` till exakt `2.86.2`
+   istället för `from: "2.101.2"`. Insikten: buggarna triggas bara för att
+   swift-nios EGNA källor kompileras under Swift 6-strict-concurrency-läge
+   — vilket styrs av PAKETETS EGEN deklarerade `swift-tools-version`, inte
+   konsumentens. `2.86.2` är den sista swift-nio-releasen med
+   `swift-tools-version:5.10` (`2.87.0`+ gick till `6.0`/`6.1`) —
+   `swift-nio-ssh` 0.14.0 kräver bara `from: "2.81.0"`, så `2.86.2`
+   satisfierar beroendet utan konflikt. Verifierat: `swift build`/
+   `swift test` (230 tester) grönt på Linux med pinningen INNAN push
+   (ingen regression), och `windows-gui.yml` gick grönt hela vägen —
+   inklusive själva kompileringssteget som alltid kraschat förut — kört
+   manuellt via `workflow_dispatch` mot en egen testbranch innan en riktig
+   PR öppnades, för att inte slösa en PR-öppning på en ren gissning.
+
+   **Historik — buggarna som blockerade innan fixen** (kvar dokumenterat
+   för framtida referens, t.ex. om en framtida beroendeuppdatering av
+   swift-nio råkar dra in `2.87.0`+ igen och samma fel återkommer):
    1. `NIOThread.handle: NIOLockedValueBox<ThreadOpsSystem.ThreadHandle?>`
       (`ThreadWindows.swift:22`) kan inte konformera till `Sendable` under
       Swifts strikta concurrency, eftersom `UnsafeMutableRawPointer` har
@@ -192,9 +205,9 @@ delvis andra, av konkreta skäl:
    Sendable/IPPROTO alls. En tyst tumme-upp på en felaktigt stängd
    issue hade aldrig synts, så en ny, fullständigt dokumenterad rapport
    skickades istället — med alla tre bekräftade toolchain-körningarna
-   (6.1/6.2/6.3.3) som bevis. Ingen av buggarna går att fixa i Bastions
-   egen kod utan att forka swift-nio. `windowsapp-build` är inte en
-   required check av precis den anledningen.
+   (6.1/6.2/6.3.3) som bevis. Rapporten kvar öppen uppströms (nyttig för
+   andra swift-nio-på-Windows-projekt), men blockerar inte längre Bastion
+   tack vare `2.86.2`-pinningen ovan.
    **Sidospår som löstes under samma utredning** (dokumenterat separat så
    det inte återupptäcks i onödan): ett tredje, TILLFÄLLIGT fel dök upp
    vid 2026-07-07-omtestet — `STL1000: Unexpected compiler version,
@@ -203,9 +216,9 @@ delvis andra, av konkreta skäl:
    Clang än Swift 6.1 (Clang 19.1.4) bundlar. Löst genom att uppgradera
    till Swift 6.3.3-RELEASE (bundlar Clang 21.1.6) — inte en riktig
    Bastion-relaterad bugg, bara toolchain-miljödrift på testmaskinen.
-   Nästa steg när/om uppströms fixar de två kvarstående swift-nio-buggarna:
-   porta de riktiga vyerna från `LinuxApp/Sources/bastion-gui/` hit och
-   testa på riktigt på VPS:n.
+   **Nästa steg nu när bygget faktiskt går grönt**: porta de riktiga
+   vyerna från `LinuxApp/Sources/bastion-gui/` hit och testa på riktigt
+   (VPS eller motsvarande) — inte påbörjat än.
 4. Riktig rå tangentbordsinmatning i Linux-terminalen (kräver att gå under
    SwiftCrossUI mot GTK:s event-controllers direkt — se "Uppskjutet med avsikt").
 
