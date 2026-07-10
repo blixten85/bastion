@@ -58,7 +58,11 @@ enum SyncFolder {
         guard let data = UserDefaults.standard.data(forKey: SyncKeys.folderBookmark) else { return nil }
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: data, options: resolveOptions,
-                                 relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+                                 relativeTo: nil, bookmarkDataIsStale: &stale) else {
+            UserDefaults.standard.removeObject(forKey: SyncKeys.folderBookmark)
+            UserDefaults.standard.removeObject(forKey: SyncKeys.folderPath)
+            return nil
+        }
         if stale {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
