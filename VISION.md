@@ -422,3 +422,39 @@ filhanterare, och låta molnlagringstjänster bläddras som allmänna filkällor
   Swift-klient, inget tredjeparts-SDK-beroende krävs.
 
 Ingenting av detta är påbörjat. Se [ROADMAP.md](ROADMAP.md) för prioritering.
+
+### Tillgänglighet — styrning via iOS inbyggda hjälpmedel (tillägg, 2026-07-10)
+
+Bastion ska gå att styra fullt ut med iOS/iPadOS inbyggda tillgänglighetsfunktioner
+för användare med syn-, hörsel- eller rörelsenedsättning — inte ett eget
+tillgänglighetsläge byggt från grunden, utan att appen är en bra medborgare i
+Apples befintliga ramverk (samma princip som native filhanterare-integration ovan:
+haka i plattformens egna verktyg snarare än att uppfinna egna).
+
+- **VoiceOver (blind/synskadade)** — kräver korrekta accessibility labels/traits/
+  hints på alla UI-element (SwiftUI ger mycket av detta gratis för standardkontroller).
+  Den svåra biten är **terminalvyn**: en tät monospace-textgrid renderas normalt
+  som en opak Canvas/bitmap, vilket är osynligt för VoiceOver. Måste exponeras som
+  radvis/tecken-navigerbara `accessibilityElement`s så innehållet går att läsa upp
+  — inte bara knapparna runt terminalen. Ingen etablerad SSH-klient (Termius,
+  Blink) är känd för att ha löst detta fullt ut; kräver egen UX-design (radvis
+  navigering? ett explicit "läs hela skärmen"-läge?), inte bara en checkbox.
+- **Voice Control / Switch Control (rörelsenedsättning)** — röststyrd eller
+  switch-baserad navigering/aktivering fungerar oftast automatiskt med standard
+  SwiftUI-kontroller (`Button`, `List` osv.); kräver mest disciplin att INTE bygga
+  custom-gester utan switch-tillgängligt fallback.
+- **Dövhet/hörselnedsättning** — appen är redan textbaserad och ljudoberoende i
+  sin natur. Kravet framåt: alla framtida notiser/larm (tappad anslutning,
+  långkörande kommando klart, etc.) måste ha visuell + haptisk feedback, aldrig
+  enbart en ljudsignal. Visuell + haptisk feedback räcker dock INTE ensamt för
+  blinda VoiceOver-användare (dövblindhet, eller synskadad utan hörselnedsättning
+  som ändå missar en ren visuell toast) — samma notiser måste även exponera en
+  tillgänglig status/announcement (t.ex. `UIAccessibility.post(.announcement)`),
+  inte bara synas/kännas.
+- **Dynamic Type / kontrast** — terminaltemana (se D-passet i
+  iOS-TestFlight-backloggen, 20–25 teman) bör inkludera hög-kontrast-varianter;
+  chrome-text (ej terminalcell-grid, som har egen fontstorleksinställning) ska
+  följa systemets Dynamic Type.
+
+Inget av detta är påbörjat. Största tekniska osäkerheten är VoiceOver mot
+terminalgriden — ett genuint UX-designproblem, inte ett rent implementationsjobb.
