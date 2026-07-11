@@ -91,9 +91,15 @@ struct BastionTerminal: TerminalRepresentable {
     #if os(iOS)
     func makeUIView(context: Context) -> TerminalView { build(context) }
     func updateUIView(_ uiView: TerminalView, context: Context) {}
+    static func dismantleUIView(_ uiView: TerminalView, coordinator: Coordinator) {
+        coordinator.tearDown()
+    }
     #else
     func makeNSView(context: Context) -> TerminalView { build(context) }
     func updateNSView(_ nsView: TerminalView, context: Context) {}
+    static func dismantleNSView(_ nsView: TerminalView, coordinator: Coordinator) {
+        coordinator.tearDown()
+    }
     #endif
 
     @MainActor
@@ -113,6 +119,16 @@ struct BastionTerminal: TerminalRepresentable {
             self.view = view
             let t = view.getTerminal()
             controller.start(cols: t.cols, rows: t.rows)
+        }
+
+        /// Anropas av dismantleUIView/dismantleNSView när vyn tas bort ur
+        /// hierarkin. Utan denna fortsätter bakgrunds-Task:en i controller.start()
+        /// köra och mata feed() på en föräldralös vy efter dismiss — till skillnad
+        /// från PortForwardView/DockerView/SFTPBrowserView, som redan städar via
+        /// .onDisappear { model.disconnect() }.
+        func tearDown() {
+            controller.stop()
+            view = nil
         }
 
         // Tangenttryck från terminalen -> fjärr-shell.
