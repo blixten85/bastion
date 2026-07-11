@@ -11,7 +11,7 @@
   "timezone": "Europe/Stockholm",
   "labels": ["dependencies", "renovate"],
   "rangeStrategy": "bump",
-  "lockFileMaintenance": { "enabled": true, "schedule": ["after 11pm and before 11:30pm every day"] },
+  "lockFileMaintenance": { "enabled": true, "schedule": ["after 11pm and before 7:30am every day"] },
   "vulnerabilityAlerts": { "enabled": true, "labels": ["security"] },
   "packageRules": [
     { "description": "Automerge patch updates on their own (kept out of any non-major group)", "matchUpdateTypes": ["patch"], "automerge": true },
@@ -20,6 +20,6 @@
   "prHourlyLimit": 2,
   "prConcurrentLimit": 10,
   "schedule": [
-    "after 11pm and before 11:30pm every day"
+    "after 11pm and before 7:30am every day"
   ]
 }
