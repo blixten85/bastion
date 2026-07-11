@@ -25,6 +25,12 @@ final class SSHTerminalController {
     private let auth: SSHAuth
     private var session: SSHSession?
     private var shell: SSHShell?
+    /// Sätts av stop(). Kollas efter varje await-punkt i start() så en sen
+    /// connect()/openShell() som landar EFTER teardown stänger det den just
+    /// öppnade istället för att bli en föräldralös, aldrig stängd session
+    /// (CodeRabbit-fynd på #155: stop() stänger bara det som redan hunnit
+    /// tilldelas self.session/self.shell VID ANROPSTILLFÄLLET).
+    private var isStopped = false
 
     /// Anropas på main med bytes att mata in i terminalvyn.
     var onData: ((ArraySlice<UInt8>) -> Void)?
@@ -43,14 +49,18 @@ final class SSHTerminalController {
                 let session = SSHSession(target: target, auth: auth)
                 self.session = session
                 try await session.connect()
+                guard !isStopped else { await session.close(); return }
                 let shell = try await session.openShell(cols: cols, rows: rows)
+                guard !isStopped else { shell.close(); return }
                 self.shell = shell
                 if let cmd = initialCommand { shell.send(cmd + "\n") }
                 for try await chunk in shell.output {
+                    guard !isStopped else { break }
                     let bytes = chunk.bytes
                     self.onData?(bytes[...])
                 }
             } catch {
+                guard !isStopped else { return }
                 let msg = Array("\r\n[bastion] fel: \(error)\r\n".utf8)
                 self.onData?(msg[...])
             }
@@ -60,6 +70,7 @@ final class SSHTerminalController {
     func sendKeys(_ data: ArraySlice<UInt8>) { shell?.send(Array(data)) }
     func resize(cols: Int, rows: Int) { shell?.resize(cols: cols, rows: rows) }
     func stop() {
+        isStopped = true
         shell?.close()
         let session = self.session
         Task { await session?.close() }
