@@ -18,5 +18,8 @@
     { "description": "Group GitHub Actions updates", "matchManagers": ["github-actions"], "groupName": "github-actions" }
   ],
   "prHourlyLimit": 2,
-  "prConcurrentLimit": 10
+  "prConcurrentLimit": 10,
+  "schedule": [
+    "after 1am and before 1:30am every weekday"
+  ]
 }
