@@ -82,12 +82,22 @@ jobs:
 
             if [ -z "$cr" ]; then
               # CodeRabbit har aldrig kommenterat. Har den ens satt sin commit status?
-              has_status=$(gh api "repos/$GH_REPO/commits/$sha/status" \
-                            --jq '[.statuses[] | select(.context=="CodeRabbit")] | length' 2>/dev/null || echo 0)
+              # Vid API-fel: anta INTE "ingen status" (det skulle ge en onödig nudge) —
+              # vänta till nästa 15-min-körning i stället.
+              if ! has_status=$(gh api "repos/$GH_REPO/commits/$sha/status" \
+                            --jq '[.statuses[] | select(.context=="CodeRabbit")] | length'); then
+                echo "::warning::Kunde inte läsa commit-status för PR #$pr — väntar till nästa körning."
+                echo "::endgroup::"; continue
+              fi
               if [ "${has_status:-0}" -eq 0 ] && { [ "$nudge_epoch" -eq 0 ] || [ $((now - nudge_epoch)) -ge 2400 ]; }; then
                 echo "Ingen CodeRabbit-aktivitet alls — nudgar en gång."
-                gh pr comment "$pr" --body "$NUDGE" || exit 1
-                echo "Nudge postad."
+                # Ett misslyckat kommentarsanrop får inte döda loopen — logga och gå
+                # vidare till nästa PR; nästa 15-min-körning försöker igen.
+                if gh pr comment "$pr" --body "$NUDGE"; then
+                  echo "Nudge postad."
+                else
+                  echo "::warning::Nudge misslyckades för PR #$pr — fortsätter med nästa."
+                fi
               else
                 echo "Ingen CR-kommentar men status finns / redan nudgad nyligen — väntar."
               fi
@@ -115,8 +125,11 @@ jobs:
               echo "Redan nudgad efter att fönstret öppnat — väntar på CodeRabbits nästa svar."
             else
               echo "Fönstret öppet (rate-limit + $n min passerat) — re-triggar."
-              gh pr comment "$pr" --body "$NUDGE" || exit 1
-              echo "Nudge postad."
+              if gh pr comment "$pr" --body "$NUDGE"; then
+                echo "Nudge postad."
+              else
+                echo "::warning::Nudge misslyckades för PR #$pr — fortsätter med nästa."
+              fi
             fi
             echo "::endgroup::"
           done <<< "$prs"
