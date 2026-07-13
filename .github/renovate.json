@@ -22,6 +22,6 @@
   "prHourlyLimit": 2,
   "prConcurrentLimit": 10,
   "schedule": [
-    "* 23,0-7 * * *"
+    "after 11pm and before 11:30pm"
   ]
 }
