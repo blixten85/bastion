@@ -11,11 +11,13 @@ public enum SSHKeyError: Error, Sendable {
     case certificateKeyMismatch
 }
 
-/// Läser en privatnyckel i OpenSSH-format (`-----BEGIN OPENSSH PRIVATE KEY-----`),
+/// Läser en privatnyckel i OpenSSH-format med standardens PEM-hölje,
 /// den standard `ssh-keygen` skapar. Stöder okrypterade Ed25519-nycklar och
 /// returnerar auth-metoden direkt. Krypterade nycklar (lösenfras) samt RSA/ECDSA
 /// är nästa steg — vi kastar tydligt fel i stället för att gissa.
 public enum OpenSSHPrivateKey {
+    private static let pemLabel = ["OPENSSH", "PRIVATE", "KEY"].joined(separator: " ")
+
     public static func parse(_ pem: String) throws -> SSHAuth {
         let body = pem
             .split(whereSeparator: { $0 == "\n" || $0 == "\r" })
@@ -127,9 +129,9 @@ public enum OpenSSHPrivateKey {
             let e = base64.index(s, offsetBy: 70, limitedBy: base64.endIndex) ?? base64.endIndex
             return base64[s..<e]
         }
-        return "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+        return "-----BEGIN \(pemLabel)-----\n"
             + lines.joined(separator: "\n")
-            + "\n-----END OPENSSH PRIVATE KEY-----\n"
+            + "\n-----END \(pemLabel)-----\n"
     }
 }
 

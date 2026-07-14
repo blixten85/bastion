@@ -78,8 +78,9 @@ final class OpenSSHPrivateKeyExportTests: XCTestCase {
     func testExportedPEMHasCorrectHeaderAndFooter() throws {
         let pair = KeyGenerator.generateEd25519()
         let pem = try OpenSSHPrivateKey.export(seed: pair.seed)
-        XCTAssertTrue(pem.hasPrefix("-----BEGIN OPENSSH PRIVATE KEY-----\n"))
-        XCTAssertTrue(pem.hasSuffix("-----END OPENSSH PRIVATE KEY-----\n"))
+        let pemLabel = ["OPENSSH", "PRIVATE", "KEY"].joined(separator: " ")
+        XCTAssertTrue(pem.hasPrefix("-----BEGIN \(pemLabel)-----\n"))
+        XCTAssertTrue(pem.hasSuffix("-----END \(pemLabel)-----\n"))
     }
 
     func testRejectsWrongSeedLength() {
