@@ -2,6 +2,9 @@ import XCTest
 @testable import SSHCore
 
 final class WireGuardConfigTests: XCTestCase {
+    private static let testPresharedKey = ProcessInfo.processInfo.environment["BASTION_TEST_WIREGUARD_PRESHARED_KEY"]
+        ?? "safe-test-preshared-key"
+
     /// Realistisk exempelkonfiguration i det dokumenterade formatet
     /// (wg(8)/wg-quick(8), man7.org) — kommentarer, flera peers, blandad
     /// skiftlägesanvändning på nycklarna (verkliga filer varierar).
@@ -21,7 +24,7 @@ final class WireGuardConfigTests: XCTestCase {
     [Peer]
     # servern hemma
     PublicKey = HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=
-    PresharedKey = FpCyhws3EU7wT4A/EL8Y9dLckM1nnStdlNsm3H5NwCE=
+    PresharedKey = \(Self.testPresharedKey)
     AllowedIPs = 0.0.0.0/0, ::/0
     Endpoint = vpn.example.com:51820
     PersistentKeepalive = 25
@@ -48,7 +51,7 @@ final class WireGuardConfigTests: XCTestCase {
         let config = WireGuardConfig(text: sample)
         XCTAssertEqual(config.peers.count, 2)
         XCTAssertEqual(config.peers[0].publicKey, "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=")
-        XCTAssertEqual(config.peers[0].presharedKey, "FpCyhws3EU7wT4A/EL8Y9dLckM1nnStdlNsm3H5NwCE=")
+        XCTAssertEqual(config.peers[0].presharedKey, Self.testPresharedKey)
         XCTAssertEqual(config.peers[0].allowedIPs, ["0.0.0.0/0", "::/0"])
         XCTAssertEqual(config.peers[0].endpoint, "vpn.example.com:51820")
         XCTAssertEqual(config.peers[0].persistentKeepalive, 25)
