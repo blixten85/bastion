@@ -67,7 +67,7 @@ av att taggar och grenar är olika saker.
 | Secret scanning push protection | på |
 | Secret scanning validity checks | av |
 | Secret scanning non-provider patterns | av |
-| Dependabot version updates (`.github/dependabot.yml`) | **av överallt** — Renovate används istället, se `renovate.json` |
+| Dependabot version updates (`.github/dependabot.yml`) | **av i övriga repon, på i bastion** — Renovate används i övriga repon (se `renovate.json`); bastion migrerade till Dependabot 2026-07-14 (`.github/dependabot.yml`), medveten avvikelse. |
 | Code scanning / CodeQL | **av i övriga repon, på i bastion** (`.github/workflows/codeql.yml`, tillagt 2026-07-04) — gratis för publika repon, motiverat av injektionskänsliga ytor (Docker-kommandobyggare, SSH-nyckelparser). Inte utrullat på övriga repon än, så bastion avviker medvetet här tills vidare. |
 
 ## Renovate (GitHub App)
