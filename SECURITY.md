@@ -46,7 +46,7 @@ This security policy covers:
 1. **Never commit secrets** – klient-hemligheter, tokens eller lösenfraser
 2. **OAuth är PKCE-baserat** – klienten (appen) bär aldrig ett hemligt secret; bara ett publikt klient-ID hör hemma i `App/OAuthProviders.swift`
 3. **Nycklar/lösenord lämnar aldrig enheten okrypterade** – se `SSHCore/SyncCrypto.swift` (AES-256-GCM + PBKDF2) och `App/Keychain.swift`
-4. **Granska beroenden** – Renovate håller dem uppdaterade automatiskt
+4. **Granska beroenden** – Dependabot håller dem uppdaterade automatiskt
 
 ### API-nyckelhantering
 
