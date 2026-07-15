@@ -4,7 +4,7 @@ import XCTest
 final class KeyParserTests: XCTestCase {
     func testParseEd25519Seed() throws {
         let pair = KeyGenerator.generateEd25519(comment: "parser-test")
-        let pem = try OpenSSHPrivateKey.export(seed: pair.seed, comment: pair.comment)
+        let pem = try OpenSSHPrivateKey.export(seed: pair.seed, comment: "parser-test")
         guard case .ed25519Seed(let seed) = try OpenSSHPrivateKey.parse(pem) else {
             return XCTFail("förväntade Ed25519-frö")
         }
@@ -22,7 +22,7 @@ final class KeyParserTests: XCTestCase {
         defer { server.shutdown() }
 
         let pair = KeyGenerator.generateEd25519(comment: "authentication-test")
-        let pem = try OpenSSHPrivateKey.export(seed: pair.seed, comment: pair.comment)
+        let pem = try OpenSSHPrivateKey.export(seed: pair.seed, comment: "authentication-test")
         let auth = try OpenSSHPrivateKey.parse(pem)
         let session = SSHSession(
             target: SSHTarget(host: "127.0.0.1", port: server.port, username: "tester"),
