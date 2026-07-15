@@ -24,7 +24,7 @@ final class WireGuardConfigTests: XCTestCase {
     [Peer]
     # servern hemma
     PublicKey = HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=
-    PresharedKey = \(Self.testPresharedKey)
+    PresharedKey = \(WireGuardConfigTests.testPresharedKey)
     AllowedIPs = 0.0.0.0/0, ::/0
     Endpoint = vpn.example.com:51820
     PersistentKeepalive = 25
