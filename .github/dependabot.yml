@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: "swift"
+    directories:
+      - "/"
+      - "/LinuxApp"
+      - "/WindowsApp"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "00:00"
+      timezone: "Europe/Stockholm"
+    groups:
+      swift-patch-minor:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Deliberately pinned to 2.86.2 in Package.swift to work around
+      # apple/swift-nio#3647 (Windows Sendable/IPPROTO compile errors) —
+      # Renovate auto-bumping this exact pin (PR #153) reintroduced the
+      # exact bug PR #149 fixed. Do not remove until upstream resolves
+      # #3647; see Package.swift comment. Exact package name only (not a
+      # wildcard) so this does not also freeze swift-nio-ssh.
+      - dependency-name: "swift-nio"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "01:00"
+      timezone: "Europe/Stockholm"
+    groups:
+      actions-patch-minor:
+        update-types: ["minor", "patch"]

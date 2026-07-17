@@ -17,6 +17,7 @@ eller när du undrar "är X satt här också?".
 - `.github/FUNDING.yml` (github-sponsors + PayPal)
 - `.github/renovate.json` (`config:best-practices`, daglig schedule, semantic
   commits, separata major-releases, auto-rebase, patch-automerge, GHA-gruppering)
+  — **inte i bastion** (använder `.github/dependabot.yml` istället, se rad 71)
 
 ## Workflows (`.github/workflows/`)
 
@@ -67,15 +68,17 @@ av att taggar och grenar är olika saker.
 | Secret scanning push protection | på |
 | Secret scanning validity checks | av |
 | Secret scanning non-provider patterns | av |
-| Dependabot version updates (`.github/dependabot.yml`) | **av överallt** — Renovate används istället, se `renovate.json` |
+| Dependabot version updates (`.github/dependabot.yml`) | **av i övriga repon, på i bastion** — Renovate används i övriga repon (se `renovate.json`); bastion migrerade till Dependabot 2026-07-14 (`.github/dependabot.yml`), medveten avvikelse. |
 | Code scanning / CodeQL | **av i övriga repon, på i bastion** (`.github/workflows/codeql.yml`, tillagt 2026-07-04) — gratis för publika repon, motiverat av injektionskänsliga ytor (Docker-kommandobyggare, SSH-nyckelparser). Inte utrullat på övriga repon än, så bastion avviker medvetet här tills vidare. |
 
 ## Renovate (GitHub App)
 
 Ska vara **installerad och den auto-genererade "Configure Renovate"-PR:n
-mergad** (inte lämnad öppen) — det är mönstret i alla andra repon. Bastions
-egen PR (#1) låg omergad ett tag av misstag (config-commiten hamnade på
-Renovate-appens egen branch istället för en `claude/`-gren) — fixat 2026-07-04.
+mergad** (inte lämnad öppen) — det är mönstret i alla andra repon.
+
+**Undantag: bastion** använder inte Renovate (migrerade till Dependabot
+2026-07-14, se rad 71 och `.github/dependabot.yml`). Renovate-appen behöver
+inte vara installerad för bastion.
 
 ## Inte verifierat / inte en del av guldstandarden
 

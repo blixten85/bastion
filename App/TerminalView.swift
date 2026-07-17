@@ -25,6 +25,12 @@ final class SSHTerminalController {
     private let auth: SSHAuth
     private var session: SSHSession?
     private var shell: SSHShell?
+    /// Sätts av stop(). Kollas efter varje await-punkt i start() så en sen
+    /// connect()/openShell() som landar EFTER teardown stänger det den just
+    /// öppnade istället för att bli en föräldralös, aldrig stängd session
+    /// (CodeRabbit-fynd på #155: stop() stänger bara det som redan hunnit
+    /// tilldelas self.session/self.shell VID ANROPSTILLFÄLLET).
+    private var isStopped = false
 
     /// Anropas på main med bytes att mata in i terminalvyn.
     var onData: ((ArraySlice<UInt8>) -> Void)?
@@ -43,14 +49,18 @@ final class SSHTerminalController {
                 let session = SSHSession(target: target, auth: auth)
                 self.session = session
                 try await session.connect()
+                guard !isStopped else { await session.close(); return }
                 let shell = try await session.openShell(cols: cols, rows: rows)
+                guard !isStopped else { shell.close(); return }
                 self.shell = shell
                 if let cmd = initialCommand { shell.send(cmd + "\n") }
                 for try await chunk in shell.output {
+                    guard !isStopped else { break }
                     let bytes = chunk.bytes
                     self.onData?(bytes[...])
                 }
             } catch {
+                guard !isStopped else { return }
                 let msg = Array("\r\n[bastion] fel: \(error)\r\n".utf8)
                 self.onData?(msg[...])
             }
@@ -60,6 +70,7 @@ final class SSHTerminalController {
     func sendKeys(_ data: ArraySlice<UInt8>) { shell?.send(Array(data)) }
     func resize(cols: Int, rows: Int) { shell?.resize(cols: cols, rows: rows) }
     func stop() {
+        isStopped = true
         shell?.close()
         let session = self.session
         Task { await session?.close() }
@@ -91,9 +102,15 @@ struct BastionTerminal: TerminalRepresentable {
     #if os(iOS)
     func makeUIView(context: Context) -> TerminalView { build(context) }
     func updateUIView(_ uiView: TerminalView, context: Context) {}
+    static func dismantleUIView(_ uiView: TerminalView, coordinator: Coordinator) {
+        coordinator.tearDown()
+    }
     #else
     func makeNSView(context: Context) -> TerminalView { build(context) }
     func updateNSView(_ nsView: TerminalView, context: Context) {}
+    static func dismantleNSView(_ nsView: TerminalView, coordinator: Coordinator) {
+        coordinator.tearDown()
+    }
     #endif
 
     @MainActor
@@ -113,6 +130,16 @@ struct BastionTerminal: TerminalRepresentable {
             self.view = view
             let t = view.getTerminal()
             controller.start(cols: t.cols, rows: t.rows)
+        }
+
+        /// Anropas av dismantleUIView/dismantleNSView när vyn tas bort ur
+        /// hierarkin. Utan denna fortsätter bakgrunds-Task:en i controller.start()
+        /// köra och mata feed() på en föräldralös vy efter dismiss — till skillnad
+        /// från PortForwardView/DockerView/SFTPBrowserView, som redan städar via
+        /// .onDisappear { model.disconnect() }.
+        func tearDown() {
+            controller.stop()
+            view = nil
         }
 
         // Tangenttryck från terminalen -> fjärr-shell.

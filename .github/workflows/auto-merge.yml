@@ -2,7 +2,7 @@ name: Bot Auto-Merge
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
 permissions:
   contents: write
@@ -52,7 +52,9 @@ jobs:
 
   security-autofix:
     runs-on: ubuntu-latest
-    if: contains(github.head_ref, 'alert-autofix')
+    # Samma-repo-krav: en fork-PR kan döpa sin branch fritt (head_ref styrs av
+    # bidragsgivaren), så prefix/namn får aldrig ensamt öppna auto-merge.
+    if: github.event.pull_request.head.repo.full_name == github.repository && contains(github.head_ref, 'alert-autofix')
     steps:
       - name: Enable auto-merge for security fixes
         run: |
@@ -67,7 +69,12 @@ jobs:
 
   claude:
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'claude/')
+    # claude/-prefix är huvudvägen; claude-etiketten är en backup för PR:er
+    # som inte döptes rätt, eller som behöver triggas om manuellt senare.
+    # Samma-repo-krav så en fork inte kan auto-mergas via ett branchnamn.
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (startsWith(github.head_ref, 'claude/') || contains(github.event.pull_request.labels.*.name, 'claude'))
     steps:
       - name: Auto-merge Claude AI PRs once checks pass
         run: |
@@ -83,7 +90,7 @@ jobs:
 
   maintainer-fix:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.user.login == 'blixten85' && startsWith(github.head_ref, 'fix/')
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'blixten85' && startsWith(github.head_ref, 'fix/')
     steps:
       - name: Auto-merge trusted fix PRs once checks pass
         run: |
@@ -99,7 +106,7 @@ jobs:
 
   codex:
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'codex/')
+    if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'codex/')
     steps:
       - name: Auto-merge Codex AI PRs once checks pass
         run: |
@@ -115,7 +122,7 @@ jobs:
 
   copilot:
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'copilot/')
+    if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'copilot/')
     steps:
       - name: Auto-merge Copilot PRs once checks pass
         run: |
