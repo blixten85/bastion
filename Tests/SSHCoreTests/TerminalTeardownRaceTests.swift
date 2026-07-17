@@ -67,4 +67,37 @@ final class TerminalTeardownRaceTests: XCTestCase {
             // Förväntat: kanalen är stängd.
         }
     }
+
+    // Till skillnad från testerna ovan (som anropar close() STRIKT efter att
+    // openShell() redan returnerat) startar det här testet openShell() och
+    // close() som två obundna Tasks UTAN inbördes ordning - just den
+    // genuint konkurrenta interleaven cubic-dev-ai och sentry[bot] flaggade
+    // som olöst av den ursprungliga isClosingOrClosed-preflight-kollen
+    // (TOCTOU: close() kan hinna starta EFTER kollen men INNAN
+    // pipeline-uppslagningen svarar). 200 iterationer för att ge Swift
+    // Concurrencys schemaläggare en verklig chans att interleava dem olika
+    // varje gång. Body kraschar hela testprocessen (NIOs "leaking
+    // promise"-fatal error) om racet fortfarande finns - det finns inget
+    // sätt att fånga det i ett do/catch, processens överlevnad ÄR beviset.
+    func testConcurrentOpenShellAndCloseNeverCrashes() async throws {
+        for _ in 0..<200 {
+            let server = try LoopbackServer.start(password: "hunter2")
+            defer { server.shutdown() }
+
+            let session = SSHSession(
+                target: SSHTarget(host: "127.0.0.1", port: server.port, username: "tester"),
+                auth: .password("hunter2"), knownHosts: KnownHosts(path: nil))
+            try await session.connect()
+
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    _ = try? await session.openShell(cols: 80, rows: 24)
+                }
+                group.addTask {
+                    await session.close()
+                }
+                await group.waitForAll()
+            }
+        }
+    }
 }
