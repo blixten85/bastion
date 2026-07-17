@@ -1,10 +1,22 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import Sentry
 
 @main
 struct BastionApp: App {
     @StateObject private var lock = AppLockManager()
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        SentrySDK.start { options in
+            options.dsn = "https://4c2adfe9cbc58608e02fb4d52b8af3a0@o4511717224480768.ingest.de.sentry.io/4511745363673168"
+            options.tracesSampleRate = 1.0
+            options.profilesSampleRate = 1.0
+            options.sessionReplay.onErrorSampleRate = 1.0
+            options.sessionReplay.sessionSampleRate = 0.1
+            options.experimental.enableLogs = true
+        }
+    }
 
     var body: some Scene {
         WindowGroup {

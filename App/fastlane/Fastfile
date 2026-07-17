@@ -67,5 +67,11 @@ platform :ios do
       api_key: api_key,
       skip_waiting_for_build_processing: true,
     )
+
+    sentry_debug_files_upload(
+      org_slug: 'anders-gh',
+      project_slug: 'bastion',
+      include_sources: true
+    )
   end
 end
