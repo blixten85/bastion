@@ -123,6 +123,7 @@ struct HostListView: View {
     @State private var showTailscale = false
     @State private var pendingHostFromDiscovery: Host?
     @State private var showS3 = false
+    @State private var showTerminalTheme = false
     @State private var searchText = ""
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
@@ -164,6 +165,7 @@ struct HostListView: View {
                         Button { showWireGuard = true } label: { Label("WireGuard-profiler", systemImage: "network.badge.shield.half.filled") }
                         Button { showTailscale = true } label: { Label("Tailscale-värdar", systemImage: "point.3.filled.connected.trianglepath.dotted") }
                         Button { showS3 = true } label: { Label("S3-lagring", systemImage: "externaldrive.badge.icloud") }
+                        Button { showTerminalTheme = true } label: { Label("Terminaltema", systemImage: "paintpalette") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -208,6 +210,9 @@ struct HostListView: View {
             }
             .sheet(isPresented: $showS3) {
                 S3ConnectionListView()
+            }
+            .sheet(isPresented: $showTerminalTheme) {
+                TerminalThemeSettingsView()
             }
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager, store: model.store)

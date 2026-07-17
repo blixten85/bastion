@@ -2,8 +2,12 @@
 import SwiftTerm
 import SwiftUI
 import SSHCore
+import Foundation
 #if os(iOS)
+import UIKit
 import Sentry
+#else
+import AppKit
 #endif
 
 // XCODE-ONLY. Byggs inte av SwiftPM på Linux (SwiftTerm kräver UIKit/AppKit).
@@ -90,6 +94,45 @@ final class SSHTerminalController {
 }
 
 #if os(iOS)
+private typealias TTColor = UIColor
+#else
+private typealias TTColor = NSColor
+#endif
+
+private extension SwiftTerm.Color {
+    /// Bygger en SwiftTerm-färg ur en "#RRGGBB"-hexsträng via den delade
+    /// `HexRGB`-parsern (TerminalTheme.swift). SwiftTerm.Color-komponenter
+    /// är 0-65535, så 0-1-komponenterna skalas upp med 65535.
+    convenience init(hex: String) {
+        let rgb = HexRGB(hex)
+        self.init(red: UInt16(rgb.red * 65535), green: UInt16(rgb.green * 65535), blue: UInt16(rgb.blue * 65535))
+    }
+}
+
+private extension TTColor {
+    /// SwiftTerms egen `TTColor`/`.make(color:)` är interna (utan `public`)
+    /// i SwiftTerm-modulen, alltså oåtkomliga härifrån — bygger istället
+    /// direkt mot UIColor/NSColor via samma delade `HexRGB`-parser.
+    convenience init(hex: String) {
+        let rgb = HexRGB(hex)
+        self.init(red: CGFloat(rgb.red), green: CGFloat(rgb.green), blue: CGFloat(rgb.blue), alpha: 1.0)
+    }
+}
+
+extension TerminalView {
+    /// Applicerar ett Bastion-terminaltema: bakgrund/text/markör/markering +
+    /// de 16 ANSI-färgerna. `installColors` uppdaterar både färgmotorn och
+    /// om-renderar existerande innehåll (se SwiftTerm.TerminalView).
+    func apply(theme: TerminalTheme) {
+        nativeBackgroundColor = TTColor(hex: theme.background)
+        nativeForegroundColor = TTColor(hex: theme.foreground)
+        caretColor = TTColor(hex: theme.cursor)
+        selectedTextBackgroundColor = TTColor(hex: theme.selection)
+        installColors(theme.ansi.map { SwiftTerm.Color(hex: $0) })
+    }
+}
+
+#if os(iOS)
 typealias TerminalRepresentable = UIViewRepresentable
 #else
 typealias TerminalRepresentable = NSViewRepresentable
@@ -140,6 +183,8 @@ struct BastionTerminal: TerminalRepresentable {
 
         func attach(_ view: TerminalView) {
             self.view = view
+            let savedID = UserDefaults.standard.string(forKey: TerminalThemeKeys.selectedID)
+            view.apply(theme: TerminalTheme.theme(id: savedID))
             let t = view.getTerminal()
             controller.start(cols: t.cols, rows: t.rows)
         }
