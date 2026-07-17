@@ -1,0 +1,21 @@
+Sources/SSHCore/SSHSession.swift
+  s_8850151e11397b::t_b305f24fd75846 216-241,243-269
+Tests/SSHCoreTests/TerminalTeardownRaceTests.swift
+  s_8850151e11397b::t_5397b01e476eb5 70-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7bcc68bd98d102e21847f66e1a67e599488969fb",
+  "prompts": {},
+  "sessions": {
+    "s_8850151e11397b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b715bbe-66aa-4f93-ac74-3f76f2736de8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    }
+  }
+}
