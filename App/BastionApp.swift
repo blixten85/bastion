@@ -13,6 +13,11 @@ struct BastionApp: App {
         #if os(iOS)
         SentrySDK.start { options in
             options.dsn = "https://4c2adfe9cbc58608e02fb4d52b8af3a0@o4511717224480768.ingest.de.sentry.io/4511745363673168"
+            #if DEBUG
+            options.environment = "debug"
+            #else
+            options.environment = "production"
+            #endif
             options.tracePropagationTargets = []
             options.tracesSampleRate = 0.1
             options.configureProfiling = {
