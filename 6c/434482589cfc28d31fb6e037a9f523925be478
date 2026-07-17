@@ -1,0 +1,19 @@
+App/BastionApp.swift
+  s_8850151e11397b::t_e6e1f7f90dcda2 18-22,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6c434482589cfc28d31fb6e037a9f523925be478",
+  "prompts": {},
+  "sessions": {
+    "s_8850151e11397b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b715bbe-66aa-4f93-ac74-3f76f2736de8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
