@@ -90,14 +90,6 @@ final class SSHTerminalController {
     }
 }
 
-/// Nyckeln temaväljaren (App/TerminalThemeSettingsView.swift) sparar det
-/// valda temats `id` under — läses direkt här istället för att skicka temat
-/// genom hela anropskedjan (SessionView -> BastionTerminal), samma
-/// UserDefaults-mönster som t.ex. `AppLockKeys`.
-enum TerminalThemeKeys {
-    static let selectedID = "terminalThemeID"
-}
-
 private extension SwiftTerm.Color {
     /// Bygger en SwiftTerm-färg ur en "#RRGGBB"-hexsträng (så som Bastions
     /// teman lagras i TerminalTheme.swift). SwiftTerm.Color-komponenter är

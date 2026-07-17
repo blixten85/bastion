@@ -2,6 +2,13 @@
 import SwiftUI
 import Foundation
 
+/// Nyckeln temaväljaren (TerminalThemeSettingsView) sparar det valda temats
+/// `id` under — läses direkt ur UserDefaults i TerminalView.swift, samma
+/// mönster som t.ex. `AppLockKeys`.
+enum TerminalThemeKeys {
+    static let selectedID = "terminalThemeID"
+}
+
 /// Ett terminalfärgschema: bakgrund/text/markör/markering + 16 ANSI-färger
 /// (index 0-7 normal, 8-15 bright). Färger sparas som hex-strängar (inte
 /// plattformsspecifika Color-typer) så samma data går att återanvända för
