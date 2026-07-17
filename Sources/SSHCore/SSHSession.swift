@@ -48,6 +48,17 @@ public final class SSHSession {
         if firstToResolve { fatal.succeed(error) }
     }
 
+    // close() anropar signalFatal(...) synkront som sitt FÖRSTA steg, innan
+    // den asynkrona nedstängningen (channel.close()/group.shutdownGracefully())
+    // ens börjar. Den här flaggan låter openShell() (och annat som gör en
+    // .get()-blockerande pipeline-uppslagning, till skillnad från execute()s
+    // callback-baserade mönster som redan race:ar säkert mot closeFuture/fatal)
+    // upptäcka en pågående/redan avslutad close() INNAN den rör en kanal vars
+    // event loop-grupp kan hinna stängas ner under tiden — annars kraschar
+    // processen med NIOs "leaking promise"-fatal error istället för att kasta
+    // ett vanligt Swift-fel (reproducerat i TerminalTeardownRaceTests).
+    private var isClosingOrClosed: Bool { fatalLock.withLock { fatalResolved } }
+
     /// Öppnar TCP + SSH-handshake + autentisering.
     public func connect() async throws {
         let userAuth = SSHUserAuth(username: target.username, auth: auth) { [weak self] in
@@ -190,10 +201,9 @@ public final class SSHSession {
     public func openShell(
         term: String = "xterm-256color", cols: Int = 80, rows: Int = 24
     ) async throws -> SSHShell {
-        guard let channel = self.channel else {
+        guard let channel = self.channel, !isClosingOrClosed else {
             throw SSHError.channelFailed("inte ansluten")
         }
-        let sshHandler = try await channel.pipeline.handler(type: NIOSSHHandler.self).get()
 
         var cont: AsyncThrowingStream<SSHChunk, Error>.Continuation!
         let stream = AsyncThrowingStream<SSHChunk, Error> { cont = $0 }
@@ -203,13 +213,60 @@ public final class SSHSession {
         channel.closeFuture.whenComplete { _ in continuation.finish() }
         self.fatal.futureResult.whenSuccess { continuation.finish(throwing: $0) }
 
-        let handler = ShellHandler(term: term, cols: cols, rows: rows, continuation: continuation)
-        let childPromise = channel.eventLoop.makePromise(of: Channel.self)
-        sshHandler.createChannel(childPromise, channelType: .session) { child, _ in
-            child.pipeline.addHandler(handler)
+        // isClosingOrClosed ovan är bara en preflight-koll (TOCTOU) — en
+        // close() kan fortfarande starta EFTER den men INNAN
+        // pipeline-uppslagningen nedan hinner svara, vilket river ner
+        // event loop-gruppen medan ett promise på den fortfarande är
+        // öppet (NIOs "leaking promise"-krasch). Precis som execute()
+        // löser vi det genom att registrera closeFuture/fatal-lyssnare
+        // som race:ar mot pipeline-uppslagningen via callbacks istället
+        // för en naken `try await ...get()`, och låta EN gemensam,
+        // låsskyddad flagga avgöra vem som får fullborda resultatet.
+        let resultPromise = channel.eventLoop.makePromise(of: SSHShell.self)
+        let resolveLock = NIOLock()
+        var resolved = false
+        func resolveOnce(_ body: () -> Void) {
+            let shouldRun: Bool = resolveLock.withLock {
+                if resolved { return false }
+                resolved = true
+                return true
+            }
+            if shouldRun { body() }
         }
-        let child = try await childPromise.futureResult.get()
-        return SSHShell(channel: child, output: stream)
+
+        self.fatal.futureResult.whenSuccess { error in
+            resolveOnce { resultPromise.fail(error) }
+        }
+        channel.closeFuture.whenComplete { _ in
+            resolveOnce { resultPromise.fail(SSHError.channelFailed("inte ansluten")) }
+        }
+        channel.pipeline.handler(type: NIOSSHHandler.self).whenComplete { result in
+            resolveOnce {
+                switch result {
+                case .failure(let e):
+                    resultPromise.fail(SSHError.channelFailed(String(describing: e)))
+                case .success(let sshHandler):
+                    let handler = ShellHandler(term: term, cols: cols, rows: rows, continuation: continuation)
+                    let childPromise = channel.eventLoop.makePromise(of: Channel.self)
+                    sshHandler.createChannel(childPromise, channelType: .session) { child, _ in
+                        child.pipeline.addHandler(handler)
+                    }
+                    // Redan "vunnet" ovan (resolved == true) — den här
+                    // fullbordar samma, redan reserverade resultat, inte
+                    // en ny tävling.
+                    childPromise.futureResult.whenComplete { childResult in
+                        switch childResult {
+                        case .failure(let e):
+                            resultPromise.fail(SSHError.channelFailed(String(describing: e)))
+                        case .success(let child):
+                            resultPromise.succeed(SSHShell(channel: child, output: stream))
+                        }
+                    }
+                }
+            }
+        }
+
+        return try await resultPromise.futureResult.get()
     }
 
     /// Bekvämlighet: samla hela utdatan till en sträng.
