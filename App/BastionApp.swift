@@ -12,7 +12,7 @@ struct BastionApp: App {
             options.dsn = "https://4c2adfe9cbc58608e02fb4d52b8af3a0@o4511717224480768.ingest.de.sentry.io/4511745363673168"
             options.tracePropagationTargets = []
             options.tracesSampleRate = 0.1
-            options.profilesSampleRate = 0.1
+            options.profilesSampleRate = 1.0
             // Session replay disabled for privacy: SSH terminal output, credentials,
             // private keys, and host details must never be captured in replays
             options.sessionReplay.onErrorSampleRate = 0.0
