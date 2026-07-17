@@ -1,0 +1,21 @@
+Tests/SSHCoreTests/TerminalTeardownRaceTests.swift
+  s_8850151e11397b::t_26dd2ca048dca4 42-46
+  s_8850151e11397b::t_53b0a0c9f2ba94 70-74
+  s_8850151e11397b::t_427e9a18c391da 81-104,117-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ea55437a82f8fb5e3f65c0d104d59f5fa33b96c7",
+  "prompts": {},
+  "sessions": {
+    "s_8850151e11397b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b715bbe-66aa-4f93-ac74-3f76f2736de8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
