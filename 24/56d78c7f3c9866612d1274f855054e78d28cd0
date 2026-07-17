@@ -1,0 +1,25 @@
+App/TerminalView.swift
+  s_8850151e11397b::t_b51aa61431df10 5-7
+  s_8850151e11397b::t_232216a16f96f5 60-65,73-75
+App/BastionApp.swift
+  s_8850151e11397b::t_95dd03e9842659 53-61
+  s_8850151e11397b::t_a3a0faf507f18d 23-28,30
+.gitignore
+  s_8850151e11397b::t_8ea3c252feb49f 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2456d78c7f3c9866612d1274f855054e78d28cd0",
+  "prompts": {},
+  "sessions": {
+    "s_8850151e11397b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b715bbe-66aa-4f93-ac74-3f76f2736de8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
