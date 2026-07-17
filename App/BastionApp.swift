@@ -20,8 +20,14 @@ struct BastionApp: App {
             #endif
             options.tracePropagationTargets = []
             options.tracesSampleRate = 0.1
+            // .manual (inte .trace) - med .trace gates appstart-profilering
+            // av tracesSampleRate (0.1 ovan) oavsett sessionSampleRate, så
+            // ~90% av starterna hade tappats tyst (verifierat mot SDK-
+            // källkodens dokkommentar i SentryProfileOptions.swift). .manual
+            // låter sessionSampleRate=1.0 gälla för sig själv - profilerna
+            // avslutas explicit i body nedan när rotvyn först renderats.
             options.configureProfiling = {
-                $0.lifecycle = .trace
+                $0.lifecycle = .manual
                 $0.sessionSampleRate = 1.0
                 $0.profileAppStarts = true
             }
@@ -43,6 +49,15 @@ struct BastionApp: App {
                 } else if lock.isEnabled && lock.isObscured {
                     PrivacyCoverView()
                 }
+            }
+            .onAppear {
+                #if os(iOS)
+                // Markerar slutet på det som profileAppStarts mäter - rotvyn
+                // har renderats. Manuell lifecycle (se init()) kräver detta
+                // explicita anrop; utan det fortsätter profileringen tills
+                // SDK:t timear ut den själv.
+                SentrySDK.stopProfiler()
+                #endif
             }
         }
         .onChange(of: scenePhase) { newPhase in
