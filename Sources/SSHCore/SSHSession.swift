@@ -48,6 +48,17 @@ public final class SSHSession {
         if firstToResolve { fatal.succeed(error) }
     }
 
+    // close() anropar signalFatal(...) synkront som sitt FÖRSTA steg, innan
+    // den asynkrona nedstängningen (channel.close()/group.shutdownGracefully())
+    // ens börjar. Den här flaggan låter openShell() (och annat som gör en
+    // .get()-blockerande pipeline-uppslagning, till skillnad från execute()s
+    // callback-baserade mönster som redan race:ar säkert mot closeFuture/fatal)
+    // upptäcka en pågående/redan avslutad close() INNAN den rör en kanal vars
+    // event loop-grupp kan hinna stängas ner under tiden — annars kraschar
+    // processen med NIOs "leaking promise"-fatal error istället för att kasta
+    // ett vanligt Swift-fel (reproducerat i TerminalTeardownRaceTests).
+    private var isClosingOrClosed: Bool { fatalLock.withLock { fatalResolved } }
+
     /// Öppnar TCP + SSH-handshake + autentisering.
     public func connect() async throws {
         let userAuth = SSHUserAuth(username: target.username, auth: auth) { [weak self] in
@@ -190,7 +201,7 @@ public final class SSHSession {
     public func openShell(
         term: String = "xterm-256color", cols: Int = 80, rows: Int = 24
     ) async throws -> SSHShell {
-        guard let channel = self.channel else {
+        guard let channel = self.channel, !isClosingOrClosed else {
             throw SSHError.channelFailed("inte ansluten")
         }
         let sshHandler = try await channel.pipeline.handler(type: NIOSSHHandler.self).get()
