@@ -100,35 +100,22 @@ private typealias TTColor = NSColor
 #endif
 
 private extension SwiftTerm.Color {
-    /// Bygger en SwiftTerm-färg ur en "#RRGGBB"-hexsträng (så som Bastions
-    /// teman lagras i TerminalTheme.swift). SwiftTerm.Color-komponenter är
-    /// 0-65535, så 8-bitarskomponenter (0-255) skalas upp med 257
-    /// (255 * 257 == 65535).
+    /// Bygger en SwiftTerm-färg ur en "#RRGGBB"-hexsträng via den delade
+    /// `HexRGB`-parsern (TerminalTheme.swift). SwiftTerm.Color-komponenter
+    /// är 0-65535, så 0-1-komponenterna skalas upp med 65535.
     convenience init(hex: String) {
-        var hexString = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        hexString.removeAll { $0 == "#" }
-        var value: UInt64 = 0
-        Scanner(string: hexString).scanHexInt64(&value)
-        let r = UInt16((value & 0xFF0000) >> 16)
-        let g = UInt16((value & 0x00FF00) >> 8)
-        let b = UInt16(value & 0x0000FF)
-        self.init(red: r * 257, green: g * 257, blue: b * 257)
+        let rgb = HexRGB(hex)
+        self.init(red: UInt16(rgb.red * 65535), green: UInt16(rgb.green * 65535), blue: UInt16(rgb.blue * 65535))
     }
 }
 
 private extension TTColor {
     /// SwiftTerms egen `TTColor`/`.make(color:)` är interna (utan `public`)
-    /// i SwiftTerm-modulen, alltså oåtkomliga härifrån — samma "#RRGGBB"
-    /// -parsning görs om lokalt mot den riktiga UIColor/NSColor-initieraren.
+    /// i SwiftTerm-modulen, alltså oåtkomliga härifrån — bygger istället
+    /// direkt mot UIColor/NSColor via samma delade `HexRGB`-parser.
     convenience init(hex: String) {
-        var hexString = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        hexString.removeAll { $0 == "#" }
-        var value: UInt64 = 0
-        Scanner(string: hexString).scanHexInt64(&value)
-        let r = CGFloat((value & 0xFF0000) >> 16) / 255.0
-        let g = CGFloat((value & 0x00FF00) >> 8) / 255.0
-        let b = CGFloat(value & 0x0000FF) / 255.0
-        self.init(red: r, green: g, blue: b, alpha: 1.0)
+        let rgb = HexRGB(hex)
+        self.init(red: CGFloat(rgb.red), green: CGFloat(rgb.green), blue: CGFloat(rgb.blue), alpha: 1.0)
     }
 }
 

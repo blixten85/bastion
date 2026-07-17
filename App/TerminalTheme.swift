@@ -23,9 +23,6 @@ struct TerminalTheme: Identifiable, Equatable, Codable {
     let ansi: [String]
 
     var backgroundColor: Color { Color(hex: background) }
-    var foregroundColor: Color { Color(hex: foreground) }
-    var cursorColor: Color { Color(hex: cursor) }
-    var selectionColor: Color { Color(hex: selection) }
 }
 
 extension TerminalTheme {
@@ -42,7 +39,7 @@ extension TerminalTheme {
                       ansi: ["#3B4252", "#BF616A", "#A3BE8C", "#EBCB8B", "#81A1C1", "#B48EAD", "#88C0D0", "#E5E9F0",
                              "#4C566A", "#BF616A", "#A3BE8C", "#EBCB8B", "#81A1C1", "#B48EAD", "#8FBCBB", "#ECEFF4"]),
         TerminalTheme(id: "solarized-dark", name: "Solarized Dark",
-                      background: "#002b36", foreground: "#839496", cursor: "#839496", selection: "#002b36",
+                      background: "#002b36", foreground: "#839496", cursor: "#839496", selection: "#073642",
                       ansi: ["#073642", "#dc322f", "#859900", "#b58900", "#268bd2", "#d33682", "#2aa198", "#eee8d5",
                              "#002b36", "#cb4b16", "#586e75", "#657b83", "#839496", "#6c71c4", "#93a1a1", "#fdf6e3"]),
         TerminalTheme(id: "solarized-light", name: "Solarized Light",
@@ -145,18 +142,37 @@ extension TerminalTheme {
     }
 }
 
+/// Strikt "#RRGGBB"-parsning delad av alla färgkonsumenter (SwiftUI-
+/// förhandsvisning i denna fil, SwiftTerm-rendering + native bakgrund/
+/// markör/markering i TerminalView.swift) så en enda parsningsregel gäller
+/// överallt. Kräver exakt sju tecken ("#" + 6 hexsiffror) — allt annat
+/// (fel längd, saknat "#", icke-hex-tecken) faller tillbaka på svart
+/// snarare än att tyst rendera fel färg.
+struct HexRGB {
+    let red: Double
+    let green: Double
+    let blue: Double
+
+    init(_ hex: String) {
+        let trimmed = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count == 7, trimmed.hasPrefix("#"),
+              let value = UInt64(trimmed.dropFirst(), radix: 16) else {
+            red = 0
+            green = 0
+            blue = 0
+            return
+        }
+        red = Double((value & 0xFF0000) >> 16) / 255.0
+        green = Double((value & 0x00FF00) >> 8) / 255.0
+        blue = Double(value & 0x0000FF) / 255.0
+    }
+}
+
 extension Color {
-    /// Bygger en SwiftUI-`Color` ur en "#RRGGBB"-hexsträng. Ogiltig indata
-    /// faller tillbaka på svart snarare än att krascha.
+    /// Bygger en SwiftUI-`Color` ur en "#RRGGBB"-hexsträng via `HexRGB`.
     init(hex: String) {
-        var hexString = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        hexString.removeAll { $0 == "#" }
-        var value: UInt64 = 0
-        Scanner(string: hexString).scanHexInt64(&value)
-        let r = Double((value & 0xFF0000) >> 16) / 255.0
-        let g = Double((value & 0x00FF00) >> 8) / 255.0
-        let b = Double(value & 0x0000FF) / 255.0
-        self.init(red: r, green: g, blue: b)
+        let rgb = HexRGB(hex)
+        self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
     }
 }
 #endif
