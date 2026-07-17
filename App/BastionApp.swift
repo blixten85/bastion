@@ -1,6 +1,8 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if os(iOS)
 import Sentry
+#endif
 
 @main
 struct BastionApp: App {
@@ -8,6 +10,7 @@ struct BastionApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        #if os(iOS)
         SentrySDK.start { options in
             options.dsn = "https://4c2adfe9cbc58608e02fb4d52b8af3a0@o4511717224480768.ingest.de.sentry.io/4511745363673168"
             options.tracePropagationTargets = []
@@ -17,7 +20,9 @@ struct BastionApp: App {
             // private keys, and host details must never be captured in replays
             options.sessionReplay.onErrorSampleRate = 0.0
             options.sessionReplay.sessionSampleRate = 0.0
+            options.experimental.enableLogs = true
         }
+        #endif
     }
 
     var body: some Scene {

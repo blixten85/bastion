@@ -15,6 +15,9 @@ packages:
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm
     from: "1.14.0"
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    from: "9.0.0"
   # Kärnan (SSHCore) ligger i repo-roten en nivå upp.
   Bastion:
     path: ..
@@ -127,6 +130,8 @@ targets:
       - package: SwiftTerm
       - package: Bastion
         product: SSHCore
+      - package: Sentry
+        product: Sentry
 
   Bastion-macOS:
     type: application
