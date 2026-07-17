@@ -1,0 +1,25 @@
+App/TerminalTheme.swift
+  s_3de08b7f6ab0a8::t_46a3f2eccb5a2b 5-11
+App/TerminalThemeSettingsView.swift
+  s_3de08b7f6ab0a8::t_db9873ce060ca4 1-64
+App/HostListView.swift
+  s_3de08b7f6ab0a8::t_3a9bc5b8b50c85 126
+  s_3de08b7f6ab0a8::t_2983133939b9c3 168
+  s_3de08b7f6ab0a8::t_2103e45dbca440 214-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "654628abb13607f5b9b6fef669751d1603d44c81",
+  "prompts": {},
+  "sessions": {
+    "s_3de08b7f6ab0a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "198688df-05fc-4b91-9253-de4ba3127bb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
