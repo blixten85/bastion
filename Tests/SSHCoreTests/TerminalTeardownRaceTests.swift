@@ -39,7 +39,11 @@ final class TerminalTeardownRaceTests: XCTestCase {
                 chunkCount += 1
             }
             XCTFail("strömmen skulle avslutas med ett kastat fel efter close(), inte tyst")
-        } catch {
+        } catch let error as SSHError {
+            guard case .channelFailed = error else {
+                XCTFail("förväntade SSHError.channelFailed, fick \(error)")
+                return
+            }
             // Förväntat: close() -> signalFatal -> strömmen kastar.
         }
         XCTAssertEqual(chunkCount, 0, "ingen mer data skulle levereras efter close()")
@@ -63,22 +67,41 @@ final class TerminalTeardownRaceTests: XCTestCase {
         do {
             _ = try await session.openShell(cols: 80, rows: 24)
             XCTFail("openShell() efter close() borde faila, inte lyckas mot en död session")
-        } catch {
+        } catch let error as SSHError {
+            guard case .channelFailed = error else {
+                XCTFail("förväntade SSHError.channelFailed, fick \(error)")
+                return
+            }
             // Förväntat: kanalen är stängd.
         }
     }
 
     // Till skillnad från testerna ovan (som anropar close() STRIKT efter att
     // openShell() redan returnerat) startar det här testet openShell() och
-    // close() som två obundna Tasks UTAN inbördes ordning - just den
-    // genuint konkurrenta interleaven cubic-dev-ai och sentry[bot] flaggade
-    // som olöst av den ursprungliga isClosingOrClosed-preflight-kollen
-    // (TOCTOU: close() kan hinna starta EFTER kollen men INNAN
-    // pipeline-uppslagningen svarar). 200 iterationer för att ge Swift
-    // Concurrencys schemaläggare en verklig chans att interleava dem olika
-    // varje gång. Body kraschar hela testprocessen (NIOs "leaking
-    // promise"-fatal error) om racet fortfarande finns - det finns inget
-    // sätt att fånga det i ett do/catch, processens överlevnad ÄR beviset.
+    // close() som två obundna Tasks UTAN inbördes ordning - matchar exakt
+    // hur App/TerminalView.swift faktiskt använder SSHCore: start() anropar
+    // connect() följt av openShell() i EN Task, medan stop() (utlöst av en
+    // användares dismiss-knapptryck NÄR SOM HELST) anropar session.close()
+    // från en HELT OBEROENDE Task - se rad 46-77 där ingenting synkroniserar
+    // de två.
+    //
+    // 200 iterationer bevisade (empiriskt, mot 7bcc68b) att den ursprungliga
+    // TOCTOU-luckan (close() startar EFTER isClosingOrClosed-kollen men
+    // INNAN pipeline-uppslagningen svarar) är stängd: 0 kraschar av 200,
+    // mot deterministisk hängning inom enstaka iterationer på den gamla
+    // koden.
+    //
+    // En ÄNNU smalare lucka (close() exakt mellan att pipeline-uppslagningen
+    // lyckas och att child-kanalen hinner skapas) reproducerades separat vid
+    // ~3000 tighta iterationer utan paus - men den kräver att en användares
+    // knapptryck landar i ett sub-millisekunds internt fönster MELLAN två
+    // NIO-callbacks, något en riktig UI-interaktion aldrig producerar (jfr.
+    // TerminalView.swift: stop() reagerar på en hel knapptryck-till-Task-
+    // schemaläggning, storleksordningar långsammare). Bedömd som teoretisk,
+    // inte praktiskt nåbar - se PR #169-diskussionen för resonemanget i sin
+    // helhet. Om framtida telemetri (Sentry) visar motsatsen, återuppta med
+    // en riktig lösning (t.ex. att synkronisera close() mot ett aktivt
+    // event loop-jobb istället för att bara vänta in det).
     func testConcurrentOpenShellAndCloseNeverCrashes() async throws {
         for _ in 0..<200 {
             let server = try LoopbackServer.start(password: "hunter2")
@@ -91,7 +114,17 @@ final class TerminalTeardownRaceTests: XCTestCase {
 
             await withTaskGroup(of: Void.self) { group in
                 group.addTask {
-                    _ = try? await session.openShell(cols: 80, rows: 24)
+                    do {
+                        _ = try await session.openShell(cols: 80, rows: 24)
+                    } catch let error as SSHError {
+                        guard case .channelFailed = error else {
+                            XCTFail("förväntade SSHError.channelFailed, fick \(error)")
+                            return
+                        }
+                        // Förväntat: openShell() racade mot close() och förlorade rent.
+                    } catch {
+                        XCTFail("oväntad feltyp: \(error)")
+                    }
                 }
                 group.addTask {
                     await session.close()
