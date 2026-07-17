@@ -2,6 +2,9 @@
 import SwiftTerm
 import SwiftUI
 import SSHCore
+#if os(iOS)
+import Sentry
+#endif
 
 // XCODE-ONLY. Byggs inte av SwiftPM på Linux (SwiftTerm kräver UIKit/AppKit).
 // Lägg till SwiftTerm som paketberoende i Xcode:
@@ -54,6 +57,12 @@ final class SSHTerminalController {
                 guard !isStopped else { shell.close(); return }
                 self.shell = shell
                 if let cmd = initialCommand { shell.send(cmd + "\n") }
+                #if os(iOS)
+                // Bara händelsekategorin, aldrig host/user/kommando-innehåll
+                // - samma integritetsprincip som session replay redan följer
+                // (se init() i BastionApp.swift).
+                SentrySDK.logger.info("ssh.session.started")
+                #endif
                 for try await chunk in shell.output {
                     guard !isStopped else { break }
                     let bytes = chunk.bytes
@@ -61,6 +70,9 @@ final class SSHTerminalController {
                 }
             } catch {
                 guard !isStopped else { return }
+                #if os(iOS)
+                SentrySDK.logger.warn("ssh.session.failed", attributes: ["category": String(describing: type(of: error))])
+                #endif
                 let msg = Array("\r\n[bastion] fel: \(error)\r\n".utf8)
                 self.onData?(msg[...])
             }
