@@ -95,7 +95,7 @@ private extension SwiftTerm.Color {
     /// teman lagras i TerminalTheme.swift). SwiftTerm.Color-komponenter är
     /// 0-65535, så 8-bitarskomponenter (0-255) skalas upp med 257
     /// (255 * 257 == 65535).
-    init(hex: String) {
+    convenience init(hex: String) {
         var hexString = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         hexString.removeAll { $0 == "#" }
         var value: UInt64 = 0
