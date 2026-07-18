@@ -124,7 +124,10 @@ struct HostListView: View {
     @State private var pendingHostFromDiscovery: Host?
     @State private var showS3 = false
     @State private var showTerminalTheme = false
+    @State private var showQuickConnect = false
+    @State private var pendingQuickConnectRequest: ConnectRequest?
     @State private var searchText = ""
+    @State private var wakeMessage: String?
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
     /// case-insensitive); tomma sektioner (ingen träff i gruppen) faller bort.
@@ -166,6 +169,7 @@ struct HostListView: View {
                         Button { showTailscale = true } label: { Label("Tailscale-värdar", systemImage: "point.3.filled.connected.trianglepath.dotted") }
                         Button { showS3 = true } label: { Label("S3-lagring", systemImage: "externaldrive.badge.icloud") }
                         Button { showTerminalTheme = true } label: { Label("Terminaltema", systemImage: "paintpalette") }
+                        Button { showQuickConnect = true } label: { Label("Snabbanslutning", systemImage: "bolt.horizontal") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -214,6 +218,21 @@ struct HostListView: View {
             .sheet(isPresented: $showTerminalTheme) {
                 TerminalThemeSettingsView()
             }
+            .sheet(isPresented: $showQuickConnect, onDismiss: {
+                // Samma mönster som Tailscale-upptäckten ovan: öppna sessionen
+                // FÖRST efter att QuickConnectView-sheeten faktiskt stängt —
+                // att sätta showSessions medan den fortfarande stänger krockar
+                // med SwiftUIs single-sheet-hantering (cubic-fynd, PR #173).
+                if let request = pendingQuickConnectRequest {
+                    pendingQuickConnectRequest = nil
+                    sessionManager.open(request)
+                    showSessions = true
+                }
+            }) {
+                QuickConnectView { request in
+                    pendingQuickConnectRequest = request
+                }
+            }
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager, store: model.store)
             }
@@ -233,6 +252,27 @@ struct HostListView: View {
                     passwordFor = nil; passwordInput = ""
                 }
                 Button("Avbryt", role: .cancel) { passwordFor = nil; passwordInput = "" }
+            }
+            .alert("Wake-on-LAN", isPresented: .constant(wakeMessage != nil), presenting: wakeMessage) { _ in
+                Button("OK") { wakeMessage = nil }
+            } message: { message in
+                Text(message)
+            }
+        }
+    }
+
+    /// Skickar ett magic packet till `host.macAddress` — fel visas i en alert
+    /// istället för att sväljas tyst, men blockerar aldrig anslutningsflödet
+    /// (WoL är best-effort: paketet kan skickas iväg utan att målet faktiskt
+    /// vaknar, t.ex. om det redan är på eller inte lyssnar efter WoL).
+    private func wake(_ host: Host) {
+        guard let mac = host.macAddress else { return }
+        Task {
+            do {
+                try await WakeOnLan.send(mac: mac)
+                wakeMessage = "Skickade väckningssignal till \(host.alias.isEmpty ? host.hostName : host.alias)."
+            } catch {
+                wakeMessage = "Kunde inte skicka väckningssignal: \(error)"
             }
         }
     }
@@ -256,6 +296,11 @@ struct HostListView: View {
                                     Label(host.isFavorite ? "Ta bort favorit" : "Favorit",
                                           systemImage: host.isFavorite ? "star.slash" : "star")
                                 }.tint(.yellow)
+                                if host.macAddress != nil {
+                                    Button { wake(host) } label: {
+                                        Label("Väck", systemImage: "bolt.fill")
+                                    }.tint(.orange)
+                                }
                             }
                     }
                 }
