@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var showTailscale = false
     @State private var showS3 = false
     @State private var searchText = ""
+    @State private var wakeMessage: String?
 
     private var filteredHosts: [Host] {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -124,14 +125,35 @@ struct ContentView: View {
                     Button(selected.isFavorite ? "★ Favorit" : "☆ Favorit") {
                         model.toggleFavorite(selected)
                     }
+                    if selected.macAddress != nil {
+                        Button("Väck") { wake(selected) }
+                    }
                     Button("Ta bort") {
                         model.delete(selected)
                         selectedHostID = nil
                     }
                 }
+                if let wakeMessage {
+                    Text(wakeMessage).foregroundColor(.gray)
+                }
             }
         }
         .padding()
         .frame(minWidth: 240)
+    }
+
+    /// Skickar ett magic packet till `host.macAddress` — best-effort, samma
+    /// resonemang som App/HostListView.swift: fel visas inline istället för
+    /// att sväljas tyst, men blockerar aldrig något annat i UI:t.
+    private func wake(_ host: Host) {
+        guard let mac = host.macAddress else { return }
+        Task {
+            do {
+                try await WakeOnLan.send(mac: mac)
+                wakeMessage = "Skickade väckningssignal till \(host.alias.isEmpty ? host.hostName : host.alias)."
+            } catch {
+                wakeMessage = "Kunde inte skicka väckningssignal: \(error)"
+            }
+        }
     }
 }
