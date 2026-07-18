@@ -1,0 +1,41 @@
+App/HostEditView.swift
+  s_3de08b7f6ab0a8::t_6d3f6c00d507bd 122-134
+  s_3de08b7f6ab0a8::t_14d10afe162e77 41,45
+  s_3de08b7f6ab0a8::t_8416ddd7d38688 17-20
+App/HostListView.swift
+  s_3de08b7f6ab0a8::t_8e98049db3ed4a 180
+App/SnippetListView.swift
+  s_3de08b7f6ab0a8::t_5e74cb2ac487de 20-23
+  s_3de08b7f6ab0a8::t_8fad30a9197977 72
+App/TerminalView.swift
+  s_3de08b7f6ab0a8::t_b76f2e0b1edca0 95-96
+  s_3de08b7f6ab0a8::t_b8a70b0c8915ac 148-149,153
+  s_3de08b7f6ab0a8::t_6762073e95c90c 33-37,43,51,54,61-64
+  s_3de08b7f6ab0a8::t_9b5742f1ab7e8c 182-183
+App/SessionView.swift
+  s_3de08b7f6ab0a8::t_23489279712a55 9-13,26-27,29
+  s_3de08b7f6ab0a8::t_de2a178fe2c47d 15-25,28,34-36,43
+  s_3de08b7f6ab0a8::t_0cc50c7bcbc2f0 14
+App/CommandLibraryView.swift
+  s_3de08b7f6ab0a8::t_b9fa6a943e6521 11-14
+  s_3de08b7f6ab0a8::t_a7027cb06da090 50
+App/HostDetailView.swift
+  s_3de08b7f6ab0a8::t_0c9b631dcdc0ca 50,53
+  s_3de08b7f6ab0a8::t_5e9115add2ad02 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b50f736fa79b05a459fb44c2f89fe7556dcb4aee",
+  "prompts": {},
+  "sessions": {
+    "s_3de08b7f6ab0a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "198688df-05fc-4b91-9253-de4ba3127bb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
