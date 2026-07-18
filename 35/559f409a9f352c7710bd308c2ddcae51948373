@@ -1,0 +1,28 @@
+Tests/SSHCoreTests/WakeOnLanTests.swift
+  s_14becd1d25aa37::t_03b79d66ea6c3b 1-66,69-74,77-79
+  s_14becd1d25aa37::t_6abc0ebb6bd5e5 67-68,75-76
+Tests/SSHCoreTests/HostStoreTests.swift
+  s_14becd1d25aa37::t_339e73460f0e41 145-165
+Sources/SSHCore/WakeOnLan.swift
+  s_14becd1d25aa37::t_81143e2523ff13 56-73
+  s_14becd1d25aa37::t_f0fa45a90f0206 74
+  s_14becd1d25aa37::t_48978933ea183b 1-55,75-76
+Sources/SSHCore/Host.swift
+  s_14becd1d25aa37::t_33aa91d7ed3642 47-52,69,84,89,93-96,111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "35559f409a9f352c7710bd308c2ddcae51948373",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
