@@ -1,0 +1,39 @@
+App/SFTPBrowserModel.swift
+  s_14becd1d25aa37::t_8a0abae251dc00 69,71,73-79,107-108
+  s_14becd1d25aa37::t_a650cb2a6f09c6 31-33
+App/TailscaleDiscoveryView.swift
+  s_14becd1d25aa37::t_a650cb2a6f09c6 71-73
+App/DashboardView.swift
+  s_14becd1d25aa37::t_a650cb2a6f09c6 17-19
+  s_14becd1d25aa37::t_3bcb2a2f816917 42-50,52
+App/AuthResolver.swift
+  s_14becd1d25aa37::t_1912466aaa1a6b 28-34,41
+App/KeyDeployView.swift
+  s_14becd1d25aa37::t_a650cb2a6f09c6 27-29
+Tests/SSHCoreTests/KeyManagementTests.swift
+  s_14becd1d25aa37::t_933609ef1216e8 262-299
+App/DockerView.swift
+  s_14becd1d25aa37::t_8aee8cf7b7b823 105-108
+  s_14becd1d25aa37::t_a650cb2a6f09c6 18-20
+  s_14becd1d25aa37::t_d559af6acba015 48-56
+App/PortForwardView.swift
+  s_14becd1d25aa37::t_6dc11cc5f1bfdc 128
+  s_14becd1d25aa37::t_a650cb2a6f09c6 42-44
+  s_14becd1d25aa37::t_a02b37d225efa5 47-51,60-84,86-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1a618dc917cc15053d5692f7b52ff544445b0159",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}

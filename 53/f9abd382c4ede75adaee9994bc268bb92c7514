@@ -1,0 +1,55 @@
+App/AuthResolver.swift
+  s_14becd1d25aa37::t_b0eb7b929a0094 23-40
+App/PortForwardView.swift
+  s_14becd1d25aa37::t_3d4d85f41ced72 41-44,46,48,52-54,58-61
+  s_14becd1d25aa37::t_2ba5f7ae81063d 124-125
+  s_14becd1d25aa37::t_f75e2d2eb22e76 104-105,110
+App/DashboardView.swift
+  s_14becd1d25aa37::t_c5ea81e3d1b5f9 67-68
+  s_14becd1d25aa37::t_82f8a5b19c1943 16-18,21-24,32-33,38-41
+App/DockerView.swift
+  s_14becd1d25aa37::t_75494c42e99b44 115
+  s_14becd1d25aa37::t_707ce42a3e2841 17-20,23,26-29,32,39-40,44-47
+  s_14becd1d25aa37::t_ae0b3d6397c66d 94-96
+App/HostListView.swift
+  s_14becd1d25aa37::t_3b727b4fcd3436 214
+App/SFTPBrowserModel.swift
+  s_14becd1d25aa37::t_0b9dd45f04b771 63-64,68-70,73,78,81,83,89,94,97-98
+  s_14becd1d25aa37::t_b0587b03662a5b 357,359,363
+  s_14becd1d25aa37::t_3513c5075689b5 30-33,37-45
+Sources/SSHCore/KeyManagement.swift
+  s_14becd1d25aa37::t_096ac1c97d5c64 162-168,170-172
+App/SessionView.swift
+  s_14becd1d25aa37::t_d5dbcfe93632a3 16,18
+App/TailscaleDiscoveryView.swift
+  s_14becd1d25aa37::t_b29e6f1550ad05 121,123
+  s_14becd1d25aa37::t_8962ff1d6ba32d 20
+  s_14becd1d25aa37::t_bdb58b934b0eb8 70-72
+  s_14becd1d25aa37::t_b93ec2b8dfce5c 46-47,50-53
+App/KeyDeployView.swift
+  s_14becd1d25aa37::t_c3719614a5862f 26-28,30,33
+  s_14becd1d25aa37::t_6b8b97d62159e1 168-169
+  s_14becd1d25aa37::t_ef8e3197bb1422 97-98,102-104,108,113,122
+App/SFTPBrowserView.swift
+  s_14becd1d25aa37::t_1835bb8f23a79c 43-44
+App/HostDetailView.swift
+  s_14becd1d25aa37::t_7d0f927ecf3430 59,63
+  s_14becd1d25aa37::t_19b32a9c6c061a 56
+  s_14becd1d25aa37::t_4cd84a9e74d9aa 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "53f9abd382c4ede75adaee9994bc268bb92c7514",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
