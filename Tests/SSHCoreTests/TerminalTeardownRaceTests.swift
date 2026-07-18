@@ -9,6 +9,33 @@ import XCTest
 // `SSHShell.close()` verkligen avslutar `shell.output`-strömmen inom
 // rimlig tid, oavsett NÄR under sessionens livscykel den anropas. Det är
 // exakt det löftet dessa tester bevisar.
+/// Kastas av `withTimeout` när operationen inte hann klart — ett tydligt,
+/// namngivet fel istället för att bara låta testet hänga tills CI:ts egen
+/// (mycket längre) jobb-timeout till slut ger upp.
+struct TestTimeoutError: Error, CustomStringConvertible {
+    let seconds: Double
+    var description: String { "operationen tog längre än \(seconds)s — misstänkt hängning" }
+}
+
+/// Kör `operation` men ger upp (kastar `TestTimeoutError`) om den inte
+/// hunnit klart inom `seconds`. Body-tasken avbryts (`cancelAll`) i
+/// timeout-fallet — den fortsätter inte i bakgrunden efter att testet
+/// misslyckats.
+func withTimeout<T: Sendable>(
+    seconds: Double, _ operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { try await operation() }
+        group.addTask {
+            try await Task.sleep(for: .seconds(seconds))
+            throw TestTimeoutError(seconds: seconds)
+        }
+        defer { group.cancelAll() }
+        let result = try await group.next()!
+        return result
+    }
+}
+
 final class TerminalTeardownRaceTests: XCTestCase {
     func testCloseDuringActiveShellTerminatesOutputStreamPromptly() async throws {
         let server = try LoopbackServer.start(password: "hunter2")
@@ -103,6 +130,20 @@ final class TerminalTeardownRaceTests: XCTestCase {
     // en riktig lösning (t.ex. att synkronisera close() mot ett aktivt
     // event loop-jobb istället för att bara vänta in det).
     func testConcurrentOpenShellAndCloseNeverCrashes() async throws {
+        // Denna specifika test kraschade RIKTIGT på macOS-CI 2026-07-18 (NIOs
+        // "leaking promise"-läckagedetektor, se PR #172/#173-CI-historiken) —
+        // exakt den "ännu smalare lucka" kommentaren ovan bedömde teoretisk.
+        // En framtida regression i samma familj (t.ex. en långsammare CI-
+        // runner som träffar racet oftare) ska INTE tillåtas blockera hela
+        // CI-kön i en timme genom att bara hänga — 60s är gott om marginal
+        // för 200 riktiga loopback-handskakningar (normalt <1s totalt), men
+        // stoppar en genuin hängning snabbt och synligt istället.
+        try await withTimeout(seconds: 60) {
+            try await Self.runConcurrentOpenShellAndCloseIterations()
+        }
+    }
+
+    private static func runConcurrentOpenShellAndCloseIterations() async throws {
         for _ in 0..<200 {
             let server = try LoopbackServer.start(password: "hunter2")
             defer { server.shutdown() }
