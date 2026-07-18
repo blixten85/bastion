@@ -1,0 +1,43 @@
+LinuxApp/Sources/bastion-gui/TailscaleDiscoveryView.swift
+  s_14becd1d25aa37::t_0fc50b2011a99a 33-44
+LinuxApp/Sources/bastion-gui/PortForwardView.swift
+  s_14becd1d25aa37::t_c265252b60816a 110
+  s_14becd1d25aa37::t_643767d6427576 42-46,62-65
+LinuxApp/Sources/bastion-gui/AuthResolver.swift
+  s_14becd1d25aa37::t_e1d92a674c3635 30-32
+LinuxApp/Sources/bastion-gui/DockerView.swift
+  s_14becd1d25aa37::t_88802e9d9a5561 106-109
+  s_14becd1d25aa37::t_419ec87dca0cd9 49-57
+LinuxApp/Sources/bastion-gui/TerminalSessionView.swift
+  s_14becd1d25aa37::t_e192a62be85658 76
+  s_14becd1d25aa37::t_54c59312730c1f 27-32,49,52,61
+LinuxApp/Sources/bastion-gui/KeyDeployView.swift
+  s_14becd1d25aa37::t_643c587d039523 18-25
+  s_14becd1d25aa37::t_1817882d1b6303 218-219
+  s_14becd1d25aa37::t_4ed26dfaf306ad 89
+  s_14becd1d25aa37::t_4a353e28098ed0 147-151
+  s_14becd1d25aa37::t_a4eee160ac2d25 79
+  s_14becd1d25aa37::t_8e386fa41f21e6 122-123
+  s_14becd1d25aa37::t_810a442f4ea5a8 60
+  s_14becd1d25aa37::t_43068299af0e22 248-252
+LinuxApp/Sources/bastion-gui/HostEditView.swift
+  s_14becd1d25aa37::t_c59caf872702d3 47-51,62
+  s_14becd1d25aa37::t_4bad5892ea9fa7 205
+  s_14becd1d25aa37::t_b770416e6bf05b 74-80,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7ece9303c35a8fa69d82f034a457980e1f58295c",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
