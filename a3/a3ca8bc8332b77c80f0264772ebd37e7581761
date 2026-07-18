@@ -1,0 +1,24 @@
+Tests/SSHCoreTests/TailscaleStatusTests.swift
+  s_14becd1d25aa37::t_f855b9249b74cf 92-95,97-99,104,106-112
+Sources/SSHCore/TailscaleStatus.swift
+  s_14becd1d25aa37::t_e6c48062d12794 109-118
+  s_14becd1d25aa37::t_7c8b9845b6212f 119-124
+  s_14becd1d25aa37::t_04f2db7580b990 135-150,153,155-162
+  s_14becd1d25aa37::t_91b14e18ad7071 151-152,154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a3a3ca8bc8332b77c80f0264772ebd37e7581761",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
