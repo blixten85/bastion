@@ -181,7 +181,7 @@ final class SFTPBrowserModel: ObservableObject {
     /// formatet — det gör `useZip` — men läses av `extract` nedan för att
     /// välja rätt uppackningskommando).
     func compress(_ entry: SFTPNameEntry, archiveName: String, useZip: Bool) async {
-        guard let client = await ensureClient(), let session else { return }
+        guard let client = await ensureClient(), let chain else { return }
         do {
             // SFTP:s `currentPath` och exec-kanalens arbetskatalog delar
             // typiskt startkatalog (användarens hem) men är INTE garanterat
@@ -191,10 +191,10 @@ final class SFTPBrowserModel: ObservableObject {
             let absoluteDir = try await client.realpath(currentPath)
             if useZip {
                 try await ArchiveOperations.createZip(
-                    paths: [entry.filename], archiveName: archiveName, in: absoluteDir, over: session)
+                    paths: [entry.filename], archiveName: archiveName, in: absoluteDir, over: chain.target)
             } else {
                 try await ArchiveOperations.createTarGz(
-                    paths: [entry.filename], archiveName: archiveName, in: absoluteDir, over: session)
+                    paths: [entry.filename], archiveName: archiveName, in: absoluteDir, over: chain.target)
             }
             await refresh()
         } catch {
@@ -206,13 +206,13 @@ final class SFTPBrowserModel: ObservableObject {
     /// av filändelsen — `.tar.gz`/`.tgz` eller `.zip`, annat avvisas tydligt
     /// istället för att gissa fel kommando.
     func extract(_ entry: SFTPNameEntry) async {
-        guard let client = await ensureClient(), let session else { return }
+        guard let client = await ensureClient(), let chain else { return }
         do {
             let absoluteDir = try await client.realpath(currentPath)
             if entry.filename.hasSuffix(".tar.gz") || entry.filename.hasSuffix(".tgz") {
-                try await ArchiveOperations.extractTarGz(archiveName: entry.filename, in: absoluteDir, over: session)
+                try await ArchiveOperations.extractTarGz(archiveName: entry.filename, in: absoluteDir, over: chain.target)
             } else if entry.filename.hasSuffix(".zip") {
-                try await ArchiveOperations.extractZip(archiveName: entry.filename, in: absoluteDir, over: session)
+                try await ArchiveOperations.extractZip(archiveName: entry.filename, in: absoluteDir, over: chain.target)
             } else {
                 errorMessage = "Okänt arkivformat — stödjer .tar.gz/.tgz/.zip."
                 return
