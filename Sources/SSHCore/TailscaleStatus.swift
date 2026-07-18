@@ -133,7 +133,11 @@ extension TailscaleStatus {
     #endif
 }
 
-#if canImport(Darwin) || canImport(Glibc)
+#if !os(iOS)
+// Samma plattformsvillkor som `fetchLocal(executableURL:arguments:)` ovan
+// (INTE `canImport(Darwin) || canImport(Glibc)`, som uteslöt Windows och
+// gav "cannot find 'ResultThread' in scope" i windowsapp-build — `Thread`/
+// `DispatchSemaphore` finns även i swift-corelibs-foundation på Windows).
 /// Kör en synkron closure på en egen `Thread` och blockerar tills den är
 /// klar — precis vad som krävs för att läsa `stdout`/`stderr` konkurrent
 /// i `fetchLocal(executableURL:arguments:)` utan att dela en `var` mellan
