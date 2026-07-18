@@ -284,3 +284,79 @@ public final class SSHSession {
         try? await group.shutdownGracefully()
     }
 }
+
+/// En anslutningskedja: en target-session, ev. GENOM en jump-session
+/// (`ssh -J`/ProxyJump). Håller ihop de två så att anroparen (App-lagret,
+/// t.ex. `SSHTerminalController`) aldrig själv behöver komma ihåg den
+/// dokumenterade stängningsordningen (target FÖRE jump, se doc-kommentaren
+/// på `SSHSession.connect(via:)` ovan).
+public final class SSHConnectionChain {
+    public let target: SSHSession
+    /// Jump-sessionen, om en användes. INTE `public` (bara `@testable`
+    /// synlig) — annars kunde en konsument stänga den FÖRE `target` (via
+    /// `chain.jump?.close()`) och bryta den dokumenterade ordningen som
+    /// `close()` nedan garanterar. Använd alltid `chain.close()`.
+    let jump: SSHSession?
+
+    private init(target: SSHSession, jump: SSHSession?) {
+        self.target = target
+        self.jump = jump
+    }
+
+    /// Ansluter `target` direkt om `jump` är `nil`. Annars ansluts `jump`
+    /// FÖRST, och `target` kopplas GENOM den (`connect(via:)`). Endast ETT
+    /// hopp stöds — `jump` kan inte i sin tur ha en egen jump-host (se
+    /// `HostEditView.jumpCandidates`, som utesluter sådana kandidater i UI:t
+    /// tills en fullständig kedjeupplösning finns).
+    ///
+    /// Fel som kastas INNAN metoden returnerar stänger alla sessioner som
+    /// redan hunnit skapas/anslutas. Asynkrona handskakningsfel som syns
+    /// först vid `run()`/`openShell()` (efter att `connect(...)` redan
+    /// returnerat en kedja) måste däremot städas av ANROPAREN med
+    /// `chain.close()` — se `SSHTerminalController.start()` i App-lagret för
+    /// ett exempel.
+    public static func connect(
+        target targetEndpoint: SSHTarget,
+        targetAuth: SSHAuth,
+        jump jumpEndpoint: (target: SSHTarget, auth: SSHAuth)?,
+        knownHosts: KnownHosts = KnownHosts()
+    ) async throws -> SSHConnectionChain {
+        let targetSession = SSHSession(target: targetEndpoint, auth: targetAuth, knownHosts: knownHosts)
+        guard let jumpEndpoint else {
+            do {
+                try await targetSession.connect()
+            } catch {
+                await targetSession.close()
+                throw error
+            }
+            return SSHConnectionChain(target: targetSession, jump: nil)
+        }
+        let jumpSession = SSHSession(target: jumpEndpoint.target, auth: jumpEndpoint.auth, knownHosts: knownHosts)
+        do {
+            try await jumpSession.connect()
+        } catch {
+            // targetSession hann aldrig ansluta/skapa en kanal, men dess egen
+            // "fatal"-promise (skapad redan i init()) måste ändå upplösas.
+            await targetSession.close()
+            await jumpSession.close()
+            throw error
+        }
+        do {
+            try await targetSession.connect(via: jumpSession)
+        } catch {
+            // Stäng target FÖRE jump (samma dokumenterade ordning som close()
+            // nedan) — annars läcker targetSessions egen "fatal"-promise (se
+            // testConnectViaUnconnectedJumpThrows för samma resonemang).
+            await targetSession.close()
+            await jumpSession.close()
+            throw error
+        }
+        return SSHConnectionChain(target: targetSession, jump: jumpSession)
+    }
+
+    /// Stänger i rätt ordning: target FÖRE jump.
+    public func close() async {
+        await target.close()
+        await jump?.close()
+    }
+}

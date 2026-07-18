@@ -14,6 +14,10 @@ struct HostEditView: View {
     @State private var certPath: String
     @State private var keyText: String
     @State private var showKeyImporter = false
+    /// Övriga sparade värdar, för jump-host-väljaren nedan. Utesluter alltid
+    /// `draft.id` själv (kan inte vara sin egen jump-host) — djupare
+    /// cykeldetektering (A→B→A) görs inte här, bara den mest uppenbara.
+    let allHosts: [Host]
     let onSave: (Host) -> Void
 
     enum AuthKind: String, CaseIterable, Identifiable {
@@ -28,16 +32,36 @@ struct HostEditView: View {
     /// Keychain-id för en importerad nyckel: stabilt per värd, oberoende av auth-läge.
     private static func keychainID(for host: Host) -> String { "host-key-\(host.id.uuidString)" }
 
+    /// Kandidater för jump host-väljaren: utesluter (1) `draft` själv, (2)
+    /// `.askPassword`-värdar (går inte att autentisera automatiskt genom en
+    /// jump-kedja — se `SessionView.plan`, som medvetet FAILAR anslutningen
+    /// snarare än att tyst hoppa över en jump-host som inte kan autentiseras),
+    /// och (3) värdar som SJÄLVA har en jump-host satt —
+    /// `SSHConnectionChain`/`SessionView` stöder bara ETT hopp, så att välja
+    /// en sådan kandidat skulle tyst hoppa över DESS jump-host och ansluta
+    /// direkt till kandidaten istället (en kedja A→B→C skulle bara bli A→B,
+    /// felaktigt utan varning). Detta gör cykler (A→B→A) strukturellt
+    /// omöjliga också — en kandidat utan egen jump-host kan per definition
+    /// inte peka tillbaka på något.
+    private var jumpCandidates: [Host] {
+        allHosts.filter { candidate in
+            guard candidate.id != draft.id else { return false }
+            if case .askPassword = candidate.auth { return false }
+            return candidate.jumpHostID == nil
+        }
+    }
+
     /// `TextField` vill ha en `Binding<String>`; `startupCommand` är
     /// `String?` (tomt fält = `nil`, inte `""` sparat i host.json).
     private var startupCommandBinding: Binding<String> {
         Binding(get: { draft.startupCommand ?? "" }, set: { draft.startupCommand = $0.isEmpty ? nil : $0 })
     }
 
-    init(host: Host, onSave: @escaping (Host) -> Void) {
+    init(host: Host, allHosts: [Host] = [], onSave: @escaping (Host) -> Void) {
         _draft = State(initialValue: host)
         _portText = State(initialValue: String(host.port))
         _tagsText = State(initialValue: host.tags.joined(separator: ", "))
+        self.allHosts = allHosts
         self.onSave = onSave
         switch host.auth {
         case .agentDefault:
@@ -113,6 +137,23 @@ struct HostEditView: View {
                              + "Nyckeln krypteras av systemet i Keychain och lämnar aldrig enheten.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
+                }
+                Section("Jump host") {
+                    Picker("Anslut via", selection: $draft.jumpHostID) {
+                        Text("Ingen (direkt anslutning)").tag(UUID?.none)
+                        ForEach(jumpCandidates) { h in
+                            Text(h.alias.isEmpty ? h.hostName : h.alias).tag(Optional(h.id))
+                        }
+                    }
+                    if let jumpID = draft.jumpHostID,
+                       let jumpHost = allHosts.first(where: { $0.id == jumpID }) {
+                        Text("Ansluter genom \(jumpHost.alias.isEmpty ? jumpHost.hostName : jumpHost.alias) (ssh -J) innan den här värden nås.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Text("Bara värdar med nyckel-/agent-/certifikatautentisering visas — "
+                         + "\"Fråga lösenord\"-värdar kan inte användas som jump host (ingen "
+                         + "interaktiv prompt finns för det hoppet).")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
                 Section("Taggar") {
                     TextField("prod, homelab, …", text: $tagsText)

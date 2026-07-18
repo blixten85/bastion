@@ -37,6 +37,13 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
     /// "Startup Snippet". `nil`/tomt = ingenting körs (samma beteende som
     /// innan fältet fanns).
     public var startupCommand: String?
+    /// Id på en annan `Host` i samma store att ansluta GENOM (ssh -J/ProxyJump)
+    /// innan denna värd nås — se `SSHSession.connect(via:)`. `nil` (default)
+    /// = direkt anslutning, precis som innan fältet fanns. Får inte peka på
+    /// sig själv eller bilda en cykel; UI/anropskod ansvarar för att
+    /// validera det (modellen tillåter det tekniskt, som `Host.imported`
+    /// redan gör med andra ogiltiga tillstånd).
+    public var jumpHostID: UUID?
     /// När värden senast ändrades. Styr sync-mergen (nyaste ändringen vinner).
     public var modifiedAt: Date
 
@@ -52,6 +59,7 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         colorTag: String? = nil,
         platform: RemotePlatform = .posix,
         startupCommand: String? = nil,
+        jumpHostID: UUID? = nil,
         modifiedAt: Date = Date()
     ) {
         self.id = id
@@ -65,17 +73,19 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         self.colorTag = colorTag
         self.platform = platform
         self.startupCommand = startupCommand
+        self.jumpHostID = jumpHostID
         self.modifiedAt = modifiedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, platform, startupCommand, modifiedAt
+        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, platform, startupCommand, jumpHostID, modifiedAt
     }
 
-    /// Egen init(from:) — isFavorite/colorTag/platform/startupCommand tillkom
-    /// efter att fältet fanns i sparade host.json-filer. `decodeIfPresent`
-    /// gör dem valfria vid avkodning (default false/nil/.posix/nil) istället
-    /// för att synteterad Decodable kastar på saknad nyckel.
+    /// Egen init(from:) — isFavorite/colorTag/platform/startupCommand/
+    /// jumpHostID tillkom efter att fältet fanns i sparade host.json-filer.
+    /// `decodeIfPresent` gör dem valfria vid avkodning (default
+    /// false/nil/.posix/nil/nil) istället för att synteterad Decodable
+    /// kastar på saknad nyckel.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -89,6 +99,7 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         colorTag = try c.decodeIfPresent(String.self, forKey: .colorTag)
         platform = try c.decodeIfPresent(RemotePlatform.self, forKey: .platform) ?? .posix
         startupCommand = try c.decodeIfPresent(String.self, forKey: .startupCommand)
+        jumpHostID = try c.decodeIfPresent(UUID.self, forKey: .jumpHostID)
         modifiedAt = try c.decode(Date.self, forKey: .modifiedAt)
     }
 

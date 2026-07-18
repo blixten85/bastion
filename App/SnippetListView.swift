@@ -17,6 +17,10 @@ final class SnippetListModel: ObservableObject {
 /// vald värd (fyll i variabler, skicka som startkommando till en ny terminal).
 struct SnippetListView: View {
     let request: ConnectRequest
+    /// Vidarebefordras till `SessionView` för jump-host-uppslagning. `nil`
+    /// på anropsplatser som saknar en delad store (ingen regression, se
+    /// `SessionView.store`).
+    var store: HostStore? = nil
     @StateObject private var model = SnippetListModel()
     @State private var editing: Snippet?
     @State private var running: Snippet?
@@ -65,7 +69,7 @@ struct SnippetListView: View {
             }, onCancel: { running = nil })
         }
         .cover(item: $runningRequest) { req in
-            SessionView(request: req)
+            SessionView(request: req, store: store)
         }
     }
 }

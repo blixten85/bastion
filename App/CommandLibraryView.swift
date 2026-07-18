@@ -8,6 +8,10 @@ import SSHCore
 /// variabelifyllning som Snippets (`CommandLibraryEntry.asSnippet`).
 struct CommandLibraryView: View {
     let request: ConnectRequest
+    /// Vidarebefordras till `SessionView` för jump-host-uppslagning. `nil`
+    /// på anropsplatser som saknar en delad store (ingen regression, se
+    /// `SessionView.store`).
+    var store: HostStore? = nil
     @State private var running: CommandLibraryEntry?
     @State private var runningRequest: ConnectRequest?
 
@@ -43,7 +47,7 @@ struct CommandLibraryView: View {
             )
         }
         .cover(item: $runningRequest) { req in
-            SessionView(request: req)
+            SessionView(request: req, store: store)
         }
     }
 

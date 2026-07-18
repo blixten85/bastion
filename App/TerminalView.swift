@@ -30,13 +30,17 @@ import AppKit
 final class SSHTerminalController {
     private let target: SSHTarget
     private let auth: SSHAuth
-    private var session: SSHSession?
+    /// Om satt: kopplas målet GENOM denna jump-host (ssh -J/ProxyJump) —
+    /// se `Host.jumpHostID` och `SSHConnectionChain`. `nil` = direkt
+    /// anslutning, precis som innan jump-stöd fanns.
+    private let jump: (target: SSHTarget, auth: SSHAuth)?
+    private var chain: SSHConnectionChain?
     private var shell: SSHShell?
     /// Sätts av stop(). Kollas efter varje await-punkt i start() så en sen
     /// connect()/openShell() som landar EFTER teardown stänger det den just
     /// öppnade istället för att bli en föräldralös, aldrig stängd session
     /// (CodeRabbit-fynd på #155: stop() stänger bara det som redan hunnit
-    /// tilldelas self.session/self.shell VID ANROPSTILLFÄLLET).
+    /// tilldelas self.chain/self.shell VID ANROPSTILLFÄLLET).
     private var isStopped = false
 
     /// Anropas på main med bytes att mata in i terminalvyn.
@@ -44,20 +48,20 @@ final class SSHTerminalController {
     /// Skickas till shellen direkt efter att den öppnats (t.ex. `docker exec …`).
     var initialCommand: String?
 
-    init(target: SSHTarget, auth: SSHAuth, initialCommand: String? = nil) {
+    init(target: SSHTarget, auth: SSHAuth, jump: (target: SSHTarget, auth: SSHAuth)? = nil, initialCommand: String? = nil) {
         self.target = target
         self.auth = auth
+        self.jump = jump
         self.initialCommand = initialCommand
     }
 
     func start(cols: Int, rows: Int) {
         Task {
             do {
-                let session = SSHSession(target: target, auth: auth)
-                self.session = session
-                try await session.connect()
-                guard !isStopped else { await session.close(); return }
-                let shell = try await session.openShell(cols: cols, rows: rows)
+                let chain = try await SSHConnectionChain.connect(target: target, targetAuth: auth, jump: jump)
+                self.chain = chain
+                guard !isStopped else { await chain.close(); return }
+                let shell = try await chain.target.openShell(cols: cols, rows: rows)
                 guard !isStopped else { shell.close(); return }
                 self.shell = shell
                 if let cmd = initialCommand { shell.send(cmd + "\n") }
@@ -73,6 +77,13 @@ final class SSHTerminalController {
                     self.onData?(bytes[...])
                 }
             } catch {
+                // Om felet kom EFTER att chain redan var uppsatt (openShell()
+                // eller output-strömmen misslyckades, inte själva anslutningen)
+                // måste den städas här — SSHConnectionChain.connect() städar
+                // bara sina EGNA fel internt, inte fel som inträffar efter att
+                // den redan returnerat. Ofarligt no-op om chain fortfarande är
+                // nil (connect() self själv redan städat i den vägen).
+                await self.chain?.close()
                 guard !isStopped else { return }
                 #if os(iOS)
                 SentrySDK.logger.warn("ssh.session.failed", attributes: ["category": String(describing: type(of: error))])
@@ -88,8 +99,8 @@ final class SSHTerminalController {
     func stop() {
         isStopped = true
         shell?.close()
-        let session = self.session
-        Task { await session?.close() }
+        let chain = self.chain
+        Task { await chain?.close() }
     }
 }
 
@@ -141,10 +152,12 @@ typealias TerminalRepresentable = NSViewRepresentable
 struct BastionTerminal: TerminalRepresentable {
     let target: SSHTarget
     let auth: SSHAuth
+    /// Se `SSHTerminalController.jump` — `nil` = direkt anslutning.
+    var jump: (target: SSHTarget, auth: SSHAuth)? = nil
     var initialCommand: String? = nil
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(target: target, auth: auth, initialCommand: initialCommand)
+        Coordinator(target: target, auth: auth, jump: jump, initialCommand: initialCommand)
     }
 
     private func build(_ context: Context) -> TerminalView {
@@ -173,8 +186,8 @@ struct BastionTerminal: TerminalRepresentable {
         private let controller: SSHTerminalController
         private weak var view: TerminalView?
 
-        init(target: SSHTarget, auth: SSHAuth, initialCommand: String?) {
-            self.controller = SSHTerminalController(target: target, auth: auth, initialCommand: initialCommand)
+        init(target: SSHTarget, auth: SSHAuth, jump: (target: SSHTarget, auth: SSHAuth)?, initialCommand: String?) {
+            self.controller = SSHTerminalController(target: target, auth: auth, jump: jump, initialCommand: initialCommand)
             super.init()
             controller.onData = { [weak self] bytes in
                 self?.view?.feed(byteArray: bytes)
