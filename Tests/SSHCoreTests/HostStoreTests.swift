@@ -142,4 +142,25 @@ final class HostStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(Host.self, from: oldStyleData)
         XCTAssertNil(decoded.jumpHostID)
     }
+
+    func testMacAddressRoundTrip() throws {
+        var host = Host(alias: "homelab", hostName: "10.0.0.9", user: "root")
+        host.macAddress = "AA:BB:CC:DD:EE:FF"
+        let data = try JSONEncoder().encode(host)
+        let decoded = try JSONDecoder().decode(Host.self, from: data)
+        XCTAssertEqual(decoded.macAddress, "AA:BB:CC:DD:EE:FF")
+    }
+
+    /// Samma bakåtkompatibilitetsresonemang som `jumpHostID` — `macAddress`
+    /// tillkom ännu senare, en host.json från innan måste gå att läsa
+    /// (ingen MAC-adress, precis som innan fältet fanns).
+    func testDecodesOldHostWithoutMacAddressField() throws {
+        let h = Host(alias: "legacy5", hostName: "10.0.0.1", user: "root")
+        var obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(h)) as! [String: Any]
+        obj.removeValue(forKey: "macAddress")
+        let oldStyleData = try JSONSerialization.data(withJSONObject: obj)
+
+        let decoded = try JSONDecoder().decode(Host.self, from: oldStyleData)
+        XCTAssertNil(decoded.macAddress)
+    }
 }

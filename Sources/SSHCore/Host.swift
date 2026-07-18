@@ -44,6 +44,12 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
     /// validera det (modellen tillåter det tekniskt, som `Host.imported`
     /// redan gör med andra ogiltiga tillstånd).
     public var jumpHostID: UUID?
+    /// MAC-adress för Wake-on-LAN (`WakeOnLan.send`), t.ex. `AA:BB:CC:DD:EE:FF`.
+    /// `nil` (default) = ingen WoL-knapp visas för värden, precis som innan
+    /// fältet fanns. Sparas ovaliderad — `WakeOnLan.parseMAC` validerar vid
+    /// användningstillfället, inte vid lagring (samma mönster som `hostName`
+    /// inte validerar DNS-syntax vid sparning).
+    public var macAddress: String?
     /// När värden senast ändrades. Styr sync-mergen (nyaste ändringen vinner).
     public var modifiedAt: Date
 
@@ -60,6 +66,7 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         platform: RemotePlatform = .posix,
         startupCommand: String? = nil,
         jumpHostID: UUID? = nil,
+        macAddress: String? = nil,
         modifiedAt: Date = Date()
     ) {
         self.id = id
@@ -74,18 +81,19 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         self.platform = platform
         self.startupCommand = startupCommand
         self.jumpHostID = jumpHostID
+        self.macAddress = macAddress
         self.modifiedAt = modifiedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, platform, startupCommand, jumpHostID, modifiedAt
+        case id, alias, hostName, user, port, tags, auth, isFavorite, colorTag, platform, startupCommand, jumpHostID, macAddress, modifiedAt
     }
 
     /// Egen init(from:) — isFavorite/colorTag/platform/startupCommand/
-    /// jumpHostID tillkom efter att fältet fanns i sparade host.json-filer.
-    /// `decodeIfPresent` gör dem valfria vid avkodning (default
-    /// false/nil/.posix/nil/nil) istället för att synteterad Decodable
-    /// kastar på saknad nyckel.
+    /// jumpHostID/macAddress tillkom efter att fältet fanns i sparade
+    /// host.json-filer. `decodeIfPresent` gör dem valfria vid avkodning
+    /// (default false/nil/.posix/nil/nil/nil) istället för att synteterad
+    /// Decodable kastar på saknad nyckel.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -100,6 +108,7 @@ public struct Host: Codable, Identifiable, Sendable, Equatable {
         platform = try c.decodeIfPresent(RemotePlatform.self, forKey: .platform) ?? .posix
         startupCommand = try c.decodeIfPresent(String.self, forKey: .startupCommand)
         jumpHostID = try c.decodeIfPresent(UUID.self, forKey: .jumpHostID)
+        macAddress = try c.decodeIfPresent(String.self, forKey: .macAddress)
         modifiedAt = try c.decode(Date.self, forKey: .modifiedAt)
     }
 
