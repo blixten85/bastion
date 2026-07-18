@@ -26,6 +26,27 @@ final class WakeOnLanTests: XCTestCase {
         XCTAssertThrowsError(try WakeOnLan.parseMAC("ZZ:BB:CC:DD:EE:FF"))
     }
 
+    /// Plattformens sockets-lager tolkar annars ofta ett portnummer utanför
+    /// giltigt intervall modulo 65536 (t.ex. 70000 -> 4464) istället för att
+    /// kasta — paketet skulle tyst gå till FEL port. Måste valideras explicit.
+    func testSendRejectsOutOfRangePort() async throws {
+        do {
+            try await WakeOnLan.send(mac: "AA:BB:CC:DD:EE:FF", port: 70_000)
+            XCTFail("skulle ha kastat .invalidPort")
+        } catch let error as WakeOnLanError {
+            XCTAssertEqual(error, .invalidPort(70_000))
+        }
+    }
+
+    func testSendRejectsZeroPort() async throws {
+        do {
+            try await WakeOnLan.send(mac: "AA:BB:CC:DD:EE:FF", port: 0)
+            XCTFail("skulle ha kastat .invalidPort")
+        } catch let error as WakeOnLanError {
+            XCTAssertEqual(error, .invalidPort(0))
+        }
+    }
+
     /// 6 bytes 0xFF följt av MAC-adressen upprepad exakt 16 gånger — det
     /// dokumenterade formatet, inte bara "något som råkar fungera".
     func testMagicPacketFormat() throws {
@@ -63,17 +84,27 @@ final class WakeOnLanTests: XCTestCase {
             }
             .bind(host: "127.0.0.1", port: 0).get()
 
-        guard let port = listener.localAddress?.port else {
+        // Städar lyssnaren/gruppen oavsett hur resten av testet lämnas (fel i
+        // WakeOnLan.send eller i futureResult.get() hade annars läckt dem —
+        // cubic-fynd, PR #173).
+        do {
+            guard let port = listener.localAddress?.port else {
+                XCTFail("lyssnaren fick ingen port")
+                try await listener.close()
+                try await group.shutdownGracefully()
+                return
+            }
+
+            try await WakeOnLan.send(mac: "AA:BB:CC:DD:EE:FF", broadcastAddress: "127.0.0.1", port: port)
+
+            let received = try await receivedPromise.futureResult.get()
             try await listener.close()
             try await group.shutdownGracefully()
-            return XCTFail("lyssnaren fick ingen port")
+            XCTAssertEqual(received, try WakeOnLan.magicPacket(for: "AA:BB:CC:DD:EE:FF"))
+        } catch {
+            try? await listener.close()
+            try? await group.shutdownGracefully()
+            throw error
         }
-
-        try await WakeOnLan.send(mac: "AA:BB:CC:DD:EE:FF", broadcastAddress: "127.0.0.1", port: port)
-
-        let received = try await receivedPromise.futureResult.get()
-        try await listener.close()
-        try await group.shutdownGracefully()
-        XCTAssertEqual(received, try WakeOnLan.magicPacket(for: "AA:BB:CC:DD:EE:FF"))
     }
 }

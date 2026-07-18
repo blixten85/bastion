@@ -176,6 +176,10 @@ struct HostEditView: View {
                 Section("Wake-on-LAN") {
                     TextField("MAC-adress (valfritt, t.ex. AA:BB:CC:DD:EE:FF)", text: macAddressBinding)
                         .noAutocap().autocorrectionDisabled()
+                    if let message = macValidationMessage {
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
                     Text("Skickar ett magic packet på det lokala nätverket för att väcka en "
                          + "avstängd/vilande maskin innan anslutning. Kräver att enheten stöder "
                          + "WoL och är inställd att lyssna efter det (BIOS/nätverkskort).")
@@ -197,6 +201,7 @@ struct HostEditView: View {
     private var isValid: Bool {
         let baseValid = !draft.hostName.trimmingCharacters(in: .whitespaces).isEmpty
             && !draft.user.trimmingCharacters(in: .whitespaces).isEmpty
+            && macValidationMessage == nil
         guard baseValid else { return false }
         switch authKind {
         case .keychainImport:
@@ -209,6 +214,21 @@ struct HostEditView: View {
                 && !certPath.trimmingCharacters(in: .whitespaces).isEmpty
         case .agent, .password:
             return true
+        }
+        // (macValidationMessage kollas separat nedan i den kombinerade `isValid`.)
+    }
+
+    /// `nil` om MAC-fältet (om ifyllt, trimmat) går att tolka — annars sparas
+    /// en trasig adress tyst och Wake-knappen skulle deterministiskt misslyckas
+    /// senare (cubic-fynd, PR #173).
+    private var macValidationMessage: String? {
+        let trimmed = (draft.macAddress ?? "").trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        do {
+            _ = try WakeOnLan.parseMAC(trimmed)
+            return nil
+        } catch {
+            return "Ogiltig MAC-adress."
         }
     }
 
@@ -231,6 +251,10 @@ struct HostEditView: View {
         host.port = Int(portText) ?? 22
         host.tags = tagsText.split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if let mac = host.macAddress {
+            let trimmed = mac.trimmingCharacters(in: .whitespaces)
+            host.macAddress = trimmed.isEmpty ? nil : trimmed
+        }
         // Rensa en tidigare importerad nyckel ur Keychain om metoden byts bort.
         if case .keychainKey(let oldID) = draft.auth, authKind != .keychainImport {
             Keychain.delete(oldID)

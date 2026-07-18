@@ -17,7 +17,7 @@ struct QuickConnectView: View {
     private var isValid: Bool {
         !hostName.trimmingCharacters(in: .whitespaces).isEmpty
             && !user.trimmingCharacters(in: .whitespaces).isEmpty
-            && Int(portText) != nil
+            && Int(portText).map { (1...65_535).contains($0) } == true
     }
 
     var body: some View {
@@ -55,11 +55,14 @@ struct QuickConnectView: View {
 
     private func connect() {
         guard let port = Int(portText) else { return }
-        let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Lösenordet skickas OBESKURET — trimning hade tyst korrumperat ett
+        // giltigt lösenord med inlednings-/avslutande blanktecken (cubic-
+        // fynd, PR #173). `isEmpty` (inte trimmat) avgör bara vilket
+        // auth-läge som väljs.
         let host = Host(
             alias: "", hostName: hostName, user: user, port: port,
-            auth: trimmedPassword.isEmpty ? .agentDefault : .askPassword)
-        onConnect(ConnectRequest(host: host, password: trimmedPassword.isEmpty ? nil : trimmedPassword))
+            auth: password.isEmpty ? .agentDefault : .askPassword)
+        onConnect(ConnectRequest(host: host, password: password.isEmpty ? nil : password))
         dismiss()
     }
 }

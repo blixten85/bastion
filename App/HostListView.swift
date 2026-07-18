@@ -125,6 +125,7 @@ struct HostListView: View {
     @State private var showS3 = false
     @State private var showTerminalTheme = false
     @State private var showQuickConnect = false
+    @State private var pendingQuickConnectRequest: ConnectRequest?
     @State private var searchText = ""
     @State private var wakeMessage: String?
 
@@ -217,10 +218,19 @@ struct HostListView: View {
             .sheet(isPresented: $showTerminalTheme) {
                 TerminalThemeSettingsView()
             }
-            .sheet(isPresented: $showQuickConnect) {
-                QuickConnectView { request in
+            .sheet(isPresented: $showQuickConnect, onDismiss: {
+                // Samma mönster som Tailscale-upptäckten ovan: öppna sessionen
+                // FÖRST efter att QuickConnectView-sheeten faktiskt stängt —
+                // att sätta showSessions medan den fortfarande stänger krockar
+                // med SwiftUIs single-sheet-hantering (cubic-fynd, PR #173).
+                if let request = pendingQuickConnectRequest {
+                    pendingQuickConnectRequest = nil
                     sessionManager.open(request)
                     showSessions = true
+                }
+            }) {
+                QuickConnectView { request in
+                    pendingQuickConnectRequest = request
                 }
             }
             .cover(isPresented: $showSessions) {

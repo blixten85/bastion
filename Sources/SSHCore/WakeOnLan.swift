@@ -10,6 +10,11 @@ import NIOPosix
 /// in på den.
 public enum WakeOnLanError: Error, Equatable {
     case invalidMACAddress(String)
+    /// `port` utanför `1...65_535` — plattformens sockets-lager tolkar
+    /// annars ofta talet modulo 65536 istället för att kasta (t.ex. 70000
+    /// blir 4464 på Linux), vilket tyst skulle skicka paketet till FEL port
+    /// istället för att misslyckas synligt (cubic-fynd, PR #173).
+    case invalidPort(Int)
 }
 
 public enum WakeOnLan {
@@ -48,9 +53,19 @@ public enum WakeOnLan {
     /// IP — enheten svarar inte på ARP i sovande/avstängt läge, så adressering
     /// måste ske via broadcast. Standardport 9 (`discard`) matchar de flesta
     /// WoL-implementationers förväntan, men 7 förekommer också.
+    ///
+    /// Skapar en egen kortlivad `EventLoopGroup` per anrop istället för att
+    /// dela en långlivad — WoL är en sällan använd, användarutlöst
+    /// engångsåtgärd (en knapptryckning), inte en het loop, så tråd-
+    /// uppstartskostnaden är försumbar mot komplexiteten av att hålla en
+    /// delad grupp vid liv för hela appens livstid. `broadcastAddress`
+    /// förväntas vara en literal IP (default-värdet är det) — ett
+    /// värdnamn hade behövt DNS-uppslagning, som `makeAddressResolvingHost`
+    /// kan blockera på trots `async`.
     public static func send(
         mac: String, broadcastAddress: String = "255.255.255.255", port: Int = 9
     ) async throws {
+        guard (1...65_535).contains(port) else { throw WakeOnLanError.invalidPort(port) }
         let packet = try magicPacket(for: mac)
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         do {
