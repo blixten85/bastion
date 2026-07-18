@@ -57,6 +57,12 @@ struct HostEditView: View {
         Binding(get: { draft.startupCommand ?? "" }, set: { draft.startupCommand = $0.isEmpty ? nil : $0 })
     }
 
+    /// Samma tom-sträng-till-nil-mönster som `startupCommandBinding` —
+    /// `macAddress` är `String?`, tomt fält ska spara `nil`, inte `""`.
+    private var macAddressBinding: Binding<String> {
+        Binding(get: { draft.macAddress ?? "" }, set: { draft.macAddress = $0.isEmpty ? nil : $0 })
+    }
+
     init(host: Host, allHosts: [Host] = [], onSave: @escaping (Host) -> Void) {
         _draft = State(initialValue: host)
         _portText = State(initialValue: String(host.port))
@@ -166,6 +172,14 @@ struct HostEditView: View {
                 Section("Vid anslutning") {
                     TextField("Kör automatiskt (valfritt, t.ex. tmux attach)", text: startupCommandBinding)
                         .noAutocap().autocorrectionDisabled()
+                }
+                Section("Wake-on-LAN") {
+                    TextField("MAC-adress (valfritt, t.ex. AA:BB:CC:DD:EE:FF)", text: macAddressBinding)
+                        .noAutocap().autocorrectionDisabled()
+                    Text("Skickar ett magic packet på det lokala nätverket för att väcka en "
+                         + "avstängd/vilande maskin innan anslutning. Kräver att enheten stöder "
+                         + "WoL och är inställd att lyssna efter det (BIOS/nätverkskort).")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
             }
             .navigationTitle(draft.alias.isEmpty ? "Ny värd" : "Ändra värd")

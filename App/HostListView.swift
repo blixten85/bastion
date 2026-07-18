@@ -125,6 +125,7 @@ struct HostListView: View {
     @State private var showS3 = false
     @State private var showTerminalTheme = false
     @State private var searchText = ""
+    @State private var wakeMessage: String?
 
     /// `model.groups` filtrerat på sökfältet (alias/hostname/user/taggar,
     /// case-insensitive); tomma sektioner (ingen träff i gruppen) faller bort.
@@ -234,6 +235,27 @@ struct HostListView: View {
                 }
                 Button("Avbryt", role: .cancel) { passwordFor = nil; passwordInput = "" }
             }
+            .alert("Wake-on-LAN", isPresented: .constant(wakeMessage != nil), presenting: wakeMessage) { _ in
+                Button("OK") { wakeMessage = nil }
+            } message: { message in
+                Text(message)
+            }
+        }
+    }
+
+    /// Skickar ett magic packet till `host.macAddress` — fel visas i en alert
+    /// istället för att sväljas tyst, men blockerar aldrig anslutningsflödet
+    /// (WoL är best-effort: paketet kan skickas iväg utan att målet faktiskt
+    /// vaknar, t.ex. om det redan är på eller inte lyssnar efter WoL).
+    private func wake(_ host: Host) {
+        guard let mac = host.macAddress else { return }
+        Task {
+            do {
+                try await WakeOnLan.send(mac: mac)
+                wakeMessage = "Skickade väckningssignal till \(host.alias.isEmpty ? host.hostName : host.alias)."
+            } catch {
+                wakeMessage = "Kunde inte skicka väckningssignal: \(error)"
+            }
         }
     }
 
@@ -256,6 +278,11 @@ struct HostListView: View {
                                     Label(host.isFavorite ? "Ta bort favorit" : "Favorit",
                                           systemImage: host.isFavorite ? "star.slash" : "star")
                                 }.tint(.yellow)
+                                if host.macAddress != nil {
+                                    Button { wake(host) } label: {
+                                        Label("Väck", systemImage: "bolt.fill")
+                                    }.tint(.orange)
+                                }
                             }
                     }
                 }
