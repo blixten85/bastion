@@ -5,6 +5,7 @@ import SwiftCrossUI
 /// annars dashboard + kommandokörning. Motsvarar `App/HostDetailView.swift`.
 struct HostDetailView: View {
     let host: Host
+    var store: HostStore? = nil
     var onHostUpdated: (Host) -> Void = { _ in }
     @State private var password = ""
     @State private var connected = false
@@ -38,30 +39,30 @@ struct HostDetailView: View {
                 passwordGate
             } else {
                 VStack(alignment: .leading, spacing: 16) {
-                    DashboardView(host: host, password: resolvedPassword)
+                    DashboardView(host: host, password: resolvedPassword, store: store)
                     Divider()
-                    TerminalSessionView(host: host, password: resolvedPassword, initialCommand: host.startupCommand)
+                    TerminalSessionView(host: host, password: resolvedPassword, initialCommand: host.startupCommand, store: store)
                 }
             }
         }
         .padding()
         .sheet(isPresented: $showDocker) {
-            DockerView(host: host, password: resolvedPassword)
+            DockerView(host: host, password: resolvedPassword, store: store)
         }
         .sheet(isPresented: $showSnippets) {
-            SnippetListView(host: host, password: resolvedPassword)
+            SnippetListView(host: host, password: resolvedPassword, hostStore: store)
         }
         .sheet(isPresented: $showCommandLibrary) {
-            CommandLibraryView(host: host, password: resolvedPassword)
+            CommandLibraryView(host: host, password: resolvedPassword, hostStore: store)
         }
         .sheet(isPresented: $showSFTPBrowser) {
-            SFTPBrowserView(host: host, password: resolvedPassword)
+            SFTPBrowserView(host: host, password: resolvedPassword, store: store)
         }
         .sheet(isPresented: $showPortForward) {
-            PortForwardView(host: host, password: resolvedPassword)
+            PortForwardView(host: host, password: resolvedPassword, store: store)
         }
         .sheet(isPresented: $showKeyDeploy) {
-            KeyDeployView(host: host, password: resolvedPassword) { updated in
+            KeyDeployView(host: host, password: resolvedPassword, store: store) { updated in
                 onHostUpdated(updated)
                 showKeyDeploy = false
             }

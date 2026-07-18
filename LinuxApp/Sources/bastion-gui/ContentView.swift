@@ -33,7 +33,7 @@ struct ContentView: View {
             sidebar
         } detail: {
             if let host = model.hosts.first(where: { $0.id == selectedHostID }) {
-                HostDetailView(host: host, onHostUpdated: { model.save($0) })
+                HostDetailView(host: host, store: model.store, onHostUpdated: { model.save($0) })
             } else {
                 ContentUnavailableView {
                     Text("Ingen värd vald")
@@ -46,6 +46,7 @@ struct ContentView: View {
             if let editingHost {
                 HostEditView(
                     host: editingHost,
+                    allHosts: model.hosts,
                     onSave: { host in
                         model.save(host)
                         selectedHostID = host.id
@@ -75,7 +76,8 @@ struct ContentView: View {
                     showTailscale = false
                     showEditor = true
                 },
-                onCancel: { showTailscale = false }
+                onCancel: { showTailscale = false },
+                store: model.store
             )
         }
         .sheet(isPresented: $showS3) {

@@ -18,11 +18,16 @@ class DashboardModel: ObservableObject {
     @Published var lastUpdated: Date?
     private let host: Host
     private let password: String?
+    /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt.
+    private let store: HostStore?
     private static let pollInterval: Duration = .seconds(15)
 
-    init(host: Host, password: String?) {
+    init(host: Host, password: String?, store: HostStore? = nil) {
         self.host = host
         self.password = password
+        self.store = store
     }
 
     func load(isPoll: Bool = false) async {
@@ -31,20 +36,24 @@ class DashboardModel: ObservableObject {
         } else {
             state = .loading
         }
-        guard let auth = resolveAuth(for: host, password: password) else {
-            state = .failed("Kan inte autentisera värden.")
+        guard let plan = resolveConnectionPlan(for: host, password: password, store: store) else {
+            state = .failed("Kan inte autentisera värden (eller dess jump-host, om en är vald).")
             isRefreshing = false
             return
         }
-        let session = SSHSession(target: host.target, auth: auth)
         do {
-            try await session.connect()
-            let snapshot = try await SystemProbe.snapshot(over: session)
-            await session.close()
+            let chain = try await SSHConnectionChain.connect(target: host.target, targetAuth: plan.auth, jump: plan.jump)
+            let snapshot: SystemSnapshot
+            do {
+                snapshot = try await SystemProbe.snapshot(over: chain.target)
+            } catch {
+                await chain.close()
+                throw error
+            }
+            await chain.close()
             state = .loaded(snapshot)
             lastUpdated = Date()
         } catch {
-            await session.close()
             if !isPoll { state = .failed("\(error)") }
         }
         isRefreshing = false
@@ -63,8 +72,8 @@ class DashboardModel: ObservableObject {
 struct DashboardView: View {
     @State private var model: DashboardModel
 
-    init(host: Host, password: String?) {
-        self._model = State(wrappedValue: DashboardModel(host: host, password: password))
+    init(host: Host, password: String?, store: HostStore? = nil) {
+        self._model = State(wrappedValue: DashboardModel(host: host, password: password, store: store))
     }
 
     var body: some View {
