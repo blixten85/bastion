@@ -13,19 +13,9 @@ struct SessionView: View {
     var store: HostStore? = nil
 
     /// Resultatet av att slå upp anslutningsplanen: `.some` med ev. jump
-    /// bara om ALLT som krävs kunde lösas. Om `request.host.jumpHostID` är
-    /// satt men jump-hosten saknas i storen eller inte kan autentiseras,
-    /// ska HELA anslutningen misslyckas (samma "kan inte autentisera"-läge
-    /// som target-autentisering redan har) — INTE tyst hoppa över den
-    /// konfigurerade jump-hosten och ansluta direkt, vilket vore en tyst
-    /// säkerhetsregression för den som medvetet satt upp en jump-host.
+    /// bara om ALLT som krävs kunde lösas. Se `resolveConnectionPlan`.
     private var plan: (auth: SSHAuth, jump: (target: SSHTarget, auth: SSHAuth)?)? {
-        guard let auth = resolveAuth(for: request.host, password: request.password) else { return nil }
-        guard let jumpID = request.host.jumpHostID else { return (auth, nil) }
-        guard let jumpHost = store?.get(jumpID),
-              let jumpAuth = resolveAuth(for: jumpHost, password: nil)
-        else { return nil }
-        return (auth, (target: jumpHost.target, auth: jumpAuth))
+        resolveConnectionPlan(for: request.host, password: request.password, store: store)
     }
 
     var body: some View {

@@ -14,30 +14,37 @@ final class DockerModel: ObservableObject {
     // åtgärd fortfarande pågår (om användaren hinner starta båda i tur och ordning).
     @Published var busyRefs: Set<String> = []
     private let request: ConnectRequest
-    private var session: SSHSession?
+    /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
+    /// på anropsplatser utan delad store — ansluter då direkt.
+    private let store: HostStore?
+    private var chain: SSHConnectionChain?
     // Cachar det pågående anslutningsförsöket så samtidiga anrop (t.ex.
     // refresh() och act() strax efter varandra, innan connect() svarat) väntar
-    // in samma försök i stället för att skapa varsin SSHSession var.
+    // in samma försök i stället för att skapa varsin kedja var.
     private var connectingTask: Task<SSHSession?, Never>?
 
-    init(request: ConnectRequest) { self.request = request }
+    init(request: ConnectRequest, store: HostStore? = nil) {
+        self.request = request
+        self.store = store
+    }
 
     private func ensureSession() async -> SSHSession? {
-        if let s = session { return s }
+        if let chain { return chain.target }
         if let connectingTask { return await connectingTask.value }
 
         // Skapad inifrån en @MainActor-metod (inte .detached), så den ärver
         // MainActor-isoleringen — säkert att sätta errorMessage direkt här.
         let task = Task<SSHSession?, Never> { [weak self] in
             guard let self else { return nil }
-            guard let auth = resolveAuth(for: self.request.host, password: self.request.password) else {
-                self.errorMessage = "Kan inte autentisera värden."
+            guard let plan = resolveConnectionPlan(for: self.request.host, password: self.request.password, store: self.store) else {
+                self.errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
                 return nil
             }
-            let s = SSHSession(target: self.request.host.target, auth: auth)
             do {
-                try await s.connect()
-                return s
+                let c = try await SSHConnectionChain.connect(
+                    target: self.request.host.target, targetAuth: plan.auth, jump: plan.jump)
+                self.chain = c
+                return c.target
             } catch {
                 self.errorMessage = "\(error)"
                 return nil
@@ -46,7 +53,6 @@ final class DockerModel: ObservableObject {
         connectingTask = task
         let result = await task.value
         connectingTask = nil
-        session = result
         return result
     }
 
@@ -85,9 +91,9 @@ final class DockerModel: ObservableObject {
     }
 
     func disconnect() {
-        let s = session
-        session = nil
-        Task { await s?.close() }
+        let c = chain
+        chain = nil
+        Task { await c?.close() }
     }
 }
 
@@ -106,7 +112,7 @@ struct DockerView: View {
     init(request: ConnectRequest, store: HostStore? = nil) {
         self.request = request
         self.store = store
-        _model = StateObject(wrappedValue: DockerModel(request: request))
+        _model = StateObject(wrappedValue: DockerModel(request: request, store: store))
     }
 
     var body: some View {

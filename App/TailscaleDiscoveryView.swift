@@ -17,7 +17,7 @@ final class TailscaleDiscoveryModel: ObservableObject {
     }
     @Published var state: LoadState = .idle
 
-    func fetch(source: Source, password: String?) async {
+    func fetch(source: Source, password: String?, store: HostStore?) async {
         state = .loading
         do {
             let suggestions: [(hostName: String, address: String)]
@@ -43,14 +43,14 @@ final class TailscaleDiscoveryModel: ObservableObject {
                 return
                 #endif
             case .remote(let host):
-                guard let auth = resolveAuth(for: host, password: password) else {
-                    state = .failed("Kan inte autentisera värden.")
+                guard let plan = resolveConnectionPlan(for: host, password: password, store: store) else {
+                    state = .failed("Kan inte autentisera värden (eller dess jump-host, om en är vald).")
                     return
                 }
-                let session = SSHSession(target: host.target, auth: auth)
-                try await session.connect()
-                defer { Task { await session.close() } }
-                let status = try await TailscaleStatus.fetch(over: session)
+                let chain = try await SSHConnectionChain.connect(
+                    target: host.target, targetAuth: plan.auth, jump: plan.jump)
+                defer { Task { await chain.close() } }
+                let status = try await TailscaleStatus.fetch(over: chain.target)
                 suggestions = status.suggestedHosts
             }
             state = .loaded(suggestions)
@@ -67,6 +67,9 @@ final class TailscaleDiscoveryModel: ObservableObject {
 struct TailscaleDiscoveryView: View {
     @Environment(\.dismiss) private var dismiss
     let hosts: [Host]
+    /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
+    /// på anropsplatser utan delad store — ansluter då direkt.
+    var store: HostStore? = nil
     let onAddHost: (_ alias: String, _ hostName: String) -> Void
 
     @StateObject private var model = TailscaleDiscoveryModel()
@@ -115,9 +118,9 @@ struct TailscaleDiscoveryView: View {
                     Button("Hämta") {
                         Task {
                             if useLocal {
-                                await model.fetch(source: .local, password: nil)
+                                await model.fetch(source: .local, password: nil, store: store)
                             } else if let selectedHost {
-                                await model.fetch(source: .remote(selectedHost), password: password.isEmpty ? nil : password)
+                                await model.fetch(source: .remote(selectedHost), password: password.isEmpty ? nil : password, store: store)
                             }
                         }
                     }

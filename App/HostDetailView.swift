@@ -26,7 +26,7 @@ struct HostDetailView: View {
 
     var body: some View {
         NavigationStack {
-            DashboardView(request: request)
+            DashboardView(request: request, store: store)
                 .id(reloadToken)   // ny id => DashboardView laddar om
                 .navigationTitle(request.host.alias.isEmpty ? request.host.hostName : request.host.alias)
                 .navInlineTitle()
@@ -53,14 +53,14 @@ struct HostDetailView: View {
                             NavigationLink { CommandLibraryView(request: request, store: store) } label: {
                                 Label("Kommandobibliotek", systemImage: "books.vertical")
                             }
-                            NavigationLink { SFTPBrowserView(request: request) } label: {
+                            NavigationLink { SFTPBrowserView(request: request, store: store) } label: {
                                 Label("Filer (SFTP)", systemImage: "folder")
                             }
-                            NavigationLink { PortForwardView(request: request) } label: {
+                            NavigationLink { PortForwardView(request: request, store: store) } label: {
                                 Label("Portvidarebefordran", systemImage: "arrow.left.arrow.right")
                             }
                             NavigationLink {
-                                KeyDeployView(request: request) { updated in store.upsert(updated) }
+                                KeyDeployView(request: request, store: store) { updated in store.upsert(updated) }
                             } label: {
                                 Label("SSH-nyckel", systemImage: "key")
                             }

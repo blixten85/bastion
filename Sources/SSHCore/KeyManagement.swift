@@ -159,14 +159,19 @@ extension SSHSession {
     /// att köra något kommando eller lämna sessionen öppen. Används för att
     /// bevisa att en nyss deployad nyckel verkligen fungerar INNAN ett
     /// lösenord tas bort ur Bastions egen lagring för host-profilen.
-    public static func verifyKeyAuthWorks(target: SSHTarget, seed: Data, knownHosts: KnownHosts) async -> Bool {
-        let probe = SSHSession(target: target, auth: .ed25519Seed(seed), knownHosts: knownHosts)
+    /// `jump` speglar `SSHConnectionChain.connect(target:targetAuth:jump:)` —
+    /// target bakom en jump-host är annars overifierbar (probe:en skulle
+    /// försöka nå target direkt och alltid misslyckas).
+    public static func verifyKeyAuthWorks(
+        target: SSHTarget, seed: Data, knownHosts: KnownHosts,
+        jump: (target: SSHTarget, auth: SSHAuth)? = nil
+    ) async -> Bool {
         do {
-            try await probe.connect()
-            await probe.close()
+            let chain = try await SSHConnectionChain.connect(
+                target: target, targetAuth: .ed25519Seed(seed), jump: jump, knownHosts: knownHosts)
+            await chain.close()
             return true
         } catch {
-            await probe.close()
             return false
         }
     }

@@ -38,23 +38,27 @@ final class PortForwardModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var starting = false
     private let request: ConnectRequest
-    private var session: SSHSession?
+    /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
+    /// på anropsplatser utan delad store — ansluter då direkt.
+    private let store: HostStore?
+    private var chain: SSHConnectionChain?
 
-    init(request: ConnectRequest) {
+    init(request: ConnectRequest, store: HostStore? = nil) {
         self.request = request
+        self.store = store
     }
 
     private func ensureSession() async -> SSHSession? {
-        if let session { return session }
-        guard let auth = resolveAuth(for: request.host, password: request.password) else {
-            errorMessage = "Kan inte autentisera värden."
+        if let chain { return chain.target }
+        guard let plan = resolveConnectionPlan(for: request.host, password: request.password, store: store) else {
+            errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
             return nil
         }
-        let s = SSHSession(target: request.host.target, auth: auth)
         do {
-            try await s.connect()
-            session = s
-            return s
+            let c = try await SSHConnectionChain.connect(
+                target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
+            chain = c
+            return c.target
         } catch {
             errorMessage = "\(error)"
             return nil
@@ -97,13 +101,13 @@ final class PortForwardModel: ObservableObject {
     }
 
     func disconnect() {
-        let s = session
-        session = nil
+        let c = chain
+        chain = nil
         let forwards = active
         active = []
         Task {
             for f in forwards { await f.close() }
-            await s?.close()
+            await c?.close()
         }
     }
 }
@@ -117,8 +121,8 @@ struct PortForwardView: View {
     @State private var targetHostText = ""
     @State private var targetPortText = ""
 
-    init(request: ConnectRequest) {
-        self._model = StateObject(wrappedValue: PortForwardModel(request: request))
+    init(request: ConnectRequest, store: HostStore? = nil) {
+        self._model = StateObject(wrappedValue: PortForwardModel(request: request, store: store))
     }
 
     var body: some View {
