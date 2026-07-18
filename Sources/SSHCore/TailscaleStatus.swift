@@ -106,11 +106,22 @@ extension TailscaleStatus {
         process.standardOutput = stdout
         process.standardError = stderr
         try process.run()
-        // Kort, avslutande kommando (inte en långlivad daemon) — till skillnad
-        // från ssh-agent-testernas waitpid-lärdom är Process.waitUntilExit()
-        // här inget problem, eftersom `tailscale status` returnerar direkt.
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+        // stdout och stderr MÅSTE läsas konkurrent, inte sekventiellt: om
+        // barnprocessen skriver tillräckligt till stderr för att fylla OS-
+        // pipebufferten medan vi fortfarande blockerar i den sekventiella
+        // readDataToEndOfFile() på stdout, blockerar barnet i sin tur på
+        // write() till stderr — ett klassiskt Process/Pipe-dödläge (ingen
+        // sida kan göra framsteg). `tailscale status --json` skriver
+        // normalt inget till stderr, men felfallet (t.ex. "not logged in")
+        // gör, så den tysta 64KB-gränsen är en verklig risk, inte teoretisk.
+        let stdoutHandle = stdout.fileHandleForReading
+        let stderrHandle = stderr.fileHandleForReading
+        let stdoutThread = ResultThread { stdoutHandle.readDataToEndOfFile() }
+        let stderrThread = ResultThread { stderrHandle.readDataToEndOfFile() }
+        stdoutThread.start()
+        stderrThread.start()
+        let data = stdoutThread.join()
+        let errData = stderrThread.join()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             throw TailscaleStatusError.localCommandFailed(
@@ -121,3 +132,31 @@ extension TailscaleStatus {
     }
     #endif
 }
+
+#if canImport(Darwin) || canImport(Glibc)
+/// Kör en synkron closure på en egen `Thread` och blockerar tills den är
+/// klar — precis vad som krävs för att läsa `stdout`/`stderr` konkurrent
+/// i `fetchLocal(executableURL:arguments:)` utan att dela en `var` mellan
+/// closures (vilket Swift 6:s strikta datakapplöpningskontroll avvisar).
+private final class ResultThread<T>: @unchecked Sendable {
+    private let work: () -> T
+    private var result: T?
+    private let semaphore = DispatchSemaphore(value: 0)
+
+    init(_ work: @escaping () -> T) {
+        self.work = work
+    }
+
+    func start() {
+        Thread { [self] in
+            result = work()
+            semaphore.signal()
+        }.start()
+    }
+
+    func join() -> T {
+        semaphore.wait()
+        return result!
+    }
+}
+#endif
