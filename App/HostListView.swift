@@ -126,6 +126,9 @@ struct HostListView: View {
     @State private var showTerminalTheme = false
     @State private var showQuickConnect = false
     @State private var pendingQuickConnectRequest: ConnectRequest?
+    @State private var showTelnetConnect = false
+    @State private var pendingTelnetTarget: TelnetTarget?
+    @State private var telnetTarget: TelnetTarget?
     @State private var searchText = ""
     @State private var wakeMessage: String?
 
@@ -170,6 +173,7 @@ struct HostListView: View {
                         Button { showS3 = true } label: { Label("S3-lagring", systemImage: "externaldrive.badge.icloud") }
                         Button { showTerminalTheme = true } label: { Label("Terminaltema", systemImage: "paintpalette") }
                         Button { showQuickConnect = true } label: { Label("Snabbanslutning", systemImage: "bolt.horizontal") }
+                        Button { showTelnetConnect = true } label: { Label("Telnet", systemImage: "terminal") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -233,9 +237,28 @@ struct HostListView: View {
                     pendingQuickConnectRequest = request
                 }
             }
+            .sheet(isPresented: $showTelnetConnect, onDismiss: {
+                // Samma mönster som Tailscale-upptäckten ovan: sätt målet FÖRST
+                // efter att TelnetConnectView-sheeten faktiskt stängt — annars
+                // krockar det med SwiftUIs single-sheet-hantering (samma
+                // sentry/cubic-fynd som Quick Connect råkade ut för, PR #173).
+                if let pending = pendingTelnetTarget {
+                    pendingTelnetTarget = nil
+                    telnetTarget = pending
+                }
+            }) {
+                TelnetConnectView { target in
+                    pendingTelnetTarget = target
+                }
+            }
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager, store: model.store)
             }
+            #if canImport(SwiftTerm) && (os(iOS) || os(macOS))
+            .cover(item: $telnetTarget) { target in
+                TelnetSessionView(target: target)
+            }
+            #endif
             // Sista fliken stängd -> tillbaka till värdlistan automatiskt,
             // inte kvar på en tom flikväxlare.
             .onChange(of: sessionManager.sessions.isEmpty) { isEmpty in
