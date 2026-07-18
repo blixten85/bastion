@@ -56,7 +56,8 @@ struct TelnetConnectView: View {
 
     private func connect() {
         guard let port = Int(portText) else { return }
-        onConnect(TelnetTarget(host: hostName, port: port))
+        let cleanHost = hostName.trimmingCharacters(in: .whitespacesAndNewlines)
+        onConnect(TelnetTarget(host: cleanHost, port: port))
         dismiss()
     }
 }

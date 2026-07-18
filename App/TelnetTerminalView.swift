@@ -43,7 +43,17 @@ final class TelnetTerminalController {
                     guard !isStopped else { break }
                     self.onData?(bytes[...])
                 }
+                // Strömmen tog slut normalt (t.ex. servern kopplade ner) —
+                // stop() har inte körts här (annars hade break ovan hunnit
+                // före), så ingen annan kommer stänga sessionen. Utan detta
+                // lever event loop-gruppens tråd kvar tills vyn dismissas
+                // (cubic-fynd, PR #175).
+                if !isStopped { await session.close() }
             } catch {
+                // Samma resonemang som ovan för felvägen — output-strömmen
+                // kan avslutas med ett kastat fel (t.ex. anslutningen
+                // tappades) utan att stop() körts.
+                if !isStopped { await self.session?.close() }
                 guard !isStopped else { return }
                 let msg = Array("\r\n[bastion] fel: \(error)\r\n".utf8)
                 self.onData?(msg[...])
