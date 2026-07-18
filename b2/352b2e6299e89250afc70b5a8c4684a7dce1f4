@@ -1,0 +1,36 @@
+Tests/SSHCoreTests/WakeOnLanTests.swift
+  s_14becd1d25aa37::t_fce44f40460d9c 87-100,103-107
+  s_14becd1d25aa37::t_ac967c1fdd2738 29-49
+Sources/SSHCore/WakeOnLan.swift
+  s_14becd1d25aa37::t_0fc9910f5d9f3b 68
+  s_14becd1d25aa37::t_52dea8160999ac 56-64
+  s_14becd1d25aa37::t_b0eac6c92216a0 13-17
+App/QuickConnectView.swift
+  s_14becd1d25aa37::t_ff981b574b8312 58-61,64-65
+  s_14becd1d25aa37::t_394b05d36b37e9 20
+App/HostEditView.swift
+  s_14becd1d25aa37::t_abc7675b3d83ba 218-232
+  s_14becd1d25aa37::t_a8b151f101b533 179-182
+  s_14becd1d25aa37::t_3aacca94ecf526 204
+  s_14becd1d25aa37::t_10ef047c03c6c8 254-257
+App/HostListView.swift
+  s_14becd1d25aa37::t_8b08f372b85bd7 128
+  s_14becd1d25aa37::t_a5ae7127ee6c9d 221-227,231-233
+  s_14becd1d25aa37::t_acb93edaa9a915 234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b2352b2e6299e89250afc70b5a8c4684a7dce1f4",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
