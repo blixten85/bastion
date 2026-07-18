@@ -36,24 +36,19 @@ struct HostEditView: View {
     /// `.askPassword`-värdar (går inte att autentisera automatiskt genom en
     /// jump-kedja — se `SessionView.plan`, som medvetet FAILAR anslutningen
     /// snarare än att tyst hoppa över en jump-host som inte kan autentiseras),
-    /// och (3) värdar vars EGEN jump-kedja redan leder tillbaka till `draft`
-    /// (skulle skapa en cirkulär anslutning, t.ex. A→B→A).
+    /// och (3) värdar som SJÄLVA har en jump-host satt —
+    /// `SSHConnectionChain`/`SessionView` stöder bara ETT hopp, så att välja
+    /// en sådan kandidat skulle tyst hoppa över DESS jump-host och ansluta
+    /// direkt till kandidaten istället (en kedja A→B→C skulle bara bli A→B,
+    /// felaktigt utan varning). Detta gör cykler (A→B→A) strukturellt
+    /// omöjliga också — en kandidat utan egen jump-host kan per definition
+    /// inte peka tillbaka på något.
     private var jumpCandidates: [Host] {
         allHosts.filter { candidate in
             guard candidate.id != draft.id else { return false }
             if case .askPassword = candidate.auth { return false }
-            return !hostReaches(candidate, target: draft.id, in: allHosts)
+            return candidate.jumpHostID == nil
         }
-    }
-
-    /// Följer `start`s jump-kedja (via `allHosts`) och avgör om den någonstans
-    /// leder till `target`. Enkel cykel-skydd (max en gång per host, `seen`)
-    /// mot redan trasig data där en cykel skulle kunna finnas sparad.
-    private func hostReaches(_ start: Host, target: UUID, in allHosts: [Host], seen: Set<UUID> = []) -> Bool {
-        guard let nextID = start.jumpHostID, !seen.contains(start.id) else { return false }
-        if nextID == target { return true }
-        guard let next = allHosts.first(where: { $0.id == nextID }) else { return false }
-        return hostReaches(next, target: target, in: allHosts, seen: seen.union([start.id]))
     }
 
     /// `TextField` vill ha en `Binding<String>`; `startupCommand` är

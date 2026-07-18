@@ -292,10 +292,11 @@ public final class SSHSession {
 /// på `SSHSession.connect(via:)` ovan).
 public final class SSHConnectionChain {
     public let target: SSHSession
-    /// Jump-sessionen, om en användes. **Stäng ALDRIG denna direkt** — den
-    /// måste stängas EFTER `target` (se doc-kommentaren på `connect(via:)`
-    /// ovan). Använd alltid `chain.close()`, som garanterar rätt ordning.
-    public let jump: SSHSession?
+    /// Jump-sessionen, om en användes. INTE `public` (bara `@testable`
+    /// synlig) — annars kunde en konsument stänga den FÖRE `target` (via
+    /// `chain.jump?.close()`) och bryta den dokumenterade ordningen som
+    /// `close()` nedan garanterar. Använd alltid `chain.close()`.
+    let jump: SSHSession?
 
     private init(target: SSHSession, jump: SSHSession?) {
         self.target = target
@@ -303,11 +304,17 @@ public final class SSHConnectionChain {
     }
 
     /// Ansluter `target` direkt om `jump` är `nil`. Annars ansluts `jump`
-    /// FÖRST, och `target` kopplas GENOM den (`connect(via:)`). Varje
-    /// misslyckande-väg stänger allt som redan hunnit skapas/anslutas —
-    /// annars läcker sessionens "fatal"-promise (NIOs läckagedetektor
-    /// kraschar processen i debug-läge, se testerna i ProxyJumpTests.swift
-    /// som bevisar detta för respektive väg).
+    /// FÖRST, och `target` kopplas GENOM den (`connect(via:)`). Endast ETT
+    /// hopp stöds — `jump` kan inte i sin tur ha en egen jump-host (se
+    /// `HostEditView.jumpCandidates`, som utesluter sådana kandidater i UI:t
+    /// tills en fullständig kedjeupplösning finns).
+    ///
+    /// Fel som kastas INNAN metoden returnerar stänger alla sessioner som
+    /// redan hunnit skapas/anslutas. Asynkrona handskakningsfel som syns
+    /// först vid `run()`/`openShell()` (efter att `connect(...)` redan
+    /// returnerat en kedja) måste däremot städas av ANROPAREN med
+    /// `chain.close()` — se `SSHTerminalController.start()` i App-lagret för
+    /// ett exempel.
     public static func connect(
         target targetEndpoint: SSHTarget,
         targetAuth: SSHAuth,
