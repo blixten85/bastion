@@ -120,4 +120,26 @@ final class HostStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(Host.self, from: oldStyleData)
         XCTAssertNil(decoded.startupCommand)
     }
+
+    func testJumpHostIDRoundTrip() throws {
+        let jump = Host(alias: "bastion-host", hostName: "10.0.0.1", user: "jump")
+        var target = Host(alias: "internal-db", hostName: "10.0.1.5", user: "admin")
+        target.jumpHostID = jump.id
+        let data = try JSONEncoder().encode(target)
+        let decoded = try JSONDecoder().decode(Host.self, from: data)
+        XCTAssertEqual(decoded.jumpHostID, jump.id)
+    }
+
+    /// Samma bakåtkompatibilitetsresonemang som ovan — `jumpHostID` tillkom
+    /// ännu senare, så en host.json från innan DET fältet fanns måste också
+    /// gå att läsa (utan jump host, precis som innan fältet fanns).
+    func testDecodesOldHostWithoutJumpHostIDField() throws {
+        let h = Host(alias: "legacy4", hostName: "10.0.0.1", user: "root")
+        var obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(h)) as! [String: Any]
+        obj.removeValue(forKey: "jumpHostID")
+        let oldStyleData = try JSONSerialization.data(withJSONObject: obj)
+
+        let decoded = try JSONDecoder().decode(Host.self, from: oldStyleData)
+        XCTAssertNil(decoded.jumpHostID)
+    }
 }
