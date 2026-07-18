@@ -1,0 +1,31 @@
+Tests/SSHCoreTests/ProxyJumpTests.swift
+  s_3de08b7f6ab0a8::t_f6164ea1e0a7b6 162-195
+App/HostDetailView.swift
+  s_3de08b7f6ab0a8::t_699faf243fdf57 47
+App/HostEditView.swift
+  s_3de08b7f6ab0a8::t_a84000fa0038de 149,158-161
+  s_3de08b7f6ab0a8::t_8655cc553aa8ec 35-58
+App/TerminalView.swift
+  s_3de08b7f6ab0a8::t_155e781546cd05 80-86
+Sources/SSHCore/SSHSession.swift
+  s_3de08b7f6ab0a8::t_f9597f15e64aaa 295-297,306-310,319-324,328-336
+App/DockerView.swift
+  s_3de08b7f6ab0a8::t_6045ae39b88d86 139
+  s_3de08b7f6ab0a8::t_1f79976404e7a9 101-104,106,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a84a986f6b8c0400b00bd26b1ce5748d1010e0d6",
+  "prompts": {},
+  "sessions": {
+    "s_3de08b7f6ab0a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "198688df-05fc-4b91-9253-de4ba3127bb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
