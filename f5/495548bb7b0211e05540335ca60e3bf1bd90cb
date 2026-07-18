@@ -1,0 +1,22 @@
+App/HostEditView.swift
+  s_3de08b7f6ab0a8::t_76737fb38f97fb 39-45,50
+Sources/SSHCore/SSHSession.swift
+  s_3de08b7f6ab0a8::t_125a425e8593c2 295-299
+  s_3de08b7f6ab0a8::t_9a07b9d3507d6b 307-317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f5495548bb7b0211e05540335ca60e3bf1bd90cb",
+  "prompts": {},
+  "sessions": {
+    "s_3de08b7f6ab0a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "198688df-05fc-4b91-9253-de4ba3127bb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
