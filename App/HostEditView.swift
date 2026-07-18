@@ -32,6 +32,30 @@ struct HostEditView: View {
     /// Keychain-id för en importerad nyckel: stabilt per värd, oberoende av auth-läge.
     private static func keychainID(for host: Host) -> String { "host-key-\(host.id.uuidString)" }
 
+    /// Kandidater för jump host-väljaren: utesluter (1) `draft` själv, (2)
+    /// `.askPassword`-värdar (går inte att autentisera automatiskt genom en
+    /// jump-kedja — se `SessionView.plan`, som medvetet FAILAR anslutningen
+    /// snarare än att tyst hoppa över en jump-host som inte kan autentiseras),
+    /// och (3) värdar vars EGEN jump-kedja redan leder tillbaka till `draft`
+    /// (skulle skapa en cirkulär anslutning, t.ex. A→B→A).
+    private var jumpCandidates: [Host] {
+        allHosts.filter { candidate in
+            guard candidate.id != draft.id else { return false }
+            if case .askPassword = candidate.auth { return false }
+            return !hostReaches(candidate, target: draft.id, in: allHosts)
+        }
+    }
+
+    /// Följer `start`s jump-kedja (via `allHosts`) och avgör om den någonstans
+    /// leder till `target`. Enkel cykel-skydd (max en gång per host, `seen`)
+    /// mot redan trasig data där en cykel skulle kunna finnas sparad.
+    private func hostReaches(_ start: Host, target: UUID, in allHosts: [Host], seen: Set<UUID> = []) -> Bool {
+        guard let nextID = start.jumpHostID, !seen.contains(start.id) else { return false }
+        if nextID == target { return true }
+        guard let next = allHosts.first(where: { $0.id == nextID }) else { return false }
+        return hostReaches(next, target: target, in: allHosts, seen: seen.union([start.id]))
+    }
+
     /// `TextField` vill ha en `Binding<String>`; `startupCommand` är
     /// `String?` (tomt fält = `nil`, inte `""` sparat i host.json).
     private var startupCommandBinding: Binding<String> {
@@ -122,7 +146,7 @@ struct HostEditView: View {
                 Section("Jump host") {
                     Picker("Anslut via", selection: $draft.jumpHostID) {
                         Text("Ingen (direkt anslutning)").tag(UUID?.none)
-                        ForEach(allHosts.filter { $0.id != draft.id }) { h in
+                        ForEach(jumpCandidates) { h in
                             Text(h.alias.isEmpty ? h.hostName : h.alias).tag(Optional(h.id))
                         }
                     }
@@ -131,6 +155,10 @@ struct HostEditView: View {
                         Text("Ansluter genom \(jumpHost.alias.isEmpty ? jumpHost.hostName : jumpHost.alias) (ssh -J) innan den här värden nås.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
+                    Text("Bara värdar med nyckel-/agent-/certifikatautentisering visas — "
+                         + "\"Fråga lösenord\"-värdar kan inte användas som jump host (ingen "
+                         + "interaktiv prompt finns för det hoppet).")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
                 Section("Taggar") {
                     TextField("prod, homelab, …", text: $tagsText)

@@ -98,9 +98,14 @@ struct DockerView: View {
     @State private var logRef: LogRef?
     @State private var shellRequest: ConnectRequest?
     private let request: ConnectRequest
+    /// Vidarebefordras till `SessionView` för jump-host-uppslagning när en
+    /// container-shell öppnas. `nil` om anropsplatsen saknar en delad store
+    /// (se `SessionView.store`).
+    let store: HostStore?
 
-    init(request: ConnectRequest) {
+    init(request: ConnectRequest, store: HostStore? = nil) {
         self.request = request
+        self.store = store
         _model = StateObject(wrappedValue: DockerModel(request: request))
     }
 
@@ -131,7 +136,7 @@ struct DockerView: View {
         .sheet(item: $logRef) { ref in
             LogsSheet(title: ref.id, load: { await model.fetchLogs(ref.id) })
         }
-        .cover(item: $shellRequest) { req in SessionView(request: req) }
+        .cover(item: $shellRequest) { req in SessionView(request: req, store: store) }
     }
 
     private func row(_ c: DockerContainer) -> some View {

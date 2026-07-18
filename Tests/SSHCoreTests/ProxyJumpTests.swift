@@ -159,6 +159,40 @@ final class ProxyJumpTests: XCTestCase {
         await chain.close()
     }
 
+    /// Direkt anslutning (ingen jump) mot en oåtkomlig host ska misslyckas
+    /// UTAN att läcka targetSessions "fatal"-promise — precis som
+    /// `testConnectViaUnconnectedJumpThrows` bevisar för lågnivå-API:t.
+    /// Om cleanupen saknades skulle NIOs läckagedetektor krascha PROCESSEN
+    /// (inte bara detta test) vid nästa körning eller testsvitens slut.
+    func testConnectionChainDirectConnectFailureDoesNotLeak() async throws {
+        do {
+            _ = try await SSHConnectionChain.connect(
+                target: SSHTarget(host: "127.0.0.1", port: 1, username: "tester"),
+                targetAuth: .password("x"),
+                jump: nil,
+                knownHosts: KnownHosts(path: nil))
+            XCTFail("skulle ha misslyckats — ingenting lyssnar på port 1")
+        } catch {
+            // förväntat
+        }
+    }
+
+    /// Om SJÄLVA JUMPEN inte går att ansluta till (oåtkomlig) ska varken
+    /// jump- eller targetSession läcka — targetSession skapas innan jumpens
+    /// anslutningsförsök men hinner aldrig ansluta själv.
+    func testConnectionChainJumpConnectFailureDoesNotLeak() async throws {
+        do {
+            _ = try await SSHConnectionChain.connect(
+                target: SSHTarget(host: "127.0.0.1", port: 2, username: "tester"),
+                targetAuth: .password("x"),
+                jump: (target: SSHTarget(host: "127.0.0.1", port: 1, username: "tester"), auth: .password("y")),
+                knownHosts: KnownHosts(path: nil))
+            XCTFail("skulle ha misslyckats — ingenting lyssnar på port 1")
+        } catch {
+            // förväntat
+        }
+    }
+
     /// Om targets autentisering misslyckas (fel lösenord) GENOM jumpen ska
     /// felet upptäckas (antingen direkt i `connect(...)` eller vid första
     /// `run()`, precis som `testConnectViaJumpFailsWithWrongTargetPassword`

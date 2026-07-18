@@ -44,7 +44,7 @@ struct HostDetailView: View {
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Menu {
-                            NavigationLink { DockerView(request: request) } label: {
+                            NavigationLink { DockerView(request: request, store: store) } label: {
                                 Label("Docker", systemImage: "shippingbox")
                             }
                             NavigationLink { SnippetListView(request: request, store: store) } label: {

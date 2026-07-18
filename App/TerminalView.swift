@@ -77,6 +77,13 @@ final class SSHTerminalController {
                     self.onData?(bytes[...])
                 }
             } catch {
+                // Om felet kom EFTER att chain redan var uppsatt (openShell()
+                // eller output-strömmen misslyckades, inte själva anslutningen)
+                // måste den städas här — SSHConnectionChain.connect() städar
+                // bara sina EGNA fel internt, inte fel som inträffar efter att
+                // den redan returnerat. Ofarligt no-op om chain fortfarande är
+                // nil (connect() self själv redan städat i den vägen).
+                await self.chain?.close()
                 guard !isStopped else { return }
                 #if os(iOS)
                 SentrySDK.logger.warn("ssh.session.failed", attributes: ["category": String(describing: type(of: error))])

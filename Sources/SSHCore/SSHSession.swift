@@ -292,6 +292,9 @@ public final class SSHSession {
 /// på `SSHSession.connect(via:)` ovan).
 public final class SSHConnectionChain {
     public let target: SSHSession
+    /// Jump-sessionen, om en användes. **Stäng ALDRIG denna direkt** — den
+    /// måste stängas EFTER `target` (se doc-kommentaren på `connect(via:)`
+    /// ovan). Använd alltid `chain.close()`, som garanterar rätt ordning.
     public let jump: SSHSession?
 
     private init(target: SSHSession, jump: SSHSession?) {
@@ -300,9 +303,11 @@ public final class SSHConnectionChain {
     }
 
     /// Ansluter `target` direkt om `jump` är `nil`. Annars ansluts `jump`
-    /// FÖRST, och `target` kopplas GENOM den (`connect(via:)`). Om targets
-    /// handskakning misslyckas stängs jump-sessionen ändå — ingen läckt
-    /// anslutning kvar hängande.
+    /// FÖRST, och `target` kopplas GENOM den (`connect(via:)`). Varje
+    /// misslyckande-väg stänger allt som redan hunnit skapas/anslutas —
+    /// annars läcker sessionens "fatal"-promise (NIOs läckagedetektor
+    /// kraschar processen i debug-läge, se testerna i ProxyJumpTests.swift
+    /// som bevisar detta för respektive väg).
     public static func connect(
         target targetEndpoint: SSHTarget,
         targetAuth: SSHAuth,
@@ -311,11 +316,24 @@ public final class SSHConnectionChain {
     ) async throws -> SSHConnectionChain {
         let targetSession = SSHSession(target: targetEndpoint, auth: targetAuth, knownHosts: knownHosts)
         guard let jumpEndpoint else {
-            try await targetSession.connect()
+            do {
+                try await targetSession.connect()
+            } catch {
+                await targetSession.close()
+                throw error
+            }
             return SSHConnectionChain(target: targetSession, jump: nil)
         }
         let jumpSession = SSHSession(target: jumpEndpoint.target, auth: jumpEndpoint.auth, knownHosts: knownHosts)
-        try await jumpSession.connect()
+        do {
+            try await jumpSession.connect()
+        } catch {
+            // targetSession hann aldrig ansluta/skapa en kanal, men dess egen
+            // "fatal"-promise (skapad redan i init()) måste ändå upplösas.
+            await targetSession.close()
+            await jumpSession.close()
+            throw error
+        }
         do {
             try await targetSession.connect(via: jumpSession)
         } catch {
