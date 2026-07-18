@@ -24,6 +24,12 @@ final class TerminalController: ObservableObject {
     private let initialCommand: String?
     private var chain: SSHConnectionChain?
     private var shell: SSHShell?
+    /// Sätts av `stop()`. Kollas efter varje await-punkt i `start()` så en
+    /// sen `connect()`/`openShell()` som landar EFTER teardown stänger det
+    /// den just skapade istället för att tilldela self.chain/self.shell VID
+    /// ANROPSTILLFÄLLET (samma mönster som App/TerminalView.swifts
+    /// SSHTerminalController — cubic-fynd PR #179).
+    private var isStopped = false
 
     init(host: Host, password: String?, initialCommand: String? = nil, store: HostStore? = nil, cols: Int = 100, rows: Int = 30) {
         self.buffer = TerminalBuffer(cols: cols, rows: rows)
@@ -40,8 +46,10 @@ final class TerminalController: ObservableObject {
         }
         do {
             let chain = try await SSHConnectionChain.connect(target: host.target, targetAuth: plan.auth, jump: plan.jump)
+            guard !isStopped else { await chain.close(); return }
             self.chain = chain
             let shell = try await chain.target.openShell(cols: buffer.cols, rows: buffer.rowCount)
+            guard !isStopped else { shell.close(); return }
             self.shell = shell
             statusMessage = nil
             if let initialCommand { shell.send(initialCommand + "\r") }
@@ -50,6 +58,7 @@ final class TerminalController: ObservableObject {
             }
         } catch {
             await self.chain?.close()
+            guard !isStopped else { return }
             buffer.feed("\r\n[bastion] fel: \(error)\r\n")
         }
     }
@@ -64,6 +73,7 @@ final class TerminalController: ObservableObject {
     }
 
     func stop() {
+        isStopped = true
         shell?.close()
         let chain = self.chain
         Task { await chain?.close() }

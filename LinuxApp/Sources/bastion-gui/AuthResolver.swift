@@ -27,7 +27,9 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
 }
 
 /// Löser upp anslutningsplanen (mål-auth + ev. jump-host) för en värd —
-/// samma logik/kontrakt som `App/AuthResolver.swift`s `resolveConnectionPlan`.
+/// samma anslutningsplansmönster som `App/SessionView.swift`s `plan`
+/// (PR #172, som lägger detta som en delad `resolveConnectionPlan`-
+/// funktion i `App/AuthResolver.swift`, flyttar referensen dit igen).
 /// `store` är `nil` på anropsplatser som inte har en delad `HostStore`
 /// tillgänglig; en host UTAN `jumpHostID` ansluter då fortfarande direkt,
 /// men en host MED `jumpHostID` nekas anslutning istället för att tyst

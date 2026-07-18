@@ -15,6 +15,14 @@ final class KeyDeployModel: ObservableObject {
     @Published var generatedKey: GeneratedKeyPair?
     @Published var deployed = false
     @Published var verified = false
+    /// Sant EFTER en lyckad deploy mot en jump-hostad värd, där automatisk
+    /// verifiering hoppades över (se `deployAndVerify()`). Skiljs från
+    /// `verified` så vyn kan visa ett neutralt/varnande läge istället för
+    /// rött "misslyckades" — deployen lyckades faktiskt, bara verifieringen
+    /// kunde inte köras (cubic-fynd PR #179: annars visas en lyckad deploy
+    /// som ett fel, och nyckeln blir ANVÄNDBAR på fjärrsidan men omöjlig att
+    /// koppla till host-profilen via UI:t).
+    @Published var deployedButUnverifiable = false
     @Published var statusMessage: String?
     @Published var importError: String?
     @Published var busy = false
@@ -49,6 +57,7 @@ final class KeyDeployModel: ObservableObject {
             generatedKey = try KeyGenerator.fromExisting(seed: seed, comment: comment)
             deployed = false
             verified = false
+            deployedButUnverifiable = false
             statusMessage = nil
         } catch SSHKeyError.encrypted {
             importError = "Lösenfras-skyddade nycklar stöds inte än."
@@ -67,6 +76,7 @@ final class KeyDeployModel: ObservableObject {
         generatedKey = KeyGenerator.generateEd25519(comment: comment)
         deployed = false
         verified = false
+        deployedButUnverifiable = false
         statusMessage = nil
         importError = nil
     }
@@ -76,6 +86,7 @@ final class KeyDeployModel: ObservableObject {
         busy = true
         deployed = false
         verified = false
+        deployedButUnverifiable = false
         statusMessage = nil
         defer { busy = false }
         guard let plan = resolveConnectionPlan(for: host, password: password, store: store) else {
@@ -108,7 +119,8 @@ final class KeyDeployModel: ObservableObject {
         // hellre än att felaktigt ansluta DIREKT och rapportera ett resultat
         // som inte speglar den riktiga anslutningsvägen.
         guard plan.jump == nil else {
-            statusMessage = "Deployad. Automatisk verifiering stöds ännu inte för värdar bakom en jump-host."
+            deployedButUnverifiable = true
+            statusMessage = "Deployad (overifierad) — automatisk verifiering stöds ännu inte för värdar bakom en jump-host. Nyckeln fungerar sannolikt, men testa gärna manuellt innan du byter till den nedan."
             return
         }
         let ok = await SSHSession.verifyKeyAuthWorks(
@@ -132,7 +144,11 @@ final class KeyDeployModel: ObservableObject {
     /// Anropas bara efter att `verified` är sant — vyns checkbox styr NÄR,
     /// inte modellen (opt-in, matchar användarens uttryckliga krav).
     func saveKeyAndSwitchAuth() throws -> Host {
-        guard let key = generatedKey, verified else {
+        // `deployedButUnverifiable` tillåts också (opt-in, användaren väljer
+        // uttryckligen via `switchAuthAfterVerify`-togglen i vyn) — annars
+        // vore en jump-hostad, faktiskt lyckad deploy permanent obrukbar via
+        // UI:t tills #172:s jump-aware verifiering finns (cubic-fynd PR #179).
+        guard let key = generatedKey, verified || deployedButUnverifiable else {
             throw SSHError.channelFailed("nyckeln är inte verifierad än")
         }
         let dir = ("~/.bastion/keys" as NSString).expandingTildeInPath
@@ -199,7 +215,8 @@ struct KeyDeployView: View {
             }
 
             if let s = model.statusMessage {
-                Text(s).foregroundColor(model.verified ? .green : .red)
+                Text(s).foregroundColor(
+                    model.verified ? .green : (model.deployedButUnverifiable ? .orange : .red))
             }
             if let e = saveError {
                 Text(e).foregroundColor(.red)
@@ -228,7 +245,11 @@ struct KeyDeployView: View {
                 }
             }
 
-            if model.verified {
+            if model.verified || model.deployedButUnverifiable {
+                if model.deployedButUnverifiable {
+                    Text("Overifierad — bekräfta bara om du själv har testat att nyckeln fungerar genom jump-hosten.")
+                        .foregroundColor(.orange)
+                }
                 Toggle("Byt den här värden till nyckel-auth (fråga inte längre efter lösenord)", isOn: $switchAuthAfterVerify)
                 Button("Bekräfta") { confirm() }
                     .disabled(!switchAuthAfterVerify)

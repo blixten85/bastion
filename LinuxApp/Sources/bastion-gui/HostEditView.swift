@@ -44,8 +44,11 @@ struct HostEditView: View {
     }
 
     /// Kandidater för jump host-väljaren: utesluter (1) `draft` själv, (2)
-    /// `.askPassword`-värdar (går inte att autentisera automatiskt genom en
-    /// jump-kedja), och (3) värdar som SJÄLVA har en jump-host satt —
+    /// `.askPassword`- och `.keychainKey`-värdar (går inte att autentisera
+    /// automatiskt genom en jump-kedja — Linux/Windows har ingen Keychain
+    /// och `resolveAuth` returnerar alltid `nil` för `.keychainKey` här, se
+    /// `AuthResolver.swift`, så en sådan kandidat vore en deterministiskt
+    /// obrukbar jump host), och (3) värdar som SJÄLVA har en jump-host satt —
     /// `SSHConnectionChain` stöder bara ETT hopp, så att välja en sådan
     /// kandidat skulle tyst hoppa över DESS jump-host och ansluta direkt
     /// till kandidaten istället (en kedja A→B→C skulle bara bli A→B,
@@ -56,6 +59,7 @@ struct HostEditView: View {
         allHosts.filter { candidate in
             guard candidate.id != draft.id else { return false }
             if case .askPassword = candidate.auth { return false }
+            if case .keychainKey = candidate.auth { return false }
             return candidate.jumpHostID == nil
         }
     }
@@ -67,9 +71,16 @@ struct HostEditView: View {
     private var jumpChoiceBinding: Binding<JumpChoice?> {
         Binding(
             get: {
+                // `.some(.none)` — INTE bara `.none` — annars läser Swift
+                // det som Optional.none (bare `nil`) i det här `JumpChoice?`-
+                // sammanhanget, eftersom `JumpChoice` själv har ett `.none`-
+                // fall (samma ambiguitet som `set` nedan redan undviker).
+                // Med bare `.none` hittar SwiftCrossUIs Picker ingen matchning
+                // i `jumpChoiceOptions` och rensar GTK-valet istället för att
+                // visa "Ingen" som vald (cubic-fynd PR #179).
                 guard let id = draft.jumpHostID,
                       let host = jumpCandidates.first(where: { $0.id == id })
-                else { return .none }
+                else { return .some(.none) }
                 return .host(host.id, host.alias.isEmpty ? host.hostName : host.alias)
             },
             set: { choice in
@@ -191,7 +202,7 @@ struct HostEditView: View {
 
                     Text("Jump host").font(.subheadline)
                     Picker(of: jumpChoiceOptions, selection: jumpChoiceBinding)
-                    if let jumpID = draft.jumpHostID, let jumpHost = allHosts.first(where: { $0.id == jumpID }) {
+                    if let jumpID = draft.jumpHostID, let jumpHost = jumpCandidates.first(where: { $0.id == jumpID }) {
                         Text("Ansluter genom \(jumpHost.alias.isEmpty ? jumpHost.hostName : jumpHost.alias) (ssh -J) innan den här värden nås.")
                             .foregroundColor(.gray)
                     }

@@ -46,6 +46,15 @@ final class DockerModel: ObservableObject {
             }
             do {
                 let chain = try await SSHConnectionChain.connect(target: self.host.target, targetAuth: plan.auth, jump: plan.jump)
+                // disconnect() kan ha körts (vyn stängd) medan vi väntade på
+                // connect() — utan den här kollen skulle vi återuppliva
+                // self.chain EFTER att disconnect() redan städat, och den nya
+                // anslutningen skulle aldrig stängas (samma mönster som
+                // SFTPBrowserModel, CodeRabbit/cubic-fynd PR #179).
+                guard !Task.isCancelled else {
+                    await chain.close()
+                    return nil
+                }
                 self.chain = chain
                 return chain.target
             } catch {
@@ -94,6 +103,10 @@ final class DockerModel: ObservableObject {
     }
 
     func disconnect() {
+        // Avbryter en ev. pågående anslutning — annars kan den hinna klart
+        // EFTER städningen nedan och skriva tillbaka en levande chain som
+        // aldrig stängs.
+        connectingTask?.cancel()
         let chain = self.chain
         self.chain = nil
         Task { await chain?.close() }

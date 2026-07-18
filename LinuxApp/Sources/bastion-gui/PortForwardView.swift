@@ -39,6 +39,11 @@ final class PortForwardModel: ObservableObject {
     private let password: String?
     private let store: HostStore?
     private var chain: SSHConnectionChain?
+    /// Sätts av `disconnect()` — kollas EFTER `SSHConnectionChain.connect()`
+    /// eftersom den kan hinna klart efter att vyn redan stängts/disconnect()
+    /// redan körts; utan kollen skulle en sen anslutning återuppliva
+    /// `self.chain` och aldrig stängas (CodeRabbit/cubic-fynd PR #179).
+    private var disconnected = false
 
     init(host: Host, password: String?, store: HostStore? = nil) {
         self.host = host
@@ -54,6 +59,10 @@ final class PortForwardModel: ObservableObject {
         }
         do {
             let chain = try await SSHConnectionChain.connect(target: host.target, targetAuth: plan.auth, jump: plan.jump)
+            guard !disconnected else {
+                await chain.close()
+                return nil
+            }
             self.chain = chain
             return chain.target
         } catch {
@@ -98,6 +107,7 @@ final class PortForwardModel: ObservableObject {
     }
 
     func disconnect() {
+        disconnected = true
         let chain = self.chain
         self.chain = nil
         let forwards = active

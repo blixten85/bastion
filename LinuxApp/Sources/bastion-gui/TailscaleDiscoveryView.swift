@@ -30,8 +30,18 @@ final class TailscaleDiscoveryModel: ObservableObject {
                     return
                 }
                 let chain = try await SSHConnectionChain.connect(target: host.target, targetAuth: plan.auth, jump: plan.jump)
-                defer { Task { await chain.close() } }
-                status = try await TailscaleStatus.fetch(over: chain.target)
+                // Strukturerad do-catch (inte `defer { Task {...} }`) — en
+                // fristående Task frikopplar städningen från det pågående
+                // async-flödet och respekterar inte förälder-tasken cancellation
+                // (CodeRabbit/cubic-fynd PR #179), samma mönster som
+                // DashboardView/KeyDeployView redan använder.
+                do {
+                    status = try await TailscaleStatus.fetch(over: chain.target)
+                    await chain.close()
+                } catch {
+                    await chain.close()
+                    throw error
+                }
             }
             state = .loaded(status.suggestedHosts)
         } catch {
