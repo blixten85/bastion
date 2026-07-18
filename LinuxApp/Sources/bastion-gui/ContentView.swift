@@ -15,7 +15,7 @@ struct ContentView: View {
     @State private var showTailscale = false
     @State private var showS3 = false
     @State private var searchText = ""
-    @State private var wakeMessage: String?
+    @State private var wakeMessage: (hostID: UUID, text: String)?
 
     private var filteredHosts: [Host] {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -133,8 +133,8 @@ struct ContentView: View {
                         selectedHostID = nil
                     }
                 }
-                if let wakeMessage {
-                    Text(wakeMessage).foregroundColor(.gray)
+                if let wakeMessage, wakeMessage.hostID == selected.id {
+                    Text(wakeMessage.text).foregroundColor(.gray)
                 }
             }
         }
@@ -147,12 +147,13 @@ struct ContentView: View {
     /// att sväljas tyst, men blockerar aldrig något annat i UI:t.
     private func wake(_ host: Host) {
         guard let mac = host.macAddress else { return }
+        let hostID = host.id
         Task {
             do {
                 try await WakeOnLan.send(mac: mac)
-                wakeMessage = "Skickade väckningssignal till \(host.alias.isEmpty ? host.hostName : host.alias)."
+                wakeMessage = (hostID, "Skickade väckningssignal till \(host.alias.isEmpty ? host.hostName : host.alias).")
             } catch {
-                wakeMessage = "Kunde inte skicka väckningssignal: \(error)"
+                wakeMessage = (hostID, "Kunde inte skicka väckningssignal: \(error)")
             }
         }
     }

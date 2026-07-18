@@ -89,34 +89,38 @@ struct HostEditView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(draft.alias.isEmpty ? "Ny värd" : "Ändra värd").font(.headline)
 
-            TextField("Alias (t.ex. Prod Web)", text: $draft.alias)
-            TextField("Värd (t.ex. 10.0.0.5)", text: $draft.hostName)
-            TextField("Användare", text: $draft.user)
-            TextField("Port", text: $portText)
-            TextField("Taggar (prod, homelab, …)", text: $tagsText)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Alias (t.ex. Prod Web)", text: $draft.alias)
+                    TextField("Värd (t.ex. 10.0.0.5)", text: $draft.hostName)
+                    TextField("Användare", text: $draft.user)
+                    TextField("Port", text: $portText)
+                    TextField("Taggar (prod, homelab, …)", text: $tagsText)
 
-            Toggle("Favorit", isOn: $draft.isFavorite)
-            HostColorPicker(selection: $draft.colorTag)
+                    Toggle("Favorit", isOn: $draft.isFavorite)
+                    HostColorPicker(selection: $draft.colorTag)
 
-            Text("Autentisering").font(.subheadline)
-            Picker(of: pickerOptions, selection: authKindBinding)
-            if authKind == .key {
-                TextField("Sökväg till privatnyckel", text: $keyPath)
-            }
-            if authKind == .certificate {
-                TextField("Sökväg till privatnyckel", text: $keyPath)
-                TextField("Sökväg till certifikat (t.ex. nyckel-cert.pub)", text: $certPath)
-            }
+                    Text("Autentisering").font(.subheadline)
+                    Picker(of: pickerOptions, selection: authKindBinding)
+                    if authKind == .key {
+                        TextField("Sökväg till privatnyckel", text: $keyPath)
+                    }
+                    if authKind == .certificate {
+                        TextField("Sökväg till privatnyckel", text: $keyPath)
+                        TextField("Sökväg till certifikat (t.ex. nyckel-cert.pub)", text: $certPath)
+                    }
 
-            Text("Fjärrsystem").font(.subheadline)
-            Picker(of: RemotePlatform.allCases, selection: platformBinding)
+                    Text("Fjärrsystem").font(.subheadline)
+                    Picker(of: RemotePlatform.allCases, selection: platformBinding)
 
-            TextField("Kör automatiskt vid anslutning (valfritt, t.ex. tmux attach)", text: $startupCommandText)
+                    TextField("Kör automatiskt vid anslutning (valfritt, t.ex. tmux attach)", text: $startupCommandText)
 
-            Text("Wake-on-LAN").font(.subheadline)
-            TextField("MAC-adress (valfritt, t.ex. AA:BB:CC:DD:EE:FF)", text: $macAddressText)
-            if let message = macValidationMessage {
-                Text(message).foregroundColor(.orange)
+                    Text("Wake-on-LAN").font(.subheadline)
+                    TextField("MAC-adress (valfritt, t.ex. AA:BB:CC:DD:EE:FF)", text: $macAddressText)
+                    if let message = macValidationMessage {
+                        Text(message).foregroundColor(.orange)
+                    }
+                }
             }
 
             HStack {
