@@ -1,0 +1,22 @@
+Sources/SSHCore/Telnet.swift
+  s_14becd1d25aa37::t_111a2b49228a73 1-19,21-25,27,29-41,43,45-62,64-176
+  s_14becd1d25aa37::t_fbbae027d9a93d 20,26,28,42,44,63
+Tests/SSHCoreTests/TelnetTests.swift
+  s_14becd1d25aa37::t_cbc2bb6bb247d9 1-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6f8c5c9259379cd0038ac5c148e324f794acecff",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
