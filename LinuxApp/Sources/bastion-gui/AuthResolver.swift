@@ -25,3 +25,21 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
         return try? OpenSSHPrivateKey.loadCertificate(keyPath: keyPath, certPath: certPath)
     }
 }
+
+/// Löser upp anslutningsplanen (mål-auth + ev. jump-host) för en värd —
+/// samma logik/kontrakt som `App/AuthResolver.swift`s `resolveConnectionPlan`.
+/// `store` är `nil` på anropsplatser som inte har en delad `HostStore`
+/// tillgänglig; en host UTAN `jumpHostID` ansluter då fortfarande direkt,
+/// men en host MED `jumpHostID` nekas anslutning istället för att tyst
+/// hoppa förbi jump-hosten (fail-closed, inte en tyst degradering).
+func resolveConnectionPlan(
+    for host: Host, password: String?, store: HostStore?
+) -> (auth: SSHAuth, jump: (target: SSHTarget, auth: SSHAuth)?)? {
+    guard let auth = resolveAuth(for: host, password: password) else { return nil }
+    guard let jumpID = host.jumpHostID else { return (auth, nil) }
+    guard let jumpHost = store?.get(jumpID),
+          jumpHost.jumpHostID == nil,
+          let jumpAuth = resolveAuth(for: jumpHost, password: nil)
+    else { return nil }
+    return (auth, (target: jumpHost.target, auth: jumpAuth))
+}

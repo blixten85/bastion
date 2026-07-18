@@ -37,24 +37,25 @@ final class PortForwardModel: ObservableObject {
     @Published var starting = false
     private let host: Host
     private let password: String?
-    private var session: SSHSession?
+    private let store: HostStore?
+    private var chain: SSHConnectionChain?
 
-    init(host: Host, password: String?) {
+    init(host: Host, password: String?, store: HostStore? = nil) {
         self.host = host
         self.password = password
+        self.store = store
     }
 
     private func ensureSession() async -> SSHSession? {
-        if let session { return session }
-        guard let auth = resolveAuth(for: host, password: password) else {
-            errorMessage = "Kan inte autentisera värden."
+        if let chain { return chain.target }
+        guard let plan = resolveConnectionPlan(for: host, password: password, store: store) else {
+            errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
             return nil
         }
-        let s = SSHSession(target: host.target, auth: auth)
         do {
-            try await s.connect()
-            session = s
-            return s
+            let chain = try await SSHConnectionChain.connect(target: host.target, targetAuth: plan.auth, jump: plan.jump)
+            self.chain = chain
+            return chain.target
         } catch {
             errorMessage = "\(error)"
             return nil
@@ -97,13 +98,13 @@ final class PortForwardModel: ObservableObject {
     }
 
     func disconnect() {
-        let s = session
-        session = nil
+        let chain = self.chain
+        self.chain = nil
         let forwards = active
         active = []
         Task {
             for f in forwards { await f.close() }
-            await s?.close()
+            await chain?.close()
         }
     }
 }
@@ -115,8 +116,8 @@ struct PortForwardView: View {
     @State private var targetHostText = ""
     @State private var targetPortText = ""
 
-    init(host: Host, password: String?) {
-        self._model = State(wrappedValue: PortForwardModel(host: host, password: password))
+    init(host: Host, password: String?, store: HostStore? = nil) {
+        self._model = State(wrappedValue: PortForwardModel(host: host, password: password, store: store))
     }
 
     var body: some View {

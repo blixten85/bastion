@@ -17,7 +17,7 @@ final class TailscaleDiscoveryModel: ObservableObject {
     }
     @Published var state: LoadState = .idle
 
-    func fetch(source: Source, password: String?) async {
+    func fetch(source: Source, password: String?, store: HostStore? = nil) async {
         state = .loading
         do {
             let status: TailscaleStatus
@@ -25,14 +25,13 @@ final class TailscaleDiscoveryModel: ObservableObject {
             case .local:
                 status = try TailscaleStatus.fetchLocal()
             case .remote(let host):
-                guard let auth = resolveAuth(for: host, password: password) else {
-                    state = .failed("Kan inte autentisera värden.")
+                guard let plan = resolveConnectionPlan(for: host, password: password, store: store) else {
+                    state = .failed("Kan inte autentisera värden (eller dess jump-host, om en är vald).")
                     return
                 }
-                let session = SSHSession(target: host.target, auth: auth)
-                try await session.connect()
-                defer { Task { await session.close() } }
-                status = try await TailscaleStatus.fetch(over: session)
+                let chain = try await SSHConnectionChain.connect(target: host.target, targetAuth: plan.auth, jump: plan.jump)
+                defer { Task { await chain.close() } }
+                status = try await TailscaleStatus.fetch(over: chain.target)
             }
             state = .loaded(status.suggestedHosts)
         } catch {
@@ -49,6 +48,7 @@ struct TailscaleDiscoveryView: View {
     let hosts: [Host]
     let onAddHost: (_ alias: String, _ hostName: String) -> Void
     let onCancel: () -> Void
+    var store: HostStore? = nil
 
     @State private var model = TailscaleDiscoveryModel()
     @State private var useLocal = true
@@ -83,9 +83,9 @@ struct TailscaleDiscoveryView: View {
             Button("Hämta") {
                 Task {
                     if useLocal {
-                        await model.fetch(source: .local, password: nil)
+                        await model.fetch(source: .local, password: nil, store: store)
                     } else if let selectedHost {
-                        await model.fetch(source: .remote(selectedHost), password: password.isEmpty ? nil : password)
+                        await model.fetch(source: .remote(selectedHost), password: password.isEmpty ? nil : password, store: store)
                     }
                 }
             }

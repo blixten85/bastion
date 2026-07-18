@@ -19,6 +19,7 @@ final class SnippetListModel: ObservableObject {
 struct SnippetListView: View {
     let host: Host
     let password: String?
+    var hostStore: HostStore? = nil
     @State private var model = SnippetListModel()
     @State private var editingSnippet: Snippet?
     @State private var showEditor = false
@@ -83,7 +84,7 @@ struct SnippetListView: View {
         // samma variabelnamn.
         .onChange(of: selectedSnippetID) { variableValues = [:] }
         .sheet(isPresented: Binding(get: { runCommand != nil }, set: { if !$0 { runCommand = nil } })) {
-            TerminalSessionView(host: host, password: password, initialCommand: runCommand)
+            TerminalSessionView(host: host, password: password, initialCommand: runCommand, store: hostStore)
         }
     }
 

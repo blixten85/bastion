@@ -7,6 +7,7 @@ import SwiftCrossUI
 struct CommandLibraryView: View {
     let host: Host
     let password: String?
+    var hostStore: HostStore? = nil
     @State private var selectedID: String?
     @State private var runCommand: String?
     @State private var variableValues: [String: String] = [:]
@@ -38,7 +39,7 @@ struct CommandLibraryView: View {
         // omval i listan, inte bara Avbryt/Kör-knapparna.
         .onChange(of: selectedID) { variableValues = [:] }
         .sheet(isPresented: Binding(get: { runCommand != nil }, set: { if !$0 { runCommand = nil } })) {
-            TerminalSessionView(host: host, password: password, initialCommand: runCommand)
+            TerminalSessionView(host: host, password: password, initialCommand: runCommand, store: hostStore)
         }
     }
 

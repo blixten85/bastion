@@ -15,13 +15,15 @@ final class SFTPBrowserModel: ObservableObject {
 
     private let host: Host
     private let password: String?
-    private var session: SSHSession?
+    private let store: HostStore?
+    private var chain: SSHConnectionChain?
     private var sftp: SFTPClient?
     private var connectingTask: Task<SFTPClient?, Never>?
 
-    init(host: Host, password: String?) {
+    init(host: Host, password: String?, store: HostStore? = nil) {
         self.host = host
         self.password = password
+        self.store = store
     }
 
     var sortedEntries: [SFTPNameEntry] {
@@ -43,41 +45,48 @@ final class SFTPBrowserModel: ObservableObject {
 
         let task = Task<SFTPClient?, Never> { [weak self] in
             guard let self else { return nil }
-            guard let auth = resolveAuth(for: self.host, password: self.password) else {
-                self.errorMessage = "Kan inte autentisera värden."
+            guard let plan = resolveConnectionPlan(for: self.host, password: self.password, store: self.store) else {
+                self.errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
                 return nil
             }
-            let s = SSHSession(target: self.host.target, auth: auth)
+            let chain: SSHConnectionChain
             do {
-                try await s.connect()
-                let client = try await SFTPClient.open(on: s)
+                chain = try await SSHConnectionChain.connect(target: self.host.target, targetAuth: plan.auth, jump: plan.jump)
+            } catch {
+                // SSHConnectionChain.connect() städar redan sina EGNA fel
+                // internt (se dess doc-kommentar) — inget att stänga här.
+                self.errorMessage = "\(error)"
+                return nil
+            }
+            do {
+                let client = try await SFTPClient.open(on: chain.target)
                 // disconnect() kan ha körts (vyn stängd) medan vi väntade på
                 // connect()/open — utan den här kollen skulle vi återuppliva
-                // self.session/self.sftp EFTER att disconnect() redan städat,
+                // self.chain/self.sftp EFTER att disconnect() redan städat,
                 // och den nya anslutningen skulle aldrig stängas (CodeRabbit-
                 // fynd, PR #48).
                 guard !Task.isCancelled else {
                     await client.close()
-                    await s.close()
+                    await chain.close()
                     return nil
                 }
-                // self.sftp sätts HÄR, tillsammans med self.session, inte av
+                // self.sftp sätts HÄR, tillsammans med self.chain, inte av
                 // anroparen efter att task.value returnerat — annars finns
-                // ett fönster där disconnect() hinner köra (session redan
+                // ett fönster där disconnect() hinner köra (chain redan
                 // satt av oss, men sftp fortfarande nil ur anroparens
                 // perspektiv) mellan att tasken returnerar och anroparen
                 // skriver tillbaka sftp, vilket skulle skriva över
                 // disconnect()s städning med en redan stängd klient
                 // (CodeRabbit-fynd, PR #50).
-                self.session = s
+                self.chain = chain
                 self.sftp = client
                 return client
             } catch {
                 // Samma läcka som i App/SFTPBrowserModel.swift: om connect()
                 // lyckades men SFTPClient.open(on:) kastade sattes
-                // self.session aldrig — stäng den öppna anslutningen explicit
+                // self.chain aldrig — stäng den öppna anslutningen explicit
                 // (CodeRabbit-fynd, PR #47).
-                await s.close()
+                await chain.close()
                 self.errorMessage = "\(error)"
                 return nil
             }
@@ -269,13 +278,13 @@ final class SFTPBrowserModel: ObservableObject {
         // EFTER städningen nedan och skriva tillbaka ett levande session/
         // sftp som aldrig stängs (CodeRabbit-fynd, PR #48).
         connectingTask?.cancel()
-        let s = session
+        let chain = self.chain
         let c = sftp
-        session = nil
+        self.chain = nil
         sftp = nil
         Task {
             await c?.close()
-            await s?.close()
+            await chain?.close()
         }
     }
 }
@@ -299,8 +308,8 @@ struct SFTPBrowserView: View {
     @State private var editorText = ""
     @State private var editorFilename: String?
 
-    init(host: Host, password: String?) {
-        self._model = State(wrappedValue: SFTPBrowserModel(host: host, password: password))
+    init(host: Host, password: String?, store: HostStore? = nil) {
+        self._model = State(wrappedValue: SFTPBrowserModel(host: host, password: password, store: store))
     }
 
     private var selectedEntry: SFTPNameEntry? {

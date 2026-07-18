@@ -19,28 +19,29 @@ final class TerminalController: ObservableObject {
     @Published var statusMessage: String?
     private let host: Host
     private let password: String?
+    private let store: HostStore?
     /// Skickas till shellen direkt efter att den öppnats (t.ex. `docker exec …`).
     private let initialCommand: String?
-    private var session: SSHSession?
+    private var chain: SSHConnectionChain?
     private var shell: SSHShell?
 
-    init(host: Host, password: String?, initialCommand: String? = nil, cols: Int = 100, rows: Int = 30) {
+    init(host: Host, password: String?, initialCommand: String? = nil, store: HostStore? = nil, cols: Int = 100, rows: Int = 30) {
         self.buffer = TerminalBuffer(cols: cols, rows: rows)
         self.host = host
         self.password = password
         self.initialCommand = initialCommand
+        self.store = store
     }
 
     func start() async {
-        guard let auth = resolveAuth(for: host, password: password) else {
-            statusMessage = "Kan inte autentisera värden."
+        guard let plan = resolveConnectionPlan(for: host, password: password, store: store) else {
+            statusMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
             return
         }
-        let session = SSHSession(target: host.target, auth: auth)
-        self.session = session
         do {
-            try await session.connect()
-            let shell = try await session.openShell(cols: buffer.cols, rows: buffer.rowCount)
+            let chain = try await SSHConnectionChain.connect(target: host.target, targetAuth: plan.auth, jump: plan.jump)
+            self.chain = chain
+            let shell = try await chain.target.openShell(cols: buffer.cols, rows: buffer.rowCount)
             self.shell = shell
             statusMessage = nil
             if let initialCommand { shell.send(initialCommand + "\r") }
@@ -48,6 +49,7 @@ final class TerminalController: ObservableObject {
                 buffer.feed(chunk.text)
             }
         } catch {
+            await self.chain?.close()
             buffer.feed("\r\n[bastion] fel: \(error)\r\n")
         }
     }
@@ -63,8 +65,8 @@ final class TerminalController: ObservableObject {
 
     func stop() {
         shell?.close()
-        let session = self.session
-        Task { await session?.close() }
+        let chain = self.chain
+        Task { await chain?.close() }
     }
 }
 
@@ -72,8 +74,8 @@ struct TerminalSessionView: View {
     @State private var controller: TerminalController
     @State private var input = ""
 
-    init(host: Host, password: String?, initialCommand: String? = nil) {
-        self._controller = State(wrappedValue: TerminalController(host: host, password: password, initialCommand: initialCommand))
+    init(host: Host, password: String?, initialCommand: String? = nil, store: HostStore? = nil) {
+        self._controller = State(wrappedValue: TerminalController(host: host, password: password, initialCommand: initialCommand, store: store))
     }
 
     var body: some View {
