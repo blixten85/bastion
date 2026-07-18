@@ -1,0 +1,19 @@
+Sources/SSHCore/TailscaleStatus.swift
+  s_14becd1d25aa37::t_48d794e0ca907e 136-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2ae34d60e4cb2c9bd60fabc16ff2297d24c51466",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
