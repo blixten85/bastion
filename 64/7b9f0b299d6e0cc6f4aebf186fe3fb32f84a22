@@ -1,0 +1,28 @@
+App/TelnetTerminalView.swift
+  s_14becd1d25aa37::t_b1ab8e17b24433 1-4,6-132
+  s_14becd1d25aa37::t_28cb9e1b25eae1 5
+App/HostListView.swift
+  s_14becd1d25aa37::t_badb29e34e65e8 129,131
+  s_14becd1d25aa37::t_e9f93cad6a15e1 240-253,257-261
+  s_14becd1d25aa37::t_1286b81a060e6c 176
+  s_14becd1d25aa37::t_7fd39b1fcd5d22 130
+App/TelnetConnectView.swift
+  s_14becd1d25aa37::t_ad0028f6dae2af 1-4,13-86
+  s_14becd1d25aa37::t_3d1bb7dbbfbb36 5-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "647b9f0b299d6e0cc6f4aebf186fe3fb32f84a22",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
