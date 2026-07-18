@@ -124,6 +124,7 @@ struct HostListView: View {
     @State private var pendingHostFromDiscovery: Host?
     @State private var showS3 = false
     @State private var showTerminalTheme = false
+    @State private var showQuickConnect = false
     @State private var searchText = ""
     @State private var wakeMessage: String?
 
@@ -167,6 +168,7 @@ struct HostListView: View {
                         Button { showTailscale = true } label: { Label("Tailscale-värdar", systemImage: "point.3.filled.connected.trianglepath.dotted") }
                         Button { showS3 = true } label: { Label("S3-lagring", systemImage: "externaldrive.badge.icloud") }
                         Button { showTerminalTheme = true } label: { Label("Terminaltema", systemImage: "paintpalette") }
+                        Button { showQuickConnect = true } label: { Label("Snabbanslutning", systemImage: "bolt.horizontal") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -214,6 +216,12 @@ struct HostListView: View {
             }
             .sheet(isPresented: $showTerminalTheme) {
                 TerminalThemeSettingsView()
+            }
+            .sheet(isPresented: $showQuickConnect) {
+                QuickConnectView { request in
+                    sessionManager.open(request)
+                    showSessions = true
+                }
             }
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager, store: model.store)
