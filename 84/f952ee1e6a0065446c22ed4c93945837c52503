@@ -1,0 +1,21 @@
+App/TelnetTerminalView.swift
+  s_14becd1d25aa37::t_2ca2f851796977 46-51,53-56
+App/TelnetConnectView.swift
+  s_14becd1d25aa37::t_44dfb69c1bd1b8 59-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "84f952ee1e6a0065446c22ed4c93945837c52503",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
