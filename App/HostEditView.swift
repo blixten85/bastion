@@ -14,6 +14,10 @@ struct HostEditView: View {
     @State private var certPath: String
     @State private var keyText: String
     @State private var showKeyImporter = false
+    /// Övriga sparade värdar, för jump-host-väljaren nedan. Utesluter alltid
+    /// `draft.id` själv (kan inte vara sin egen jump-host) — djupare
+    /// cykeldetektering (A→B→A) görs inte här, bara den mest uppenbara.
+    let allHosts: [Host]
     let onSave: (Host) -> Void
 
     enum AuthKind: String, CaseIterable, Identifiable {
@@ -34,10 +38,11 @@ struct HostEditView: View {
         Binding(get: { draft.startupCommand ?? "" }, set: { draft.startupCommand = $0.isEmpty ? nil : $0 })
     }
 
-    init(host: Host, onSave: @escaping (Host) -> Void) {
+    init(host: Host, allHosts: [Host] = [], onSave: @escaping (Host) -> Void) {
         _draft = State(initialValue: host)
         _portText = State(initialValue: String(host.port))
         _tagsText = State(initialValue: host.tags.joined(separator: ", "))
+        self.allHosts = allHosts
         self.onSave = onSave
         switch host.auth {
         case .agentDefault:
@@ -111,6 +116,19 @@ struct HostEditView: View {
                         }
                         Text("Välj din privata nyckelfil (t.ex. id_ed25519) eller klistra in den. "
                              + "Nyckeln krypteras av systemet i Keychain och lämnar aldrig enheten.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+                Section("Jump host") {
+                    Picker("Anslut via", selection: $draft.jumpHostID) {
+                        Text("Ingen (direkt anslutning)").tag(UUID?.none)
+                        ForEach(allHosts.filter { $0.id != draft.id }) { h in
+                            Text(h.alias.isEmpty ? h.hostName : h.alias).tag(Optional(h.id))
+                        }
+                    }
+                    if let jumpID = draft.jumpHostID,
+                       let jumpHost = allHosts.first(where: { $0.id == jumpID }) {
+                        Text("Ansluter genom \(jumpHost.alias.isEmpty ? jumpHost.hostName : jumpHost.alias) (ssh -J) innan den här värden nås.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                 }

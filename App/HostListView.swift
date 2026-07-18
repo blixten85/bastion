@@ -177,7 +177,7 @@ struct HostListView: View {
                 }
             }
             .sheet(item: $editing) { host in
-                HostEditView(host: host) { model.save($0); editing = nil }
+                HostEditView(host: host, allHosts: model.hosts) { model.save($0); editing = nil }
             }
             .sheet(isPresented: $showSettings) {
                 SyncSettingsView(syncNow: { await model.syncNow() })

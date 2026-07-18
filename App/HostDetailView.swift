@@ -47,10 +47,10 @@ struct HostDetailView: View {
                             NavigationLink { DockerView(request: request) } label: {
                                 Label("Docker", systemImage: "shippingbox")
                             }
-                            NavigationLink { SnippetListView(request: request) } label: {
+                            NavigationLink { SnippetListView(request: request, store: store) } label: {
                                 Label("Snippets", systemImage: "text.badge.checkmark")
                             }
-                            NavigationLink { CommandLibraryView(request: request) } label: {
+                            NavigationLink { CommandLibraryView(request: request, store: store) } label: {
                                 Label("Kommandobibliotek", systemImage: "books.vertical")
                             }
                             NavigationLink { SFTPBrowserView(request: request) } label: {
@@ -78,7 +78,7 @@ struct HostDetailView: View {
                     }
                 }
                 .cover(isPresented: $showTerminal) {
-                    SessionView(request: request)
+                    SessionView(request: request, store: store)
                 }
         }
     }
