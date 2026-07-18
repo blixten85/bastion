@@ -284,3 +284,54 @@ public final class SSHSession {
         try? await group.shutdownGracefully()
     }
 }
+
+/// En anslutningskedja: en target-session, ev. GENOM en jump-session
+/// (`ssh -J`/ProxyJump). Håller ihop de två så att anroparen (App-lagret,
+/// t.ex. `SSHTerminalController`) aldrig själv behöver komma ihåg den
+/// dokumenterade stängningsordningen (target FÖRE jump, se doc-kommentaren
+/// på `SSHSession.connect(via:)` ovan).
+public final class SSHConnectionChain {
+    public let target: SSHSession
+    public let jump: SSHSession?
+
+    private init(target: SSHSession, jump: SSHSession?) {
+        self.target = target
+        self.jump = jump
+    }
+
+    /// Ansluter `target` direkt om `jump` är `nil`. Annars ansluts `jump`
+    /// FÖRST, och `target` kopplas GENOM den (`connect(via:)`). Om targets
+    /// handskakning misslyckas stängs jump-sessionen ändå — ingen läckt
+    /// anslutning kvar hängande.
+    public static func connect(
+        target targetEndpoint: SSHTarget,
+        targetAuth: SSHAuth,
+        jump jumpEndpoint: (target: SSHTarget, auth: SSHAuth)?,
+        knownHosts: KnownHosts = KnownHosts()
+    ) async throws -> SSHConnectionChain {
+        let targetSession = SSHSession(target: targetEndpoint, auth: targetAuth, knownHosts: knownHosts)
+        guard let jumpEndpoint else {
+            try await targetSession.connect()
+            return SSHConnectionChain(target: targetSession, jump: nil)
+        }
+        let jumpSession = SSHSession(target: jumpEndpoint.target, auth: jumpEndpoint.auth, knownHosts: knownHosts)
+        try await jumpSession.connect()
+        do {
+            try await targetSession.connect(via: jumpSession)
+        } catch {
+            // Stäng target FÖRE jump (samma dokumenterade ordning som close()
+            // nedan) — annars läcker targetSessions egen "fatal"-promise (se
+            // testConnectViaUnconnectedJumpThrows för samma resonemang).
+            await targetSession.close()
+            await jumpSession.close()
+            throw error
+        }
+        return SSHConnectionChain(target: targetSession, jump: jumpSession)
+    }
+
+    /// Stänger i rätt ordning: target FÖRE jump.
+    public func close() async {
+        await target.close()
+        await jump?.close()
+    }
+}

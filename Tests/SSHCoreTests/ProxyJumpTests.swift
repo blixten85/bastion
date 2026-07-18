@@ -113,4 +113,84 @@ final class ProxyJumpTests: XCTestCase {
         await target.close()
         await jump.close()
     }
+
+    // MARK: - SSHConnectionChain (App-lagrets tänkta anropspunkt)
+
+    /// Samma end-to-end-bevis som `testConnectViaJumpReachesSeparateTargetServer`,
+    /// men via den högre-nivå-hjälparen `SSHConnectionChain.connect(...)` som
+    /// App-lagret faktiskt ska använda — bevisar att den kopplar rätt session
+    /// genom rätt jump, inte bara att de lågnivå-byggstenarna fungerar var för sig.
+    func testConnectionChainWithJumpReachesTarget() async throws {
+        let jumpServer = try LoopbackServer.start(password: "jump-pw", realDirectTCPIPForwarding: true)
+        defer { jumpServer.shutdown() }
+        let targetServer = try LoopbackServer.start(password: "target-pw")
+        defer { targetServer.shutdown() }
+
+        let chain = try await SSHConnectionChain.connect(
+            target: SSHTarget(host: "127.0.0.1", port: targetServer.port, username: "tester"),
+            targetAuth: .password("target-pw"),
+            jump: (target: SSHTarget(host: "127.0.0.1", port: jumpServer.port, username: "tester"),
+                   auth: .password("jump-pw")),
+            knownHosts: KnownHosts(path: nil))
+
+        let output = try await chain.target.run("echo hello")
+        XCTAssertEqual(output, "ran: echo hello\n")
+        XCTAssertNotNil(chain.jump)
+
+        await chain.close()
+    }
+
+    /// Utan jump ska `SSHConnectionChain` bara ansluta direkt — samma
+    /// beteende som innan jump-stöd fanns, `jump` ska vara `nil` efteråt.
+    func testConnectionChainWithoutJumpConnectsDirectly() async throws {
+        let targetServer = try LoopbackServer.start(password: "target-pw")
+        defer { targetServer.shutdown() }
+
+        let chain = try await SSHConnectionChain.connect(
+            target: SSHTarget(host: "127.0.0.1", port: targetServer.port, username: "tester"),
+            targetAuth: .password("target-pw"),
+            jump: nil,
+            knownHosts: KnownHosts(path: nil))
+
+        let output = try await chain.target.run("echo direct")
+        XCTAssertEqual(output, "ran: echo direct\n")
+        XCTAssertNil(chain.jump)
+
+        await chain.close()
+    }
+
+    /// Om targets autentisering misslyckas (fel lösenord) GENOM jumpen ska
+    /// felet upptäckas (antingen direkt i `connect(...)` eller vid första
+    /// `run()`, precis som `testConnectViaJumpFailsWithWrongTargetPassword`
+    /// dokumenterar för lågnivå-API:t) — och i BÅDA fallen får ingenting
+    /// läcka: om `connect(...)` kastar har den redan städat internt; om den
+    /// lyckas (auth-felet syns först vid `run()`) måste testet ändå stänga
+    /// kedjan själv, annars läcker targetSessions/jumpSessions "fatal"-
+    /// promise (NIOs läckagedetektor kraschar processen i debug-läge).
+    func testConnectionChainClosesJumpWhenTargetAuthFails() async throws {
+        let jumpServer = try LoopbackServer.start(password: "jump-pw", realDirectTCPIPForwarding: true)
+        defer { jumpServer.shutdown() }
+        let targetServer = try LoopbackServer.start(password: "target-pw")
+        defer { targetServer.shutdown() }
+
+        do {
+            let chain = try await SSHConnectionChain.connect(
+                target: SSHTarget(host: "127.0.0.1", port: targetServer.port, username: "tester"),
+                targetAuth: .password("helt fel"),
+                jump: (target: SSHTarget(host: "127.0.0.1", port: jumpServer.port, username: "tester"),
+                       auth: .password("jump-pw")),
+                knownHosts: KnownHosts(path: nil))
+            // connect() lyckades trots fel lösenord (auth-felet är asynkront) —
+            // ska då synas här, och kedjan måste ändå städas.
+            do {
+                _ = try await chain.target.run("whoami")
+                XCTFail("skulle ha misslyckats — fel lösenord för målet")
+            } catch {
+                // förväntat
+            }
+            await chain.close()
+        } catch {
+            // förväntat: connect() själv upptäckte felet och städade internt.
+        }
+    }
 }
