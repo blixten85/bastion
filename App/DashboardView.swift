@@ -14,7 +14,9 @@ final class DashboardModel: ObservableObject {
     @Published var lastUpdated: Date?
     private let request: ConnectRequest
     /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
-    /// på anropsplatser utan delad store — ansluter då direkt.
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     private let store: HostStore?
     private static let pollInterval: Duration = .seconds(15)
 
@@ -37,8 +39,17 @@ final class DashboardModel: ObservableObject {
         do {
             let chain = try await SSHConnectionChain.connect(
                 target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
-            let snapshot = try await SystemProbe.snapshot(over: chain.target)
+            // Kedjan måste stängas här om snapshot() kastar också — annars
+            // läcker anslutningen tyst vid varje misslyckad hämtning
+            // (CodeRabbit-fynd, PR #172).
+            let snapshotResult: Result<SystemSnapshot, Error>
+            do {
+                snapshotResult = .success(try await SystemProbe.snapshot(over: chain.target))
+            } catch {
+                snapshotResult = .failure(error)
+            }
             await chain.close()
+            let snapshot = try snapshotResult.get()
             state = .loaded(snapshot)
             lastUpdated = Date()
         } catch {

@@ -39,9 +39,16 @@ final class PortForwardModel: ObservableObject {
     @Published var starting = false
     private let request: ConnectRequest
     /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
-    /// på anropsplatser utan delad store — ansluter då direkt.
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     private let store: HostStore?
     private var chain: SSHConnectionChain?
+    // Cachar det pågående anslutningsförsöket så samtidiga anrop väntar in
+    // samma försök i stället för att skapa varsin kedja var, och så
+    // disconnect() kan avbryta det (samma mönster som DockerModel/
+    // SFTPBrowserModel, PR #172).
+    private var connectingTask: Task<SSHSession?, Never>?
 
     init(request: ConnectRequest, store: HostStore? = nil) {
         self.request = request
@@ -50,19 +57,36 @@ final class PortForwardModel: ObservableObject {
 
     private func ensureSession() async -> SSHSession? {
         if let chain { return chain.target }
-        guard let plan = resolveConnectionPlan(for: request.host, password: request.password, store: store) else {
-            errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
-            return nil
+        if let connectingTask { return await connectingTask.value }
+
+        let task = Task<SSHSession?, Never> { [weak self] in
+            guard let self else { return nil }
+            guard let plan = resolveConnectionPlan(for: self.request.host, password: self.request.password, store: self.store) else {
+                self.errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
+                return nil
+            }
+            do {
+                let c = try await SSHConnectionChain.connect(
+                    target: self.request.host.target, targetAuth: plan.auth, jump: plan.jump)
+                // disconnect() kan ha körts (vyn stängd) medan vi väntade på
+                // connect() — utan den här kollen skulle vi återuppliva
+                // self.chain EFTER att disconnect() redan städat, och den nya
+                // anslutningen skulle aldrig stängas.
+                guard !Task.isCancelled else {
+                    await c.close()
+                    return nil
+                }
+                self.chain = c
+                return c.target
+            } catch {
+                self.errorMessage = "\(error)"
+                return nil
+            }
         }
-        do {
-            let c = try await SSHConnectionChain.connect(
-                target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
-            chain = c
-            return c.target
-        } catch {
-            errorMessage = "\(error)"
-            return nil
-        }
+        connectingTask = task
+        let result = await task.value
+        connectingTask = nil
+        return result
     }
 
     /// `targetHost`/`targetPort` ignoreras för `.dynamic` (SOCKS-klienten
@@ -101,6 +125,7 @@ final class PortForwardModel: ObservableObject {
     }
 
     func disconnect() {
+        connectingTask?.cancel()
         let c = chain
         chain = nil
         let forwards = active

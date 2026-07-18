@@ -259,4 +259,42 @@ final class VerifyKeyAuthWorksTests: XCTestCase {
             seed: pair.seed, knownHosts: KnownHosts(path: nil))
         XCTAssertFalse(ok)
     }
+
+    /// Target bakom en jump-host är annars overifierbar (probe:en skulle
+    /// försöka nå target direkt och alltid misslyckas) — samma RIKTIGA
+    /// jump+target-serveruppsättning som `ProxyJumpTests` för att bevisa att
+    /// nyckelverifieringen faktiskt går GENOM tunneln, inte direkt.
+    func testSucceedsThroughJumpHost() async throws {
+        let jumpServer = try LoopbackServer.start(password: "jump-pw", realDirectTCPIPForwarding: true)
+        defer { jumpServer.shutdown() }
+        let targetServer = try LoopbackServer.start(password: "target-pw")
+        defer { targetServer.shutdown() }
+
+        let pair = KeyGenerator.generateEd25519()
+        let ok = await SSHSession.verifyKeyAuthWorks(
+            target: SSHTarget(host: "127.0.0.1", port: targetServer.port, username: "tester"),
+            seed: pair.seed, knownHosts: KnownHosts(path: nil),
+            jump: (target: SSHTarget(host: "127.0.0.1", port: jumpServer.port, username: "tester"),
+                   auth: .password("jump-pw")))
+        XCTAssertTrue(ok)
+    }
+
+    /// Fel lösenord för jump-hoppet (target-nyckeln i sig hade fungerat) ska
+    /// fortfarande resultera i `false` — bevisar att jump-autentiseringen
+    /// faktiskt kontrolleras, inte bara att SSHConnectionChain råkar lyckas
+    /// via någon annan väg.
+    func testFailsWhenJumpAuthFails() async throws {
+        let jumpServer = try LoopbackServer.start(password: "jump-pw", realDirectTCPIPForwarding: true)
+        defer { jumpServer.shutdown() }
+        let targetServer = try LoopbackServer.start(password: "target-pw")
+        defer { targetServer.shutdown() }
+
+        let pair = KeyGenerator.generateEd25519()
+        let ok = await SSHSession.verifyKeyAuthWorks(
+            target: SSHTarget(host: "127.0.0.1", port: targetServer.port, username: "tester"),
+            seed: pair.seed, knownHosts: KnownHosts(path: nil),
+            jump: (target: SSHTarget(host: "127.0.0.1", port: jumpServer.port, username: "tester"),
+                   auth: .password("wrong-jump-pw")))
+        XCTAssertFalse(ok)
+    }
 }

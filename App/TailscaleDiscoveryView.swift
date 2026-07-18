@@ -68,7 +68,9 @@ struct TailscaleDiscoveryView: View {
     @Environment(\.dismiss) private var dismiss
     let hosts: [Host]
     /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
-    /// på anropsplatser utan delad store — ansluter då direkt.
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     var store: HostStore? = nil
     let onAddHost: (_ alias: String, _ hostName: String) -> Void
 

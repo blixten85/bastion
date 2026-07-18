@@ -28,7 +28,9 @@ final class SFTPBrowserModel: ObservableObject {
 
     private let request: ConnectRequest
     /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
-    /// på anropsplatser utan delad store — ansluter då direkt.
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     private let store: HostStore?
     private var chain: SSHConnectionChain?
     private var sftp: SFTPClient?
@@ -64,9 +66,17 @@ final class SFTPBrowserModel: ObservableObject {
                 self.errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
                 return nil
             }
+            let c: SSHConnectionChain
             do {
-                let c = try await SSHConnectionChain.connect(
+                c = try await SSHConnectionChain.connect(
                     target: self.request.host.target, targetAuth: plan.auth, jump: plan.jump)
+            } catch {
+                // SSHConnectionChain.connect städar redan sina egna fel innan
+                // den kastar, så inget extra att stänga här.
+                self.errorMessage = "\(error)"
+                return nil
+            }
+            do {
                 let client = try await SFTPClient.open(on: c.target)
                 // disconnect() kan ha körts (vyn stängd) medan vi väntade på
                 // connect()/open — utan den här kollen skulle vi återuppliva
@@ -94,8 +104,8 @@ final class SFTPBrowserModel: ObservableObject {
                 // (t.ex. subsystemet avvisat) sattes self.chain aldrig —
                 // stäng den öppna anslutningen explicit, annars läcker den
                 // tyst vid varje misslyckat SFTP-öppningsförsök (CodeRabbit-
-                // fynd, PR #47). SSHConnectionChain.connect städar redan sina
-                // egna fel innan den kastar, så inget extra att stänga här.
+                // fynd, PR #172).
+                await c.close()
                 self.errorMessage = "\(error)"
                 return nil
             }

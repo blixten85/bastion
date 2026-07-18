@@ -24,7 +24,9 @@ final class KeyDeployModel: ObservableObject {
     private let password: String?
     private let comment: String
     /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
-    /// på anropsplatser utan delad store — ansluter då direkt.
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     private let store: HostStore?
 
     init(host: Host, password: String?, store: HostStore? = nil) {

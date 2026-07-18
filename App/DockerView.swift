@@ -15,7 +15,9 @@ final class DockerModel: ObservableObject {
     @Published var busyRefs: Set<String> = []
     private let request: ConnectRequest
     /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
-    /// på anropsplatser utan delad store — ansluter då direkt.
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     private let store: HostStore?
     private var chain: SSHConnectionChain?
     // Cachar det pågående anslutningsförsöket så samtidiga anrop (t.ex.
@@ -43,6 +45,15 @@ final class DockerModel: ObservableObject {
             do {
                 let c = try await SSHConnectionChain.connect(
                     target: self.request.host.target, targetAuth: plan.auth, jump: plan.jump)
+                // disconnect() kan ha körts (vyn stängd) medan vi väntade på
+                // connect() — utan den här kollen skulle vi återuppliva
+                // self.chain EFTER att disconnect() redan städat, och den nya
+                // anslutningen skulle aldrig stängas (samma CodeRabbit-mönster
+                // som SFTPBrowserModel, PR #172).
+                guard !Task.isCancelled else {
+                    await c.close()
+                    return nil
+                }
                 self.chain = c
                 return c.target
             } catch {
@@ -91,6 +102,10 @@ final class DockerModel: ObservableObject {
     }
 
     func disconnect() {
+        // Avbryter en ev. pågående anslutning — annars kan den hinna klart
+        // EFTER städningen nedan och skriva tillbaka en levande chain som
+        // aldrig stängs (samma CodeRabbit-mönster som SFTPBrowserModel, PR #172).
+        connectingTask?.cancel()
         let c = chain
         chain = nil
         Task { await c?.close() }

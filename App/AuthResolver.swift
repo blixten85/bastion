@@ -25,15 +25,20 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
 /// — enda stället som känner till den regeln, delad av alla anropsplatser
 /// som kan koppla upp en `SSHConnectionChain`. Returnerar `nil` om target
 /// INTE kan autentiseras, eller om en konfigurerad jump-host är satt men
-/// saknas i `store`/inte kan autentiseras: en jump-host ska ALDRIG hoppas
-/// över tyst, det vore en säkerhetsregression för den som medvetet satt
-/// upp en (se `SessionView.plan`, samma kontrakt).
+/// saknas i `store`/inte kan autentiseras/SJÄLV har en jump-host satt: en
+/// jump-host ska ALDRIG hoppas över tyst eller anslutas genom en ofullständig
+/// kedja (`SSHConnectionChain` stöder bara ETT hopp — en B med egen
+/// `jumpHostID` skulle annars tyst ansluta B→target och ignorera B:s C, t.ex.
+/// om B redigerats efter att A redan pekade på B). Det vore en
+/// säkerhetsregression för den som medvetet satt upp en jump-host (se
+/// `SessionView.plan`, samma kontrakt).
 func resolveConnectionPlan(
     for host: Host, password: String?, store: HostStore?
 ) -> (auth: SSHAuth, jump: (target: SSHTarget, auth: SSHAuth)?)? {
     guard let auth = resolveAuth(for: host, password: password) else { return nil }
     guard let jumpID = host.jumpHostID else { return (auth, nil) }
     guard let jumpHost = store?.get(jumpID),
+          jumpHost.jumpHostID == nil,
           let jumpAuth = resolveAuth(for: jumpHost, password: nil)
     else { return nil }
     return (auth, (target: jumpHost.target, auth: jumpAuth))
