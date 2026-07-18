@@ -1,0 +1,23 @@
+LinuxApp/Sources/bastion-gui/ContentView.swift
+  s_14becd1d25aa37::t_37fc4b72474cf4 18
+  s_14becd1d25aa37::t_e8cac3dc55acb4 136-137
+  s_14becd1d25aa37::t_2abaa3cec94bd2 150,154,156
+LinuxApp/Sources/bastion-gui/HostEditView.swift
+  s_14becd1d25aa37::t_338be95f2084f6 92-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "814beea30fa77859205cc689acdc6e1ff3ce2a9c",
+  "prompts": {},
+  "sessions": {
+    "s_14becd1d25aa37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba6f8ee-33b7-4cf5-9b46-5cf27eb23623",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
