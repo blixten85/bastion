@@ -1,0 +1,19 @@
+LinuxApp/Sources/bastion-gui/TelnetSessionView.swift
+  s_57e3d8f9ebd074::t_e32f9c02bb8c17 59-69,71-86,88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f35cf5cb7e0c4b694f0259358c23e1f6b34db0a1",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
