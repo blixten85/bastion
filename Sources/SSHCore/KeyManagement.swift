@@ -178,8 +178,9 @@ extension SSHSession {
             let chain = try await SSHConnectionChain.connect(
                 target: target, targetAuth: .ed25519Seed(seed), jump: jump, knownHosts: knownHosts)
             do {
-                _ = try await chain.target.run("true")
+                _ = try await chain.target.run("exit 0")
                 await chain.close()
+                guard !Task.isCancelled else { return false }
                 return true
             } catch {
                 await chain.close()
