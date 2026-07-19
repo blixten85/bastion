@@ -5,7 +5,7 @@ import SwiftCrossUI
 /// Toppnivå: värdlista i sidopanelen, dashboard/kommando i detaljvyn.
 /// Motsvarar `App/HostListView.swift` + `App/HostDetailView.swift`
 /// tillsammans, anpassat till `NavigationSplitView` utan iOS-sheets.
-struct ContentView: View {
+@MainActor struct ContentView: View {
     @State private var model = HostListModel()
     @State private var selectedHostID: UUID?
     @State private var editingHost: Host?
