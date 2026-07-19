@@ -1,0 +1,24 @@
+LinuxApp/Tests/bastion-guiTests/TelnetSessionControllerTests.swift
+  s_57e3d8f9ebd074::t_3ffbfc1f4001ff 1-93
+LinuxApp/Sources/bastion-gui/TelnetSessionView.swift
+  s_57e3d8f9ebd074::t_254fe411e12a22 70-74
+LinuxApp/Sources/bastion-gui/ContentView.swift
+  s_57e3d8f9ebd074::t_0bb68247b61339 97-106,110,116-126,138-139,145-152
+  s_57e3d8f9ebd074::t_df10ff04d5b25f 20,24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6c32a715b9ab479fd33d30b9b9baf71108644923",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
