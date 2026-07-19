@@ -84,6 +84,9 @@ import SwiftCrossUI
         .sheet(isPresented: $showS3) {
             S3ConnectionListView()
         }
+        .onChange(of: selectedHostID) {
+            wakeMessage = nil
+        }
     }
 
     private var sidebar: some View {
