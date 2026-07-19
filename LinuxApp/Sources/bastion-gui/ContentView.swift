@@ -15,7 +15,7 @@ import SwiftCrossUI
     @State private var showTailscale = false
     @State private var showS3 = false
     @State private var searchText = ""
-    @State private var wakeMessage: (hostID: UUID, text: String)?
+    @State private var wakeMessages: [UUID: String] = [:]
 
     private var filteredHosts: [Host] {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -85,7 +85,9 @@ import SwiftCrossUI
             S3ConnectionListView()
         }
         .onChange(of: selectedHostID) {
-            wakeMessage = nil
+            if let hostID = selectedHostID {
+                wakeMessages[hostID] = nil
+            }
         }
     }
 
@@ -138,8 +140,8 @@ import SwiftCrossUI
                         selectedHostID = nil
                     }
                 }
-                if let wakeMessage, wakeMessage.hostID == selected.id {
-                    Text(wakeMessage.text).foregroundColor(.gray)
+                if let message = wakeMessages[selected.id] {
+                    Text(message).foregroundColor(.gray)
                 }
             }
         }
@@ -156,9 +158,9 @@ import SwiftCrossUI
         Task {
             do {
                 try await WakeOnLan.send(mac: mac)
-                wakeMessage = (hostID, "Skickade väckningssignal till \(host.alias.isEmpty ? host.hostName : host.alias).")
+                wakeMessages[hostID] = "Skickade väckningssignal till \(host.alias.isEmpty ? host.hostName : host.alias)."
             } catch {
-                wakeMessage = (hostID, "Kunde inte skicka väckningssignal: \(error)")
+                wakeMessages[hostID] = "Kunde inte skicka väckningssignal: \(error)"
             }
         }
     }
