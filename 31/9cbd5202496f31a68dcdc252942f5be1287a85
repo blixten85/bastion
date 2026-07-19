@@ -1,0 +1,28 @@
+LinuxApp/Sources/bastion-gui/ContentView.swift
+  s_57e3d8f9ebd074::t_b2c02c5e963ffe 94-132
+  s_57e3d8f9ebd074::t_dac58a52cbb527 151-152
+  s_57e3d8f9ebd074::t_56381f7fd59162 19-25
+LinuxApp/Sources/bastion-gui/TelnetConnectView.swift
+  s_57e3d8f9ebd074::t_487c7e157f0b1b 4-11
+  s_57e3d8f9ebd074::t_e333c3e3a48472 1-3,12-49
+LinuxApp/Sources/bastion-gui/TelnetSessionView.swift
+  s_57e3d8f9ebd074::t_6a034e381674b3 1-116
+LinuxApp/Sources/bastion-gui/QuickConnectView.swift
+  s_57e3d8f9ebd074::t_31daa24e88ecbe 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "319cbd5202496f31a68dcdc252942f5be1287a85",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
