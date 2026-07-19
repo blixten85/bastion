@@ -6,10 +6,10 @@ import SSHCore
 struct SessionView: View {
     @Environment(\.dismiss) private var dismiss
     let request: ConnectRequest
-    /// För att slå upp en ev. jump-host (`request.host.jumpHostID`). `nil`
-    /// på anropsplatser som saknar en delad store — anslutning sker då
-    /// direkt, precis som innan jump-stöd fanns (ingen regression, bara
-    /// ingen jump-kedja tillgänglig därifrån ännu).
+    /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     var store: HostStore? = nil
 
     /// Resultatet av att slå upp anslutningsplanen: `.some` med ev. jump
