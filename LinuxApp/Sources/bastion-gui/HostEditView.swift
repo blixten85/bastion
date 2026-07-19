@@ -13,8 +13,90 @@ struct HostEditView: View {
     @State private var authKind: AuthKind
     @State private var keyPath: String
     @State private var certPath: String
+    /// Övriga sparade värdar, för jump-host-väljaren nedan. Utesluter alltid
+    /// `draft.id` själv (kan inte vara sin egen jump-host) — djupare
+    /// cykeldetektering (A→B→A) görs inte här, bara den mest uppenbara.
+    let allHosts: [Host]
     let onSave: (Host) -> Void
     let onCancel: () -> Void
+
+    /// Picker-alternativ för jump-host-väljaren: "Ingen" plus varje giltig
+    /// kandidat. Ett eget värdetyp istället för `Host?` direkt, eftersom
+    /// SwiftCrossUIs `Picker` kräver `Equatable` och en textbeskrivning via
+    /// `CustomStringConvertible`/interpolation.
+    private enum JumpChoice: Equatable, CustomStringConvertible {
+        case none
+        case host(UUID, String)
+
+        static func == (lhs: JumpChoice, rhs: JumpChoice) -> Bool {
+            switch (lhs, rhs) {
+            case (.none, .none): return true
+            case (.host(let a, _), .host(let b, _)): return a == b
+            default: return false
+            }
+        }
+
+        var description: String {
+            switch self {
+            case .none: return "Ingen"
+            case .host(_, let name): return name
+            }
+        }
+    }
+
+    /// Kandidater för jump host-väljaren: utesluter (1) `draft` själv, (2)
+    /// `.askPassword`- och `.keychainKey`-värdar (går inte att autentisera
+    /// automatiskt genom en jump-kedja — Linux/Windows har ingen Keychain
+    /// och `resolveAuth` returnerar alltid `nil` för `.keychainKey` här, se
+    /// `AuthResolver.swift`, så en sådan kandidat vore en deterministiskt
+    /// obrukbar jump host), och (3) värdar som SJÄLVA har en jump-host satt —
+    /// `SSHConnectionChain` stöder bara ETT hopp, så att välja en sådan
+    /// kandidat skulle tyst hoppa över DESS jump-host och ansluta direkt
+    /// till kandidaten istället (en kedja A→B→C skulle bara bli A→B,
+    /// felaktigt utan varning). Detta gör cykler (A→B→A) strukturellt
+    /// omöjliga också — en kandidat utan egen jump-host kan per definition
+    /// inte peka tillbaka på något. Samma resonemang som App/HostEditView.swift.
+    private var jumpCandidates: [Host] {
+        allHosts.filter { candidate in
+            guard candidate.id != draft.id else { return false }
+            if case .askPassword = candidate.auth { return false }
+            if case .keychainKey = candidate.auth { return false }
+            return candidate.jumpHostID == nil
+        }
+    }
+
+    private var jumpChoiceOptions: [JumpChoice] {
+        [.none] + jumpCandidates.map { .host($0.id, $0.alias.isEmpty ? $0.hostName : $0.alias) }
+    }
+
+    private var jumpChoiceBinding: Binding<JumpChoice?> {
+        Binding(
+            get: {
+                // `.some(.none)` — INTE bara `.none` — annars läser Swift
+                // det som Optional.none (bare `nil`) i det här `JumpChoice?`-
+                // sammanhanget, eftersom `JumpChoice` själv har ett `.none`-
+                // fall (samma ambiguitet som `set` nedan redan undviker).
+                // Med bare `.none` hittar SwiftCrossUIs Picker ingen matchning
+                // i `jumpChoiceOptions` och rensar GTK-valet istället för att
+                // visa "Ingen" som vald (cubic-fynd PR #179).
+                guard let id = draft.jumpHostID,
+                      let host = jumpCandidates.first(where: { $0.id == id })
+                else { return .some(.none) }
+                return .host(host.id, host.alias.isEmpty ? host.hostName : host.alias)
+            },
+            set: { choice in
+                // `choice` är `JumpChoice?` — och `JumpChoice` har SJÄLV ett
+                // `.none`-fall, så ett osyftat `case .none` här skulle bara
+                // matcha Optional.none (widgeten utan val), inte vårt
+                // explicita "Ingen"-val (`.some(.host)` är det enda fallet
+                // som ska sätta ett jumpHostID).
+                switch choice {
+                case .some(.host(let id, _)): draft.jumpHostID = id
+                default: draft.jumpHostID = nil
+                }
+            }
+        )
+    }
 
     enum AuthKind: Equatable, CustomStringConvertible {
         case agent, password, key, certificate
@@ -53,12 +135,13 @@ struct HostEditView: View {
         Binding(get: { draft.platform }, set: { if let v = $0 { draft.platform = v } })
     }
 
-    init(host: Host, onSave: @escaping (Host) -> Void, onCancel: @escaping () -> Void) {
+    init(host: Host, allHosts: [Host] = [], onSave: @escaping (Host) -> Void, onCancel: @escaping () -> Void) {
         self._draft = State(wrappedValue: host)
         self._portText = State(wrappedValue: String(host.port))
         self._tagsText = State(wrappedValue: host.tags.joined(separator: ", "))
         self._startupCommandText = State(wrappedValue: host.startupCommand ?? "")
         self._macAddressText = State(wrappedValue: host.macAddress ?? "")
+        self.allHosts = allHosts
         self.onSave = onSave
         self.onCancel = onCancel
         switch host.auth {
@@ -89,6 +172,10 @@ struct HostEditView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(draft.alias.isEmpty ? "Ny värd" : "Ändra värd").font(.headline)
 
+            // ScrollView runt fälten (inte hela vyn) — antalet sektioner har
+            // vuxit (jump host läggs till här) förbi vad en fast höjd alltid
+            // rymmer, och Spara/Avbryt ska aldrig kunna hamna utanför
+            // skärmen (samma mönster som Dashboard/Docker/PortForward-vyerna).
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     TextField("Alias (t.ex. Prod Web)", text: $draft.alias)
@@ -114,6 +201,13 @@ struct HostEditView: View {
                     Picker(of: RemotePlatform.allCases, selection: platformBinding)
 
                     TextField("Kör automatiskt vid anslutning (valfritt, t.ex. tmux attach)", text: $startupCommandText)
+
+                    Text("Jump host").font(.subheadline)
+                    Picker(of: jumpChoiceOptions, selection: jumpChoiceBinding)
+                    if let jumpID = draft.jumpHostID, let jumpHost = jumpCandidates.first(where: { $0.id == jumpID }) {
+                        Text("Ansluter genom \(jumpHost.alias.isEmpty ? jumpHost.hostName : jumpHost.alias) (ssh -J) innan den här värden nås.")
+                            .foregroundColor(.gray)
+                    }
 
                     Text("Wake-on-LAN").font(.subheadline)
                     TextField("MAC-adress (valfritt, t.ex. AA:BB:CC:DD:EE:FF)", text: $macAddressText)

@@ -89,17 +89,27 @@ final class TailscaleStatusTests: XCTestCase {
         return URL(fileURLWithPath: path)
     }
 
-    func testFetchLocalParsesRealProcessOutput() throws {
+    // `withTimeout` (definierad i TerminalTeardownRaceTests.swift, samma
+    // testmål) skyddar mot ett Process/Pipe-dödläge om regressionsfixen i
+    // `fetchLocal` (konkurrent stdout/stderr-läsning) någonsin bryts.
+    func testFetchLocalParsesRealProcessOutput() async throws {
         let script = try makeScript("#!/bin/sh\ncat <<'EOF'\n\(withPeersJSON)\nEOF\n")
-        let status = try TailscaleStatus.fetchLocal(executableURL: script, arguments: [])
+        let status = try await withTimeout(seconds: 10) {
+            try TailscaleStatus.fetchLocal(executableURL: script, arguments: [])
+        }
         XCTAssertEqual(status.backendState, "Running")
         XCTAssertEqual(status.suggestedHosts.first?.address, "100.64.0.2")
     }
 
-    func testFetchLocalThrowsOnNonZeroExit() throws {
+    func testFetchLocalThrowsOnNonZeroExit() async throws {
         let script = try makeScript("#!/bin/sh\necho 'tailscale: not logged in' >&2\nexit 1\n")
-        XCTAssertThrowsError(try TailscaleStatus.fetchLocal(executableURL: script, arguments: [])) { error in
-            guard case TailscaleStatusError.localCommandFailed(let code, let stderr) = error else {
+        do {
+            _ = try await withTimeout(seconds: 10) {
+                try TailscaleStatus.fetchLocal(executableURL: script, arguments: [])
+            }
+            XCTFail("förväntade att fetchLocal skulle kasta")
+        } catch let error as TailscaleStatusError {
+            guard case .localCommandFailed(let code, let stderr) = error else {
                 return XCTFail("fel feltyp: \(error)")
             }
             XCTAssertEqual(code, 1)

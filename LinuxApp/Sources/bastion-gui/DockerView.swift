@@ -19,33 +19,44 @@ final class DockerModel: ObservableObject {
     @Published var busyNames: Set<String> = []
     private let host: Host
     private let password: String?
-    private var session: SSHSession?
+    private let store: HostStore?
+    private var chain: SSHConnectionChain?
     // Cachar det pågående anslutningsförsöket så samtidiga anrop (t.ex.
     // refresh() och act() strax efter varandra, innan connect() svarat) väntar
     // in samma försök i stället för att skapa varsin SSHSession var.
     private var connectingTask: Task<SSHSession?, Never>?
 
-    init(host: Host, password: String?) {
+    init(host: Host, password: String?, store: HostStore? = nil) {
         self.host = host
         self.password = password
+        self.store = store
     }
 
     private func ensureSession() async -> SSHSession? {
-        if let s = session { return s }
+        if let chain { return chain.target }
         if let connectingTask { return await connectingTask.value }
 
         // Skapad inifrån en @MainActor-metod (inte .detached), så den ärver
         // MainActor-isoleringen — säkert att sätta errorMessage direkt här.
         let task = Task<SSHSession?, Never> { [weak self] in
             guard let self else { return nil }
-            guard let auth = resolveAuth(for: self.host, password: self.password) else {
-                self.errorMessage = "Kan inte autentisera värden."
+            guard let plan = resolveConnectionPlan(for: self.host, password: self.password, store: self.store) else {
+                self.errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
                 return nil
             }
-            let s = SSHSession(target: self.host.target, auth: auth)
             do {
-                try await s.connect()
-                return s
+                let chain = try await SSHConnectionChain.connect(target: self.host.target, targetAuth: plan.auth, jump: plan.jump)
+                // disconnect() kan ha körts (vyn stängd) medan vi väntade på
+                // connect() — utan den här kollen skulle vi återuppliva
+                // self.chain EFTER att disconnect() redan städat, och den nya
+                // anslutningen skulle aldrig stängas (samma mönster som
+                // SFTPBrowserModel, CodeRabbit/cubic-fynd PR #179).
+                guard !Task.isCancelled else {
+                    await chain.close()
+                    return nil
+                }
+                self.chain = chain
+                return chain.target
             } catch {
                 self.errorMessage = "\(error)"
                 return nil
@@ -54,7 +65,6 @@ final class DockerModel: ObservableObject {
         connectingTask = task
         let result = await task.value
         connectingTask = nil
-        session = result
         return result
     }
 
@@ -93,9 +103,13 @@ final class DockerModel: ObservableObject {
     }
 
     func disconnect() {
-        let s = session
-        session = nil
-        Task { await s?.close() }
+        // Avbryter en ev. pågående anslutning — annars kan den hinna klart
+        // EFTER städningen nedan och skriva tillbaka en levande chain som
+        // aldrig stängs.
+        connectingTask?.cancel()
+        let chain = self.chain
+        self.chain = nil
+        Task { await chain?.close() }
     }
 }
 
@@ -106,11 +120,13 @@ struct DockerView: View {
     @State private var shellCommand: String?
     private let host: Host
     private let password: String?
+    private let store: HostStore?
 
-    init(host: Host, password: String?) {
+    init(host: Host, password: String?, store: HostStore? = nil) {
         self.host = host
         self.password = password
-        self._model = State(wrappedValue: DockerModel(host: host, password: password))
+        self.store = store
+        self._model = State(wrappedValue: DockerModel(host: host, password: password, store: store))
     }
 
     var body: some View {
@@ -145,7 +161,7 @@ struct DockerView: View {
         }
         .sheet(isPresented: Binding(get: { shellCommand != nil }, set: { if !$0 { shellCommand = nil } })) {
             if let shellCommand {
-                TerminalSessionView(host: host, password: password, initialCommand: shellCommand)
+                TerminalSessionView(host: host, password: password, initialCommand: shellCommand, store: store)
                     .padding()
             }
         }
