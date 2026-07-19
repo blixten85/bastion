@@ -16,6 +16,13 @@ import SwiftCrossUI
     @State private var showS3 = false
     @State private var searchText = ""
     @State private var wakeMessages: [UUID: String] = [:]
+    @State private var showTelnetConnect = false
+    @State private var telnetTarget: TelnetTarget?
+    @State private var showTelnetSession = false
+    @State private var showQuickConnect = false
+    @State private var quickConnectHost: Host?
+    @State private var quickConnectPassword: String?
+    @State private var showQuickConnectSession = false
 
     private var filteredHosts: [Host] {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -84,6 +91,45 @@ import SwiftCrossUI
         .sheet(isPresented: $showS3) {
             S3ConnectionListView()
         }
+        .sheet(isPresented: $showTelnetConnect) {
+            TelnetConnectView(
+                onConnect: { target in
+                    telnetTarget = target
+                    showTelnetConnect = false
+                    showTelnetSession = true
+                },
+                onCancel: { showTelnetConnect = false }
+            )
+        }
+        .sheet(isPresented: $showTelnetSession) {
+            if let telnetTarget {
+                TelnetSessionView(target: telnetTarget, onClose: { showTelnetSession = false })
+            }
+        }
+        .sheet(isPresented: $showQuickConnect) {
+            QuickConnectView(
+                onConnect: { host, password in
+                    quickConnectHost = host
+                    quickConnectPassword = password
+                    showQuickConnect = false
+                    showQuickConnectSession = true
+                },
+                onCancel: { showQuickConnect = false }
+            )
+        }
+        .sheet(isPresented: $showQuickConnectSession) {
+            if let quickConnectHost {
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Snabbanslutning").font(.headline)
+                        Spacer()
+                        Button("Klar") { showQuickConnectSession = false }
+                    }
+                    TerminalSessionView(host: quickConnectHost, password: quickConnectPassword)
+                }
+                .padding()
+            }
+        }
         .onChange(of: selectedHostID) {
             if let hostID = selectedHostID {
                 wakeMessages[hostID] = nil
@@ -102,6 +148,8 @@ import SwiftCrossUI
                 Button("WireGuard") { showWireGuard = true }
                 Button("Tailscale") { showTailscale = true }
                 Button("S3") { showS3 = true }
+                Button("Telnet") { showTelnetConnect = true }
+                Button("Snabbanslutning") { showQuickConnect = true }
                 Spacer()
             }
 
