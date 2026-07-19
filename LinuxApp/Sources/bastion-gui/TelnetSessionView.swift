@@ -56,34 +56,36 @@ final class TelnetSessionController: ObservableObject {
         pendingBytes = []
     }
 
-    /// Hittar en eventuell ofullständig flerbyte-UTF-8-sekvens i slutet av
-    /// `bytes` (upp till 3 bakåtblickande fortsättningsbyte) och delar av
-    /// den till `remainder` istället för att avkoda den för tidigt.
+    /// Letar EXPLICIT efter en giltig flerbyte-ledbyte (0xC0–0xF7) bland de
+    /// sista 1–4 byten. Bara om en sådan hittas OCH den inte redan har fått
+    /// alla sina fortsättningsbyte hålls svansen kvar till nästa chunk —
+    /// annars (ren ASCII, en redan komplett sekvens, eller lösryckta
+    /// fortsättningsbyte UTAN någon ledbyte inom räckhåll — trasig indata)
+    /// är hela `bytes` "komplett" och avkodas direkt. Detta var föregående
+    /// version FEL på åt båda hållen: den avkodade riktiga delade sekvenser
+    /// för tidigt (cubic-fynd 1) OCH senare höll kvar lösryckta
+    /// fortsättningsbyte i evighet på en tyst men öppen session tills
+    /// anslutningen stängdes (cubic-fynd 2) — den enda korrekta regeln är
+    /// att bara vänta när en FAKTISK ledbyte hittats med för få byte kvar.
     private static func splitTrailingIncompleteUTF8(_ bytes: [UInt8]) -> (complete: [UInt8], remainder: [UInt8]) {
-        var lead = bytes.count - 1
-        var continuationCount = 0
-        while lead >= 0, continuationCount < 3, bytes[lead] & 0b1100_0000 == 0b1000_0000 {
-            lead -= 1
-            continuationCount += 1
+        let maxLookback = min(4, bytes.count)
+        guard maxLookback > 0 else { return (bytes, []) }
+        for lookback in 1...maxLookback {
+            let lead = bytes.count - lookback
+            let leadByte = bytes[lead]
+            let expectedLength: Int
+            switch leadByte {
+            case 0xC0...0xDF: expectedLength = 2
+            case 0xE0...0xEF: expectedLength = 3
+            case 0xF0...0xF7: expectedLength = 4
+            default: continue // ASCII eller fortsättningsbyte — inte en ledbyte, fortsätt leta bakåt
+            }
+            if lookback < expectedLength {
+                return (Array(bytes[0..<lead]), Array(bytes[lead...]))
+            }
+            break // ledbyte hittad men sekvensen är redan komplett (eller ogiltigt lång) — inget att hålla kvar
         }
-        // Bara fortsättningsbyte hittade, ingen ledbyte i den här chunken —
-        // HELA svansen är en ofullständig sekvens, spara allt till nästa
-        // varv istället för att felaktigt markera den som komplett
-        // (cubic-fynd, denna PR: `(bytes, [])` här avkodade fortsättnings-
-        // byte-svansar till U+FFFD i förtid).
-        guard lead >= 0 else { return ([], bytes) }
-        let leadByte = bytes[lead]
-        let expectedLength: Int
-        switch leadByte {
-        case 0x00...0x7F: expectedLength = 1
-        case 0xC0...0xDF: expectedLength = 2
-        case 0xE0...0xEF: expectedLength = 3
-        case 0xF0...0xF7: expectedLength = 4
-        default: expectedLength = 1 // ogiltig ledbyte — låt UTF8-avkodaren hantera den som trasig
-        }
-        let available = bytes.count - lead
-        guard available < expectedLength else { return (bytes, []) }
-        return (Array(bytes[0..<lead]), Array(bytes[lead...]))
+        return (bytes, [])
     }
 
     // RFC 854 (NVT): en rads slut är CR LF, inte en bar CR — vissa striktare
