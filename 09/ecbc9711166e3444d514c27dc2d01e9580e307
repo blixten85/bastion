@@ -2,6 +2,7 @@ LinuxApp/Tests/bastion-guiTests/TelnetSessionControllerTests.swift
   s_57e3d8f9ebd074::t_3ffbfc1f4001ff 1-93
 LinuxApp/Sources/bastion-gui/TelnetSessionView.swift
   s_57e3d8f9ebd074::t_254fe411e12a22 68-69,71-72
+  s_57e3d8f9ebd074::t_642009b1cb8da0 70
 LinuxApp/Sources/bastion-gui/ContentView.swift
   s_57e3d8f9ebd074::t_0bb68247b61339 97-106,110,116-126,138-139,145-152
   s_57e3d8f9ebd074::t_df10ff04d5b25f 20,24-25
