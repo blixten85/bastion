@@ -5,7 +5,7 @@ import SwiftCrossUI
 /// Toppnivå: värdlista i sidopanelen, dashboard/kommando i detaljvyn.
 /// Motsvarar `App/HostListView.swift` + `App/HostDetailView.swift`
 /// tillsammans, anpassat till `NavigationSplitView` utan iOS-sheets.
-struct ContentView: View {
+@MainActor struct ContentView: View {
     @State private var model = HostListModel()
     @State private var selectedHostID: UUID?
     @State private var editingHost: Host?
@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var showTailscale = false
     @State private var showS3 = false
     @State private var searchText = ""
+    @State private var wakeMessages: [UUID: String] = [:]
 
     private var filteredHosts: [Host] {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -33,7 +34,7 @@ struct ContentView: View {
             sidebar
         } detail: {
             if let host = model.hosts.first(where: { $0.id == selectedHostID }) {
-                HostDetailView(host: host, onHostUpdated: { model.save($0) })
+                HostDetailView(host: host, store: model.store, onHostUpdated: { model.save($0) })
             } else {
                 ContentUnavailableView {
                     Text("Ingen värd vald")
@@ -46,6 +47,7 @@ struct ContentView: View {
             if let editingHost {
                 HostEditView(
                     host: editingHost,
+                    allHosts: model.hosts,
                     onSave: { host in
                         model.save(host)
                         selectedHostID = host.id
@@ -75,11 +77,17 @@ struct ContentView: View {
                     showTailscale = false
                     showEditor = true
                 },
-                onCancel: { showTailscale = false }
+                onCancel: { showTailscale = false },
+                store: model.store
             )
         }
         .sheet(isPresented: $showS3) {
             S3ConnectionListView()
+        }
+        .onChange(of: selectedHostID) {
+            if let hostID = selectedHostID {
+                wakeMessages[hostID] = nil
+            }
         }
     }
 
@@ -124,14 +132,36 @@ struct ContentView: View {
                     Button(selected.isFavorite ? "★ Favorit" : "☆ Favorit") {
                         model.toggleFavorite(selected)
                     }
+                    if selected.macAddress != nil {
+                        Button("Väck") { wake(selected) }
+                    }
                     Button("Ta bort") {
                         model.delete(selected)
                         selectedHostID = nil
                     }
                 }
+                if let message = wakeMessages[selected.id] {
+                    Text(message).foregroundColor(.gray)
+                }
             }
         }
         .padding()
         .frame(minWidth: 240)
+    }
+
+    /// Skickar ett magic packet till `host.macAddress` — best-effort, samma
+    /// resonemang som App/HostListView.swift: fel visas inline istället för
+    /// att sväljas tyst, men blockerar aldrig något annat i UI:t.
+    private func wake(_ host: Host) {
+        guard let mac = host.macAddress else { return }
+        let hostID = host.id
+        Task {
+            do {
+                try await WakeOnLan.send(mac: mac)
+                wakeMessages[hostID] = "Skickade väckningssignal till \(host.alias.isEmpty ? host.hostName : host.alias)."
+            } catch {
+                wakeMessages[hostID] = "Kunde inte skicka väckningssignal: \(error)"
+            }
+        }
     }
 }

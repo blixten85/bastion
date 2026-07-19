@@ -5,7 +5,7 @@ import SwiftCrossUI
 /// Samma roll som `App/HostListView.swift`s `HostListModel`.
 @MainActor
 class HostListModel: ObservableObject {
-    private let store = HostStore()
+    let store = HostStore()
     @Published var hosts: [Host] = []
 
     init() { reload() }

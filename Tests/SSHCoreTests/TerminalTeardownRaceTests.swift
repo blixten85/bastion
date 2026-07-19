@@ -17,22 +17,73 @@ struct TestTimeoutError: Error, CustomStringConvertible {
     var description: String { "operationen tog längre än \(seconds)s — misstänkt hängning" }
 }
 
+/// Löser en enda gång — vinnaren av kapplöpningen mellan `operation` och
+/// timeouten i `withTimeout` nedan. Ren `NSLock`, inte en `actor`: att sätta
+/// continuation:en måste hända SYNKRONT innan någon av de två racande
+/// `Task`:erna ens kan starta köra (se `withCheckedThrowingContinuation`s
+/// body nedan), en `actor`s async-isolering skulle själv införa ett fönster
+/// där racet kunde köras klart innan continuation:en är satt.
+private final class TimeoutRace<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, Error>?
+    private var finished = false
+
+    func start(_ continuation: CheckedContinuation<T, Error>) {
+        lock.lock()
+        self.continuation = continuation
+        lock.unlock()
+    }
+
+    func resume(with result: Result<T, Error>) {
+        lock.lock()
+        guard !finished, let continuation else { lock.unlock(); return }
+        finished = true
+        self.continuation = nil
+        lock.unlock()
+        continuation.resume(with: result)
+    }
+}
+
 /// Kör `operation` men ger upp (kastar `TestTimeoutError`) om den inte
-/// hunnit klart inom `seconds`. Body-tasken avbryts (`cancelAll`) i
-/// timeout-fallet — den fortsätter inte i bakgrunden efter att testet
-/// misslyckats.
+/// hunnit klart inom `seconds`.
+///
+/// **VIKTIGT, lärt av ett sentry/cubic-fynd (PR #178):** en `withThrowingTaskGroup`-
+/// baserad implementation (den ursprungliga versionen här) FUNGERAR INTE som
+/// en riktig backstop mot en `operation` som blockerar synkront (t.ex. en
+/// tråd i `DispatchSemaphore.wait()`, som `TailscaleStatus.fetchLocal`s
+/// `ResultThread`) — strukturerad concurrency GARANTERAR att gruppen väntar
+/// in ALLA barn-tasks innan den returnerar, även avbrutna sådana som aldrig
+/// kollar `Task.isCancelled` (cancellation är kooperativt, inte
+/// tvingande). Ett `cancelAll()` i en `defer` gör alltså ingenting mot en
+/// tråd som redan sitter fast i ett OS-blockerande anrop — timeouten hade
+/// bara framstått som om den fungerade för RIKTIGA async/await-operationer
+/// som faktiskt ger upp sin tråd vid varje suspension point.
+///
+/// Den här versionen undviker problemet genom att INTE strukturellt vänta in
+/// operation-tasken: den körs som en fristående (icke-grupperad) `Task`, och
+/// vinnaren (operation ELLER timeout) löser en delad `continuation` en enda
+/// gång via `TimeoutRace`. Om timeouten vinner returnerar/kastar funktionen
+/// omedelbart — den hängande operation-tasken lämnas köra i bakgrunden
+/// (accepterad tråd-läcka i just testsammanhang, hellre än att CI hänger
+/// tills jobbets EGEN, mycket längre, timeout till slut ger upp).
 func withTimeout<T: Sendable>(
     seconds: Double, _ operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {
-    try await withThrowingTaskGroup(of: T.self) { group in
-        group.addTask { try await operation() }
-        group.addTask {
-            try await Task.sleep(for: .seconds(seconds))
-            throw TestTimeoutError(seconds: seconds)
+    let race = TimeoutRace<T>()
+    return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
+        race.start(continuation)
+        Task {
+            do {
+                let value = try await operation()
+                race.resume(with: .success(value))
+            } catch {
+                race.resume(with: .failure(error))
+            }
         }
-        defer { group.cancelAll() }
-        let result = try await group.next()!
-        return result
+        Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            race.resume(with: .failure(TestTimeoutError(seconds: seconds)))
+        }
     }
 }
 
