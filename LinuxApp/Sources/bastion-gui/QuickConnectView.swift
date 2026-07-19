@@ -15,7 +15,7 @@ struct QuickConnectView: View {
     private var isValid: Bool {
         !hostName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !user.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && Int(portText).map { (1...65_535).contains($0) } == true
+            && Int(portText.trimmingCharacters(in: .whitespacesAndNewlines)).map { (1...65_535).contains($0) } == true
     }
 
     var body: some View {
@@ -38,7 +38,7 @@ struct QuickConnectView: View {
     }
 
     private func connect() {
-        guard let port = Int(portText) else { return }
+        guard let port = Int(portText.trimmingCharacters(in: .whitespacesAndNewlines)) else { return }
         // Lösenordet skickas OBESKURET — trimning hade tyst korrumperat ett
         // giltigt lösenord med inlednings-/avslutande blanktecken (samma
         // fynd som App/QuickConnectView.swift, cubic PR #173). Värd/

@@ -37,12 +37,23 @@ final class TelnetSessionController: ObservableObject {
                 if !complete.isEmpty { buffer.feed(String(decoding: complete, as: UTF8.self)) }
                 pendingBytes = remainder
             }
+            flushPendingBytes()
             if !isStopped { await session.close() }
         } catch {
+            flushPendingBytes()
             if !isStopped { await self.session?.close() }
             guard !isStopped else { return }
             buffer.feed("\r\n[bastion] fel: \(error)\r\n")
         }
+    }
+
+    /// Strömmen (normalt eller via fel) kan ta slut med en ofullständig
+    /// flerbyte-sekvens fortfarande kvar i `pendingBytes` — utan denna
+    /// tappas svansen tyst istället för att visas (cubic-fynd, denna PR).
+    private func flushPendingBytes() {
+        guard !pendingBytes.isEmpty else { return }
+        buffer.feed(String(decoding: pendingBytes, as: UTF8.self))
+        pendingBytes = []
     }
 
     /// Hittar en eventuell ofullständig flerbyte-UTF-8-sekvens i slutet av
@@ -55,7 +66,12 @@ final class TelnetSessionController: ObservableObject {
             lead -= 1
             continuationCount += 1
         }
-        guard lead >= 0 else { return (bytes, []) } // bara fortsättningsbyte, ingen ledbyte hittad än
+        // Bara fortsättningsbyte hittade, ingen ledbyte i den här chunken —
+        // HELA svansen är en ofullständig sekvens, spara allt till nästa
+        // varv istället för att felaktigt markera den som komplett
+        // (cubic-fynd, denna PR: `(bytes, [])` här avkodade fortsättnings-
+        // byte-svansar till U+FFFD i förtid).
+        guard lead >= 0 else { return ([], bytes) }
         let leadByte = bytes[lead]
         let expectedLength: Int
         switch leadByte {

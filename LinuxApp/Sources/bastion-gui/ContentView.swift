@@ -101,7 +101,13 @@ import SwiftCrossUI
                 onCancel: { showTelnetConnect = false }
             )
         }
-        .sheet(isPresented: $showTelnetSession) {
+        // `onDismiss` täcker stängning via fönsterramen/genväg (körs INTE
+        // vid programmatisk isPresented=false, se SwiftCrossUIs
+        // SheetModifier-dokumentation) — onClose täcker "Klar"-knappen.
+        // Båda måste nolla telnetTarget/quickConnect*-fälten (cubic-fynd,
+        // denna PR: enbart onClose lämnade fjärrvärden/lösenordet kvar i
+        // state om användaren stängde via fönsterramen istället).
+        .sheet(isPresented: $showTelnetSession, onDismiss: { telnetTarget = nil }) {
             if let telnetTarget {
                 TelnetSessionView(target: telnetTarget, onClose: {
                     showTelnetSession = false
@@ -120,7 +126,10 @@ import SwiftCrossUI
                 onCancel: { showQuickConnect = false }
             )
         }
-        .sheet(isPresented: $showQuickConnectSession) {
+        .sheet(isPresented: $showQuickConnectSession, onDismiss: {
+            quickConnectHost = nil
+            quickConnectPassword = nil
+        }) {
             if let quickConnectHost {
                 VStack(alignment: .leading) {
                     HStack {

@@ -13,7 +13,7 @@ struct TelnetConnectView: View {
 
     private var isValid: Bool {
         !hostName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && Int(portText).map { (1...65_535).contains($0) } == true
+            && Int(portText.trimmingCharacters(in: .whitespacesAndNewlines)).map { (1...65_535).contains($0) } == true
     }
 
     var body: some View {
@@ -34,7 +34,7 @@ struct TelnetConnectView: View {
     }
 
     private func connect() {
-        guard let port = Int(portText) else { return }
+        guard let port = Int(portText.trimmingCharacters(in: .whitespacesAndNewlines)) else { return }
         let cleanHost = hostName.trimmingCharacters(in: .whitespacesAndNewlines)
         onConnect(TelnetTarget(host: cleanHost, port: port))
     }
