@@ -19,7 +19,7 @@ The following files were used as context for generating this wiki page:
 
 # Sync Engine & End-to-End Encryption
 
-The Sync Engine in Bastion is designed to provide cross-platform synchronization of the host database without requiring a central server or account. It utilizes a deterministic merging strategy to reconcile data across multiple devices and ensures that all sensitive information, such as SSH keys and passwords, remains protected through local end-to-end encryption (E2E) before leaving the device.
+The Sync Engine in Bastion is designed to provide cross-platform synchronization of the host database (host metadata and connection settings) without requiring a central server or account. It utilizes a deterministic merging strategy to reconcile data across multiple devices, and the payload is protected through local end-to-end encryption (E2E) before leaving the device.
 
 The system supports various storage backends, including local folders, iCloud Drive, Dropbox, Google Drive, and OneDrive. By treating the cloud provider as "dumb storage," the Sync Engine ensures that the service provider cannot read the synchronized data, as it only ever sees the encrypted ciphertext.
 
@@ -80,7 +80,7 @@ Sources: [README.md:29-35](README.md#L29-L35), [SECURITY.md:52-54](SECURITY.md#L
 
 ### Key Management
 
-Passphrases used for synchronization are stored in the system Keychain (iOS/macOS) rather than in plaintext on the disk. This ensures that even if the application binary is compromised, the sensitive sync credentials remain protected by the operating system's security features.
+Passphrases used for synchronization are stored in the system Keychain (iOS/macOS) rather than in plaintext on the disk, protected by the Keychain's standard access-control policies (e.g. device-only, requires-unlock).
 
 Sources: [SECURITY.md:65-67](SECURITY.md#L65-L67), [App/Keychain.swift](App/Keychain.swift)
 

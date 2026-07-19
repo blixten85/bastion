@@ -50,7 +50,7 @@ Sources: [GULDSTANDARD.md:26-30](GULDSTANDARD.md#L26-L30), [README.md:188-193](R
 The project uses a specialized workflow (`.github/workflows/testflight.yml`) to automate the submission of iOS builds to Apple's TestFlight. This process is triggered manually via `workflow_dispatch`.
 
 ### Automated Build & Signing
-The publishing pipeline bypasses the need for local manual signing by using the App Store Connect API. This allows GitHub Actions runners to generate and manage certificates and provisioning profiles dynamically. The tool `fastlane` and its `match` action are used to synchronize these credentials.
+The publishing pipeline bypasses the need for local manual signing by using the App Store Connect API together with `fastlane match`. `match` retrieves the encrypted certificates and provisioning profiles from the `bastion-certificates` repository over SSH (via a dedicated deploy key) and decrypts them with a shared passphrase, letting GitHub Actions runners manage signing dynamically.
 
 The following diagram illustrates the TestFlight publishing flow:
 
@@ -78,8 +78,11 @@ To enable automated TestFlight uploads, specific secrets must be configured in G
 | `APP_STORE_CONNECT_KEY_ID` | API Key ID from App Store Connect | Users and Access -> Integrations |
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID for the API Key | Users and Access -> Integrations |
 | `APP_STORE_CONNECT_KEY_CONTENT` | Base64 encoded `.p8` API key file | Downloaded from App Store Connect |
+| `MATCH_PASSWORD` | Passphrase to decrypt the `match` certificate/profile repository | Shared secret set up with `match` |
+| `MATCH_DEPLOY_KEY` | SSH deploy key granting read access to the `bastion-certificates` repository | GitHub deploy key for `bastion-certificates` |
+| `SENTRY_AUTH_TOKEN` | Auth token used to upload dSYMs/release info to Sentry | Sentry project settings |
 
-Sources: [README.md:213-222](README.md#L213-L222)
+Sources: [README.md:213-222](README.md#L213-L222), [.github/workflows/testflight.yml:12-73](.github/workflows/testflight.yml#L12-L73)
 
 ## Project Configuration with XcodeGen
 The project uses `XcodeGen` to manage `Bastion.xcodeproj`. This ensures that the project file is easily versioned and can be generated on the fly during CI/CD processes.

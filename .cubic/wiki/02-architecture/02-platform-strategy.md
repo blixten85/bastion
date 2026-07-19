@@ -112,7 +112,7 @@ Unlike the other platforms, Android is treated as a separate port. Because `SSHC
 Sources: [CLAUDE.md:3-8](CLAUDE.md#L3-L8), [VISION.md:105-120](VISION.md#L105-L120)
 
 ## Security and Authentication Integration
-Platform integration extends to security hardware and system services. The strategy emphasizes using native secure storage (Keychain) on Apple platforms while falling back to encrypted file-based storage on others.
+Platform integration extends to security hardware and system services. The strategy emphasizes using native secure storage (Keychain) on Apple platforms. On non-Apple platforms, non-secret host metadata may be stored in encrypted files, while credentials that must not be persisted (e.g. Linux passwords) are deliberately never written to disk.
 
 *  **OAuth:** Uses PKCE-based flows to avoid storing client secrets within the apps.
 *  **Encryption:** Employs AES-256-GCM with keys derived via PBKDF2-HMAC-SHA256 for end-to-end encrypted synchronization.

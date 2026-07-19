@@ -113,7 +113,7 @@ Sources: [Sources/SSHCore/CommandLibrary.swift:8-30](Sources/SSHCore/CommandLibr
 
 ## Security Policy
 
-Security is a primary pillar of the Bastion project. All sensitive data, including SSH keys and OAuth tokens, are stored in the system Keychain (iOS/macOS) and never stored in plaintext on disk.
+Security is a primary pillar of the Bastion project. On Apple platforms (iOS/macOS), sensitive data including SSH keys and OAuth tokens are stored in the system Keychain and never in plaintext on disk. On Linux, the GUI does not use a Keychain-equivalent; credentials are handled per the platform-specific storage described in the architecture pages and are never persisted in plaintext.
 
 ### Security Best Practices
 *  **No Secrets in Code**: Clients use PKCE-based OAuth; no client secrets are stored in the repository.
