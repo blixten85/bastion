@@ -65,7 +65,11 @@ final class TelnetSessionController: ObservableObject {
     /// cubic-fynd 3) höll kvar E2 41 trots att 41 inte är fortsättningsbyte
     /// samt accepterade ogiltiga ledbyte som C0 — det blockerade displaybar
     /// ASCII-utdata i onödan.
-    private static func splitTrailingIncompleteUTF8(_ bytes: [UInt8]) -> (complete: [UInt8], remainder: [UInt8]) {
+    // Internal (inte private) — testad direkt av TelnetSessionControllerTests
+    // via @testable import (cubic-fynd: den här bakåtblickande UTF-8-
+    // gränsparsern hade fel åt FLERA håll över tre granskningsrundor,
+    // motiverar riktig testtäckning, inte bara manuell resonemang).
+    static func splitTrailingIncompleteUTF8(_ bytes: [UInt8]) -> (complete: [UInt8], remainder: [UInt8]) {
         guard !bytes.isEmpty else { return (bytes, []) }
 
         var lead = bytes.count - 1
