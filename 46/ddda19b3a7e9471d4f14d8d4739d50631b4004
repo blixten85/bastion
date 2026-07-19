@@ -1,0 +1,27 @@
+.cubic/wiki/07-deployment-infrastructure/01-ci-cd-testflight.md
+  s_57e3d8f9ebd074::t_72bb378ebc687c 81-83,85
+  s_57e3d8f9ebd074::t_77eaa9c7bad7b3 53
+.cubic/wiki/02-architecture/02-platform-strategy.md
+  s_57e3d8f9ebd074::t_9e77073d007d80 115
+.cubic/wiki/01-overview/01-home-overview.md
+  s_57e3d8f9ebd074::t_3830660d3c72bf 116
+.cubic/wiki/05-data-management/02-sync-engine-encryption.md
+  s_57e3d8f9ebd074::t_8e2aced8627ef0 83
+  s_57e3d8f9ebd074::t_341579f6b4d519 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "46ddda19b3a7e9471d4f14d8d4739d50631b4004",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
