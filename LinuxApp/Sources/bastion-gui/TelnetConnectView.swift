@@ -1,14 +1,6 @@
 import SSHCore
 import SwiftCrossUI
 
-/// `.sheet(item:)` kräver `Identifiable` — `TelnetTarget` har ingen naturlig
-/// identitet i SSHCore (ren värdedata). Samma UI-lagers-konformance som
-/// App/TelnetConnectView.swift, definierad separat här eftersom LinuxApp är
-/// ett eget modulmål.
-extension TelnetTarget: Identifiable {
-    public var id: String { "\(host):\(port)" }
-}
-
 /// Ansluter till en Telnet-värd — inget lösenord/nyckelval, till skillnad
 /// från SSH: Telnet-autentisering (om servern ens kräver någon) sker inuti
 /// själva terminalsessionen (login-prompt), inte som ett separat handskaknings-

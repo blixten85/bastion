@@ -103,7 +103,10 @@ import SwiftCrossUI
         }
         .sheet(isPresented: $showTelnetSession) {
             if let telnetTarget {
-                TelnetSessionView(target: telnetTarget, onClose: { showTelnetSession = false })
+                TelnetSessionView(target: telnetTarget, onClose: {
+                    showTelnetSession = false
+                    self.telnetTarget = nil
+                })
             }
         }
         .sheet(isPresented: $showQuickConnect) {
@@ -123,7 +126,11 @@ import SwiftCrossUI
                     HStack {
                         Text("Snabbanslutning").font(.headline)
                         Spacer()
-                        Button("Klar") { showQuickConnectSession = false }
+                        Button("Klar") {
+                            showQuickConnectSession = false
+                            self.quickConnectHost = nil
+                            self.quickConnectPassword = nil
+                        }
                     }
                     TerminalSessionView(host: quickConnectHost, password: quickConnectPassword)
                 }

@@ -24,7 +24,7 @@ struct QuickConnectView: View {
             TextField("Värd (t.ex. 10.0.0.5)", text: $hostName)
             TextField("Användare", text: $user)
             TextField("Port", text: $portText)
-            SecureField("Lösenord (tomt = agent/standardnyckel)", text: $password)
+            SecureField("Lösenord (tomt = standardnyckeln ~/.ssh/id_ed25519)", text: $password)
             Text("Den här värden sparas INTE i din värdlista — perfekt för en "
                  + "engångsanslutning. Lägg till den vanligt om du vill återansluta senare.")
                 .foregroundColor(.gray)
@@ -41,9 +41,15 @@ struct QuickConnectView: View {
         guard let port = Int(portText) else { return }
         // Lösenordet skickas OBESKURET — trimning hade tyst korrumperat ett
         // giltigt lösenord med inlednings-/avslutande blanktecken (samma
-        // fynd som App/QuickConnectView.swift, cubic PR #173).
+        // fynd som App/QuickConnectView.swift, cubic PR #173). Värd/
+        // användare TRIMMAS dock (till skillnad från lösenordet) — annars
+        // godkänner isValid ett fält med bara omgivande blanktecken, men
+        // anslutningen skickas obeskuren och misslyckas (cubic-fynd, denna PR).
         let host = Host(
-            alias: "", hostName: hostName, user: user, port: port,
+            alias: "",
+            hostName: hostName.trimmingCharacters(in: .whitespacesAndNewlines),
+            user: user.trimmingCharacters(in: .whitespacesAndNewlines),
+            port: port,
             auth: password.isEmpty ? .agentDefault : .askPassword)
         onConnect(host, password.isEmpty ? nil : password)
     }
