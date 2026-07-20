@@ -1,0 +1,42 @@
+App/HostListView.swift
+  s_57e3d8f9ebd074::t_2de2290c13a126 264-276,285-289
+  s_57e3d8f9ebd074::t_c1471a54ce5989 297
+  s_57e3d8f9ebd074::t_de33cb465dd522 183-185
+  s_57e3d8f9ebd074::t_5dcf4b253d9faf 132-137
+App/QuickConnectView.swift
+  s_57e3d8f9ebd074::t_7c1b975e1bca7e 30,35
+App/TailscaleDiscoveryView.swift
+  s_57e3d8f9ebd074::t_a2a1b664c18b9a 142
+App/SerialTerminalView.swift
+  s_57e3d8f9ebd074::t_835cc3ab3a4cf8 1-124
+Sources/SSHCore/Serial.swift
+  s_57e3d8f9ebd074::t_86764a0c258061 1-9,24-71,73-90,92-230
+  s_57e3d8f9ebd074::t_f407efdad217b7 10-23
+  s_57e3d8f9ebd074::t_69814607f6162f 72,91
+App/SerialConnectView.swift
+  s_57e3d8f9ebd074::t_7b4629349d1cb7 7-90,92-114
+  s_57e3d8f9ebd074::t_70b29c70a3b75d 1-6
+  s_57e3d8f9ebd074::t_1e1c99bd13694c 91
+Tests/SSHCoreTests/SerialTests.swift
+  s_57e3d8f9ebd074::t_caead8227204f9 1-3,19-26,36-39,41-54,56-89,91-102,104-109
+  s_57e3d8f9ebd074::t_f196f15cc3aa8b 4-18,28-35,40,55,90,103
+  s_57e3d8f9ebd074::t_885783debb7019 27
+App/Platform.swift
+  s_57e3d8f9ebd074::t_4c5b909cf47c4a 38-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a78cbf726f45c0a2a8c87e71fe408ce4b52c612b",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
