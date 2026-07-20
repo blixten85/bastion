@@ -29,7 +29,12 @@ public enum BitwardenClient {
         binaryName: String = "bw"
     ) throws -> String {
         var arguments = binaryName.isEmpty ? [] : [binaryName]
-        arguments += ["get", "password", itemID]
+        // --nointeraction: utan sessionsnyckel/med en utgången session skulle
+        // `bw` annars fråga interaktivt efter huvudlösenordet — en process
+        // startad från Bastion har ingen terminal att fråga i, så det hade
+        // bara hängt tills anropande kod (execute()/openShell()-liknande
+        // timeouter) gett upp, i stället för att faila direkt.
+        arguments += ["get", "password", itemID, "--nointeraction"]
         var environment: [String: String]? = nil
         if let session, !session.isEmpty {
             environment = ["BW_SESSION": session]

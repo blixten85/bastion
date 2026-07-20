@@ -34,6 +34,20 @@ struct HostEditView: View {
     /// Keychain-id för en importerad nyckel: stabilt per värd, oberoende av auth-läge.
     private static func keychainID(for host: Host) -> String { "host-key-\(host.id.uuidString)" }
 
+    /// Auth-lägen som faktiskt går att välja på DEN HÄR plattformen. Bitwarden
+    /// filtreras bort på iOS (se Picker-kommentaren i `body`) men om värden
+    /// REDAN har det läget (synkad från macOS) hålls det kvar i listan så att
+    /// Pickern kan visa det som valt, i stället för att tyst nollställa det.
+    private var availableAuthKinds: [AuthKind] {
+        #if os(iOS)
+        var kinds = AuthKind.allCases.filter { $0 != .bitwarden }
+        if authKind == .bitwarden { kinds.append(.bitwarden) }
+        return kinds
+        #else
+        return AuthKind.allCases
+        #endif
+    }
+
     /// Kandidater för jump host-väljaren: utesluter (1) `draft` själv, (2)
     /// `.askPassword`-värdar (går inte att autentisera automatiskt genom en
     /// jump-kedja — se `SessionView.plan`, som medvetet FAILAR anslutningen
@@ -115,7 +129,13 @@ struct HostEditView: View {
                 // användare hittade aldrig lösenordsvalet (TestFlight-feedback).
                 Section("Autentisering") {
                     Picker("Metod", selection: $authKind) {
-                        ForEach(AuthKind.allCases) { Text($0.rawValue).tag($0) }
+                        // Bitwarden filtreras bort på iOS — `Foundation.Process`
+                        // finns inte där (samma sandbox-begränsning som
+                        // `BitwardenClient`), så anslutning skulle deterministiskt
+                        // misslyckas för varje värd som väljer det läget (cubic-fynd).
+                        // Redan sparade `.bitwardenItem`-värdar (synkade från macOS)
+                        // förblir dock läsbara/oförändrade — bara VALET döljs.
+                        ForEach(availableAuthKinds) { Text($0.rawValue).tag($0) }
                     }
                     if authKind == .key {
                         TextField("Sökväg till privatnyckel", text: $keyPath)
@@ -130,9 +150,9 @@ struct HostEditView: View {
                     if authKind == .bitwarden {
                         TextField("Bitwarden item-id eller namn", text: $bitwardenItemIDText)
                             .noAutocap().autocorrectionDisabled()
-                        Text("Kräver `bw login` gjort sedan tidigare i Terminal (BW_SESSION i "
-                             + "miljön eller redan upplåst valv). Fungerar bara på macOS — iOS "
-                             + "saknar stöd för att köra lokala processer.")
+                        Text("Kräver en giltig BW_SESSION i Bastion-processens EGEN miljö — att låsa "
+                             + "upp valvet i en separat Terminal överför inte sessionen till appen. "
+                             + "Fungerar bara på macOS — iOS saknar stöd för lokala processer.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     if authKind == .keychainImport {

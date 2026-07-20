@@ -103,24 +103,24 @@ struct HostEditView: View {
         case agent, password, key, certificate
         /// Lösenordet hämtas ur en lokal Bitwarden CLI (`bw get password`)
         /// vid varje anslutning istället för att sparas — se `BitwardenClient`.
-        /// `String`et är Bitwardens item-id/namn.
-        case bitwarden(String)
+        /// Inget bifogat värde här (till skillnad från `importedElsewhere`) —
+        /// själva item-id:t/namnet lever bara i `bitwardenItemIDText` (cubic-
+        /// fynd: en bifogad payload här var död kod, aldrig läst, och kunde
+        /// diverga från textfältet som `save()` faktiskt använder).
+        case bitwarden
         /// Bevarar en `.keychainKey`-värd oförändrad — Linux/Windows saknar
         /// Keychain och kan varken läsa eller skriva sådana nycklar (se
         /// `AuthResolver.swift`), så vi rör inte kopplingen om användaren inte
         /// aktivt väljer bort den.
         case importedElsewhere(String)
 
-        /// Jämför bara VILKET läge det är, inte det bifogade Bitwarden-id:t/
-        /// Keychain-id:t — samma resonemang som `JumpChoice.==` ovan: en
-        /// Picker-platshållare (t.ex. `.bitwarden("")`) måste matcha den
-        /// verkliga sparade värden (`.bitwarden("min-server")`) som VALD,
-        /// annars visar SwiftCrossUIs Picker inget val alls.
+        /// Jämför bara VILKET läge det är, inte det bifogade Keychain-id:t —
+        /// samma resonemang som `JumpChoice.==` ovan.
         static func == (lhs: AuthKind, rhs: AuthKind) -> Bool {
             switch (lhs, rhs) {
-            case (.agent, .agent), (.password, .password), (.key, .key), (.certificate, .certificate):
+            case (.agent, .agent), (.password, .password), (.key, .key),
+                 (.certificate, .certificate), (.bitwarden, .bitwarden):
                 return true
-            case (.bitwarden, .bitwarden): return true
             case (.importedElsewhere, .importedElsewhere): return true
             default: return false
             }
@@ -141,7 +141,7 @@ struct HostEditView: View {
     /// Valbara lägen: de fem vanliga, plus — bara om värden redan har en —
     /// det bevarade Keychain-läget.
     private var pickerOptions: [AuthKind] {
-        var options: [AuthKind] = [.agent, .password, .key, .certificate, .bitwarden("")]
+        var options: [AuthKind] = [.agent, .password, .key, .certificate, .bitwarden]
         if case .keychainKey(let id) = draft.auth { options.append(.importedElsewhere(id)) }
         return options
     }
@@ -190,8 +190,8 @@ struct HostEditView: View {
             self._authKind = State(wrappedValue: .importedElsewhere(id))
             self._keyPath = State(wrappedValue: "")
             self._certPath = State(wrappedValue: "")
-        case .bitwardenItem(let itemID):
-            self._authKind = State(wrappedValue: .bitwarden(itemID))
+        case .bitwardenItem:
+            self._authKind = State(wrappedValue: .bitwarden)
             self._keyPath = State(wrappedValue: "")
             self._certPath = State(wrappedValue: "")
         }
@@ -230,9 +230,11 @@ struct HostEditView: View {
                             TextField("Sökväg till privatnyckel", text: $keyPath)
                             TextField("Sökväg till certifikat (t.ex. nyckel-cert.pub)", text: $certPath)
                         }
-                        if authKind == .bitwarden("") {
+                        if authKind == .bitwarden {
                             TextField("Bitwarden item-id eller namn", text: $bitwardenItemIDText)
-                            Text("Kräver `bw login` gjort sedan tidigare (BW_SESSION i miljön eller redan upplåst valv).")
+                            Text("Kräver en giltig BW_SESSION i Bastions egen processmiljö — att låsa "
+                                 + "upp valvet i en separat terminal räcker inte, sessionen förs inte "
+                                 + "över automatiskt.")
                                 .foregroundColor(.gray)
                         }
                     }

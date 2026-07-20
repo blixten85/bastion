@@ -99,8 +99,9 @@ extension TailscaleStatus {
         arguments: [String] = ["tailscale", "status", "--json"]
     ) throws -> TailscaleStatus {
         // `tailscale status --json` skriver normalt inget till stderr, men
-        // felfallet (t.ex. "not logged in") gör, så den konkurrenta läsningen
-        // i `ProcessRunner.run` är en verklig risk att undvika, inte teoretisk.
+        // felfallet (t.ex. "not logged in") gör — stora felutskrifter kan fylla
+        // pipebufferten, så den konkurrenta läsningen i `ProcessRunner.run`
+        // undviker ett verkligt potentiellt dödläge, inte ett teoretiskt.
         let result = try ProcessRunner.run(executableURL: executableURL, arguments: arguments)
         guard result.exitCode == 0 else {
             throw TailscaleStatusError.localCommandFailed(
