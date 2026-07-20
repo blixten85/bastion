@@ -9,6 +9,7 @@ options:
   deploymentTarget:
     iOS: "17.0"       # ContentUnavailableView m.m.
     macOS: "14.0"
+    tvOS: "17.0"
   createIntermediateGroups: true
 
 packages:
@@ -130,8 +131,6 @@ targets:
       - package: SwiftTerm
       - package: Bastion
         product: SSHCore
-      - package: Sentry
-        product: Sentry
 
   Bastion-macOS:
     type: application
@@ -182,5 +181,34 @@ targets:
         com.apple.security.device.serial: true
     dependencies:
       - package: SwiftTerm
+      - package: Bastion
+        product: SSHCore
+
+  Bastion-tvOS:
+    # Egen, minimal tv-app — INTE samma target som iOS/macOS. Siri Remote
+    # saknar praktiskt tangentbord för interaktiv terminal, så scope är
+    # avsiktligt begränsat till en dashboard (App/TVApp/): värdlista +
+    # Wake-on-LAN. Ingen SwiftTerm-dependency alls, till skillnad från de
+    # andra targeten.
+    type: application
+    platform: tvOS
+    sources:
+      - path: TVApp
+    info:
+      path: Info-tvOS.plist
+      properties:
+        CFBundleDisplayName: Bastion
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: se.denied.bastion.tv
+        DEVELOPMENT_TEAM: S6ZR2VU68T
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_VERSION: "5.9"
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
       - package: Bastion
         product: SSHCore
