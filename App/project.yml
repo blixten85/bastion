@@ -141,6 +141,8 @@ targets:
       - package: SwiftTerm
       - package: Bastion
         product: SSHCore
+      - package: Sentry
+        product: Sentry
 
   Bastion-macOS:
     type: application
@@ -194,6 +196,8 @@ targets:
       - package: SwiftTerm
       - package: Bastion
         product: SSHCore
+      - package: Sentry
+        product: Sentry
 
   Bastion-tvOS:
     # Egen, minimal tv-app — INTE samma target som iOS/macOS. Siri Remote
