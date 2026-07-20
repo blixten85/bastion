@@ -5,6 +5,7 @@ import XCTest
 /// granskningsrundor på PR #181 (avkodade riktiga delade sekvenser för
 /// tidigt, sedan höll kvar lösryckta fortsättningsbyte i evighet) — riktig
 /// testtäckning istället för att bara resonera manuellt kring nästa fix.
+@MainActor
 final class TelnetSessionControllerTests: XCTestCase {
     private typealias Result = (complete: [UInt8], remainder: [UInt8])
 
