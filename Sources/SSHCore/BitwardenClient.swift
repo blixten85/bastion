@@ -7,16 +7,17 @@ import Foundation
 /// har en giltig sessionsnyckel (miljövariabeln `BW_SESSION`, precis som
 /// `bw` själv förväntar sig utanför interaktiv `bw unlock`).
 ///
-/// Finns INTE på iOS — samma sandbox-begränsning som `TailscaleStatus.
-/// fetchLocal` (`Foundation.Process` otillgängligt). iOS behöver native
-/// AutoFill/`ASCredentialProviderExtension` istället, ett separat,
-/// Xcode/device-only arbete som inte kan byggas eller verifieras här.
+/// Finns INTE på iOS/tvOS/watchOS — samma sandbox-begränsning som
+/// `TailscaleStatus.fetchLocal` (`Foundation.Process` otillgängligt på alla
+/// tre). iOS behöver native AutoFill/`ASCredentialProviderExtension`
+/// istället, ett separat, Xcode/device-only arbete som inte kan byggas
+/// eller verifieras här.
 public enum BitwardenClientError: Error, Sendable, Equatable {
     case commandFailed(exitCode: Int32, stderr: String)
     case emptyPassword
 }
 
-#if !os(iOS)
+#if !os(iOS) && !os(tvOS) && !os(watchOS)
 public enum BitwardenClient {
     /// `itemID` kan vara ett Bitwarden-item-id (UUID) eller ett unikt namn —
     /// `bw get password` accepterar båda. `session` skickas via miljövariabeln

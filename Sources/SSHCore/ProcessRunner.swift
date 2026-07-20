@@ -1,14 +1,16 @@
 import Foundation
 
-#if !os(iOS)
+#if !os(iOS) && !os(tvOS) && !os(watchOS)
 /// Kör en lokal subprocess och samlar in stdout/stderr/exitkod. Delad av
 /// alla lokala CLI-integrationer (`TailscaleStatus.fetchLocal`,
 /// `BitwardenClient`) — extraherad hit istället för att dupliceras, eftersom
 /// den konkurrenta pipe-läsningen nedan undviker ett äkta dödläge (se
 /// kommentaren i `run(...)`), inte bara boilerplate värt att kopiera.
 ///
-/// Finns INTE på iOS — `Foundation.Process` är otillgängligt där (sandboxen
-/// tillåter inte att spawna godtyckliga subprocesser).
+/// Finns INTE på iOS/tvOS/watchOS — `Foundation.Process` är otillgängligt
+/// där (samma sandbox-begränsning på alla tre). `!os(iOS)` var ofullständigt
+/// — App/TVApp:s tvOS-bygge avslöjade att villkoret släppte igenom tvOS
+/// trots att `Process` saknas där också.
 enum ProcessRunner {
     struct Result: Sendable {
         let stdout: Data
