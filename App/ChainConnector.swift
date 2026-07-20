@@ -129,17 +129,15 @@ final class ChainConnector<Client: AnyObject> {
                     // garanterat säkert).
                     let stillOwnedByUs = self.connectingChain != nil
                     self.connectingChain = nil
-                    // `Task.isCancelled` ENSAMT missar ett fönster: `disconnect()`
-                    // kan ha satt `isTornDown = true` och kört FÄRDIGT (utan att
-                    // ännu ha hunnit anropa `connectingTask?.cancel()`, eller
-                    // cancel() kan racea mot precis den här kontrollen) UTAN att
-                    // den kooperativa avbrottsflaggan hann synas här. Utan
-                    // `isTornDown`-kollen skulle vi då skriva `self.client`/
-                    // `self.chain` EFTER att `disconnect()` redan såg dem tomma
-                    // och inte hade något att stänga — en levande, ansluten
-                    // klient skulle då aldrig stängas av någon (sentry MEDIUM
-                    // på PR #186).
-                    guard !Task.isCancelled, !self.isTornDown else {
+                    // `disconnect()` sätter `isTornDown` OCH anropar
+                    // `connectingTask?.cancel()` i samma oavbrutna
+                    // `@MainActor`-tur — givet aktörsisoleringen kan den här
+                    // kollen aldrig se `isTornDown` utan att `Task.isCancelled`
+                    // redan är sant, så `Task.isCancelled` ensamt räcker
+                    // (cubic P3 på PR #186: en tidigare version kollade även
+                    // `!self.isTornDown` här, ett skydd mot en race som
+                    // aktörsisoleringen redan utesluter).
+                    guard !Task.isCancelled else {
                         await self.closeClient(opened)
                         if stillOwnedByUs { await c.close() }
                         return .failure(PlainMessageError(message: "Anslutningen avbröts, försök igen."))

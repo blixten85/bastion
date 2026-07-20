@@ -158,20 +158,38 @@ public actor SFTPClient {
         let child: Channel
         do {
             child = try await resultPromise.futureResult.get()
+        } catch let error as SSHError {
+            // Redan en `SSHError` (t.ex. `.hostKeyRejected`/`.authenticationFailed`
+            // från `session.fatalFuture`) — kasta den vidare OFÖRÄNDRAD i
+            // stället för att packa in den i ett nytt `.channelFailed(...)`,
+            // annars förlorar anroparen den typade orsaken och diagnostiken
+            // blir en nästlad `channelFailed("channelFailed(...)")` (cubic P2
+            // på PR #186).
+            throw error
         } catch {
             throw SSHError.channelFailed(String(describing: error))
         }
 
+        // Från och med HÄR äger vi `child` — varje fel nedan MÅSTE stänga
+        // den innan det kastas, annars läcker den öppna barnkanalen (sentry
+        // MEDIUM på PR #186: `SFTPClient`s instans skulle annars bara
+        // deallokeras utan att någon stänger dess `channel`).
         do {
             let subsystem = SSHChannelRequestEvent.SubsystemRequest(subsystem: "sftp", wantReply: true)
             try await child.triggerUserOutboundEvent(subsystem)
         } catch {
+            try? await child.close()
             throw SSHError.channelFailed(String(describing: error))
         }
 
         let client = SFTPClient(channel: child)
         await client.startPump(stream)
-        try await client.performHandshake()
+        do {
+            try await client.performHandshake()
+        } catch {
+            await client.close()
+            throw error
+        }
         return client
     }
 
