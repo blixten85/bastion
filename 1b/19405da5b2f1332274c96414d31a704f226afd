@@ -1,0 +1,22 @@
+App/project.yml
+  s_57e3d8f9ebd074::t_2411453c86d22c 173-176,182
+App/SerialConnectView.swift
+  s_57e3d8f9ebd074::t_f74896fea944c1 31
+  s_57e3d8f9ebd074::t_be84ef43a41b3c 66-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1b19405da5b2f1332274c96414d31a704f226afd",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
