@@ -35,6 +35,16 @@ final class SFTPBrowserModel: ObservableObject {
     private var chain: SSHConnectionChain?
     private var sftp: SFTPClient?
     private var connectingTask: Task<SFTPClient?, Never>?
+    // `SSHConnectionChain.connect` har redan lyckats (target+ev. jump-kedjan
+    // är UPPE) medan `SFTPClient.open(on:)` fortfarande förhandlar
+    // subsystemet — `disconnect()` har annars INGET att stänga under tiden
+    // (self.chain sätts inte förrän open() returnerat), och `Task.cancel()`
+    // avbryter inte en pågående, icke-avbrytbar NIO-future i open() (samma
+    // begränsning som #183:s kärnproblem). Den här referensen ger
+    // `disconnect()` något att agera på REDAN under öppningsfönstret, i
+    // stället för att kedjan hänger öppen tills open() till slut ger sig
+    // (cubic P2 på PR #172).
+    private var connectingChain: SSHConnectionChain?
 
     /// Target-sessionen i den aktiva kedjan — samma anropskontrakt som
     /// tidigare (`ArchiveOperations` m.fl. kör alltid mot target, aldrig
@@ -76,8 +86,11 @@ final class SFTPBrowserModel: ObservableObject {
                 self.errorMessage = "\(error)"
                 return nil
             }
+            // Synlig för disconnect() REDAN nu — se kommentaren vid fältet.
+            self.connectingChain = c
             do {
                 let client = try await SFTPClient.open(on: c.target)
+                self.connectingChain = nil
                 // disconnect() kan ha körts (vyn stängd) medan vi väntade på
                 // connect()/open — utan den här kollen skulle vi återuppliva
                 // self.chain/self.sftp EFTER att disconnect() redan städat,
@@ -100,6 +113,7 @@ final class SFTPBrowserModel: ObservableObject {
                 self.sftp = client
                 return client
             } catch {
+                self.connectingChain = nil
                 // Om connect() lyckades men SFTPClient.open(on:) kastade
                 // (t.ex. subsystemet avvisat) sattes self.chain aldrig —
                 // stäng den öppna anslutningen explicit, annars läcker den
@@ -366,11 +380,20 @@ final class SFTPBrowserModel: ObservableObject {
         connectingTask?.cancel()
         let ch = chain
         let c = sftp
+        // Stängs REDAN här, inte bara efter att `SFTPClient.open` råkar
+        // returnera — se kommentaren vid fältet: `Task.cancel()` avbryter
+        // inte en pågående subsystem-förhandling, så utan detta hänger
+        // target+jump-kedjan öppen tills open() till slut ger sig (cubic P2
+        // på PR #172). `ensureClient()` nollar `connectingChain` själv när
+        // den är klar, så den dubbelstängs inte i det vanliga fallet.
+        let connectingCh = connectingChain
+        connectingChain = nil
         chain = nil
         sftp = nil
         Task {
             await c?.close()
             await ch?.close()
+            await connectingCh?.close()
         }
     }
 }

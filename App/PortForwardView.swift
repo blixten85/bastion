@@ -49,6 +49,12 @@ final class PortForwardModel: ObservableObject {
     // disconnect() kan avbryta det (samma mönster som DockerModel/
     // SFTPBrowserModel, PR #172).
     private var connectingTask: Task<SSHSession?, Never>?
+    // Samma skydd som `DockerModel.isTornDown`: `start()` startas från vyn
+    // som en fristående `Task { }`, inte `.task { }`, så den avbryts inte
+    // automatiskt av `.onDisappear`. Utan flaggan skulle `ensureSession()`
+    // kunna återuppliva en ny anslutning efter att `disconnect()` redan kört
+    // (cubic P2 på PR #172).
+    private var isTornDown = false
 
     init(request: ConnectRequest, store: HostStore? = nil) {
         self.request = request
@@ -56,8 +62,27 @@ final class PortForwardModel: ObservableObject {
     }
 
     private func ensureSession() async -> SSHSession? {
+        guard !isTornDown else { return nil }
         if let chain { return chain.target }
-        if let connectingTask { return await connectingTask.value }
+        if let connectingTask {
+            let result = await connectingTask.value
+            // `disconnect()` kan ha kört FÄRDIGT (nollat `chain`) medan vi
+            // väntade på en ANNAN anropares `connectingTask` här — utan den
+            // här omkontrollen skulle vi returnera en session som redan är
+            // (eller snart blir) stängd, i stället för att upptäcka teardownen
+            // (cubic P2 på PR #172, samma race som förklaras nedan för den
+            // task vi själva startar).
+            guard !isTornDown, let result, chain?.target === result else {
+                // Sätts bara om vyn INTE lämnats — annars är den som skulle
+                // visa felet redan borta. Utan detta failade en snabb
+                // avbryt-och-försök-igen tyst (sentry-fynd på PR #172:
+                // ensureSession() kunde vänta in en redan avbruten task utan
+                // att sätta errorMessage).
+                if !isTornDown { errorMessage = "Anslutningen avbröts, försök igen." }
+                return nil
+            }
+            return result
+        }
 
         let task = Task<SSHSession?, Never> { [weak self] in
             guard let self else { return nil }
@@ -86,6 +111,18 @@ final class PortForwardModel: ObservableObject {
         connectingTask = task
         let result = await task.value
         connectingTask = nil
+        // Se kommentaren ovan vid den delade `connectingTask`-vägen: `disconnect()`
+        // kan ha hunnit köra (och nolla `chain`) medan VI väntade på vår egen
+        // task, trots att tasken själv redan kollade `Task.isCancelled` innan
+        // den satte `self.chain` — ett fönster kvarstår mellan den kollen och
+        // att `await task.value` returnerar här. Utan omkontrollen skulle en
+        // uppringare som redan lämnat vyn ändå kunna få tillbaka en session
+        // och öppna en tunnel genom en kedja som är på väg att stängas
+        // (cubic P2 på PR #172, med föreslagen fix).
+        guard !isTornDown, let result, chain?.target === result else {
+            if !isTornDown { errorMessage = "Anslutningen avbröts, försök igen." }
+            return nil
+        }
         return result
     }
 
@@ -125,6 +162,7 @@ final class PortForwardModel: ObservableObject {
     }
 
     func disconnect() {
+        isTornDown = true
         connectingTask?.cancel()
         let c = chain
         chain = nil

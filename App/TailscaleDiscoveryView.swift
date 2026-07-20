@@ -49,8 +49,21 @@ final class TailscaleDiscoveryModel: ObservableObject {
                 }
                 let chain = try await SSHConnectionChain.connect(
                     target: host.target, targetAuth: plan.auth, jump: plan.jump)
-                defer { Task { await chain.close() } }
-                let status = try await TailscaleStatus.fetch(over: chain.target)
+                // `defer { Task { await chain.close() } }` hade schemalagt
+                // stängningen som en FRISTÅENDE task — den kunde då fortfarande
+                // köra medan ett nytt `fetch(...)`-anrop redan startat en ny
+                // kedja, med två anslutningar mot samma tailnet-peer öppna
+                // samtidigt (cubic P3 på PR #172). `Result` + explicit `await
+                // chain.close()` på BÅDA vägarna gör livstiden deterministisk
+                // — kedjan är garanterat stängd innan `fetch(...)` returnerar.
+                let statusResult: Result<TailscaleStatus, Error>
+                do {
+                    statusResult = .success(try await TailscaleStatus.fetch(over: chain.target))
+                } catch {
+                    statusResult = .failure(error)
+                }
+                await chain.close()
+                let status = try statusResult.get()
                 suggestions = status.suggestedHosts
             }
             state = .loaded(suggestions)

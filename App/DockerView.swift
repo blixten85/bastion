@@ -24,6 +24,14 @@ final class DockerModel: ObservableObject {
     // refresh() och act() strax efter varandra, innan connect() svarat) väntar
     // in samma försök i stället för att skapa varsin kedja var.
     private var connectingTask: Task<SSHSession?, Never>?
+    // `act(_:on:)` startas från vyn som en FRISTÅENDE `Task { }` (inte
+    // `.task { }`), så den avbryts INTE automatiskt av `.onDisappear`. Utan
+    // den här flaggan skulle en `act()` som redan hunnit förbi `ensureSession()`
+    // innan `disconnect()` kördes ändå kunna anropa `refresh()` EFTER
+    // teardown, vars `ensureSession()` då återupplivar en helt ny anslutning
+    // som aldrig städas (ingen framtida `onDisappear` kommer köras igen) —
+    // cubic P2 på PR #172.
+    private var isTornDown = false
 
     init(request: ConnectRequest, store: HostStore? = nil) {
         self.request = request
@@ -31,6 +39,7 @@ final class DockerModel: ObservableObject {
     }
 
     private func ensureSession() async -> SSHSession? {
+        guard !isTornDown else { return nil }
         if let chain { return chain.target }
         if let connectingTask { return await connectingTask.value }
 
@@ -67,6 +76,24 @@ final class DockerModel: ObservableObject {
         return result
     }
 
+    /// Ett `docker`-kommando som bara gav en icke-noll exitkod
+    /// (`SSHError.remoteExit`) säger inget om SJÄLVA anslutningen — den är
+    /// fortsatt frisk och `chain` ska cachas kvar. ALLT ANNAT (handskaknings-/
+    /// auth-fel som bara syns vid första kanalanvändningen genom en jump,
+    /// kanalfel, ...) betyder att den cachade sessionen är trasig; utan att
+    /// stänga och nolla `chain` här skulle `refresh()`/`act()` bara fortsätta
+    /// återanvända samma döda session och den öppna jump-anslutningen läcka
+    /// för alltid (cubic P2 på PR #172).
+    private func handleSessionFailure(_ error: Error) {
+        errorMessage = "\(error)"
+        guard case SSHError.remoteExit = error else {
+            let c = chain
+            chain = nil
+            Task { await c?.close() }
+            return
+        }
+    }
+
     func refresh() async {
         loading = true
         defer { loading = false }
@@ -75,7 +102,7 @@ final class DockerModel: ObservableObject {
             containers = try await DockerService.list(over: s)
             errorMessage = nil
         } catch {
-            errorMessage = "\(error)"
+            handleSessionFailure(error)
         }
     }
 
@@ -91,17 +118,25 @@ final class DockerModel: ObservableObject {
             }
             await refresh()
         } catch {
-            errorMessage = "\(error)"
+            handleSessionFailure(error)
         }
     }
 
     func fetchLogs(_ ref: String) async -> String {
         guard let s = await ensureSession() else { return "(ingen anslutning)" }
         do { return try await DockerService.logs(ref, tail: 200, over: s) }
-        catch { return "Fel: \(error)" }
+        catch {
+            handleSessionFailure(error)
+            return "Fel: \(error)"
+        }
     }
 
     func disconnect() {
+        // Sätts FÖRE cancel/städning: en `act()`/`refresh()` som redan är
+        // förbi `ensureSession()` och fortfarande kör kan annars racea in en
+        // ny anslutning genom `ensureSession()` efter att den här metoden
+        // returnerat (se kommentaren vid `isTornDown`-fältet).
+        isTornDown = true
         // Avbryter en ev. pågående anslutning — annars kan den hinna klart
         // EFTER städningen nedan och skriva tillbaka en levande chain som
         // aldrig stängs (samma CodeRabbit-mönster som SFTPBrowserModel, PR #172).

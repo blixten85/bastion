@@ -32,15 +32,22 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
 /// om B redigerats efter att A redan pekade på B). Det vore en
 /// säkerhetsregression för den som medvetet satt upp en jump-host (se
 /// `SessionView.plan`, samma kontrakt).
+///
+/// Själva beslutslogiken (`ConnectionPlanning.plan`) är utbruten till
+/// SSHCore och testad i `SSHCoreTests` — den delen är ren (tar redan
+/// upplösta `SSHAuth?`-värden) och behöver inte Keychain/Bitwarden. Den HÄR
+/// funktionen kollapsar fortfarande alla fyra felfall till `nil` (cubic-fynd
+/// på PR #172 om att detta döljer VILKET fel det var) — att visa orsaken i
+/// UI kräver att ändra returtypen i ~16 anropsplatser, ett scopat
+/// uppföljningsarbete.
 func resolveConnectionPlan(
     for host: Host, password: String?, store: HostStore?
 ) -> (auth: SSHAuth, jump: (target: SSHTarget, auth: SSHAuth)?)? {
-    guard let auth = resolveAuth(for: host, password: password) else { return nil }
-    guard let jumpID = host.jumpHostID else { return (auth, nil) }
-    guard let jumpHost = store?.get(jumpID),
-          jumpHost.jumpHostID == nil,
-          let jumpAuth = resolveAuth(for: jumpHost, password: nil)
-    else { return nil }
-    return (auth, (target: jumpHost.target, auth: jumpAuth))
+    let jumpHost = host.jumpHostID.flatMap { store?.get($0) }
+    let jumpAuth = jumpHost.flatMap { resolveAuth(for: $0, password: nil) }
+    let result = ConnectionPlanning.plan(
+        targetAuth: resolveAuth(for: host, password: password),
+        jumpHostID: host.jumpHostID, jumpHost: jumpHost, jumpAuth: jumpAuth)
+    return try? result.get()
 }
 #endif
