@@ -122,9 +122,9 @@ Sources: [App/DropboxSyncProvider.swift:15-45](App/DropboxSyncProvider.swift#L15
 | Feature | Status | Implementation Details |
 | :--- | :--- | :--- |
 | **OAuth PKCE Core** | ✅ Completed | Implemented in `Sources/SSHCore/OAuthPKCE.swift` |
-| **Dropbox Integration** | ✅ Completed | API calls and token handling implemented |
-| **Google Drive** | ⚠️ Planned | Configuration defined; `GoogleDriveSyncProvider` pending |
-| **OneDrive** | ⚠️ Planned | Configuration defined; `OneDriveSyncProvider` pending |
+| **Dropbox Integration** | ✅ Completed | Implemented in `App/DropboxSyncProvider.swift` |
+| **Google Drive** | ✅ Completed | Implemented in `App/GoogleDriveSyncProvider.swift` |
+| **OneDrive** | ✅ Completed | Implemented in `App/OneDriveSyncProvider.swift` |
 | **S3 / AWS** | ⚠️ Planned | `S3Client.swift` exists for SigV4, but no OAuth-based UI yet |
 
 Sources: [README.md:120-130](README.md#L120-L130), [App/DropboxSyncProvider.swift:10-14](App/DropboxSyncProvider.swift#L10-L14)

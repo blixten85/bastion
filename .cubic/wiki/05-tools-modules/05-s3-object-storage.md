@@ -137,15 +137,17 @@ classDiagram
 
 ## Configuration and Persistence
 
-Saved S3 connections are managed by the `S3ConnectionStore`. On Linux, this is a plain JSON storage, while the iOS/macOS targets are designed to align with the project's overall security vision of using system Keychains, though the current implementation persists keys within the JSON structure for cross-platform parity in initial versions. Sources: [Sources/SSHCore/S3ConnectionStore.swift:7-13](Sources/SSHCore/S3ConnectionStore.swift#L7-L13), [Sources/SSHCore/S3ConnectionStore.swift:42-50](Sources/SSHCore/S3ConnectionStore.swift#L42-L50)
+Saved S3 connections are managed by the `S3ConnectionStore`, which persists connections to `~/.bastion/s3connections.json`. In the current v1 implementation, all connection data including the `secretAccessKey` is stored in plaintext JSON for cross-platform compatibility (the same approach used by `WireGuardProfileStore` for WireGuard private keys). This follows a deliberate v1 scope limitation: Linux and Windows do not yet have a Keychain-equivalent abstraction in the codebase. Future iterations are planned to migrate sensitive credentials (secret access keys) to platform-specific secure storage (system Keychain on Apple platforms) while retaining non-sensitive metadata in the JSON file. Sources: [Sources/SSHCore/S3ConnectionStore.swift:5-7](Sources/SSHCore/S3ConnectionStore.swift#L5-L7), [Sources/SSHCore/S3ConnectionStore.swift:42-50](Sources/SSHCore/S3ConnectionStore.swift#L42-L50)
 
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `name` | String | (Required) | Display name for the connection. |
 | `endpoint` | String | (Required) | The URL of the S3 service (e.g., https://s3.amazonaws.com). |
 | `region` | String | "us-east-1" | The AWS region identifier. |
-| `accessKeyID` | String | (Required) | The public identifier for the S3 account. |
-| `secretAccessKey`| String | (Required) | The private key used for request signing. |
+| `accessKeyID` | String | (Required) | The public identifier for the S3 account. Stored in JSON. |
+| `secretAccessKey`| String | (Required) | The private key used for request signing. Currently stored in plaintext JSON; migration to Keychain storage is planned. |
+
+**Security Note:** Users should ensure appropriate filesystem permissions (0700) are set on the `~/.bastion` directory to restrict access to connection files containing sensitive credentials.
 
 Sources: [Sources/SSHCore/S3ConnectionStore.swift:14-21](Sources/SSHCore/S3ConnectionStore.swift#L14-L21), [LinuxApp/Sources/bastion-gui/S3ConnectionEditView.swift:14-20](LinuxApp/Sources/bastion-gui/S3ConnectionEditView.swift#L14-L20)
 

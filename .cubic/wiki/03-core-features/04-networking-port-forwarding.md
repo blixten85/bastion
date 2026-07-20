@@ -18,9 +18,9 @@ The following files were used as context for generating this wiki page:
 
 # Networking, Proxies & Port Forwarding
 
-The Bastion project provides a robust networking suite designed to facilitate secure communication between local clients and remote servers. The primary focus of this module is to implement standard SSH tunneling capabilities, including local, remote, and dynamic port forwarding, while also integrating modern VPN protocols and legacy networking support.
+The Bastion project provides a robust networking suite designed to facilitate secure communication between local clients and remote servers. The primary focus of this module is to implement standard SSH tunneling capabilities, including local, remote, and dynamic port forwarding, while also integrating configuration management for modern VPN protocols and legacy networking support.
 
-This system is built upon the `SSHCore` library, which leverages SwiftNIO to ensure a consistent networking core across iOS, macOS, Linux, and Windows platforms. Beyond standard SSH features, the project incorporates WireGuard configuration management, Tailscale integration for network discovery, and legacy Telnet support for older network equipment.
+This system is built upon the `SSHCore` library, which leverages SwiftNIO to ensure a consistent networking core across iOS, macOS, Linux, and Windows platforms. Beyond standard SSH features, the project incorporates WireGuard configuration management (parsing and editing .conf files; tunnel establishment is planned for future phases), Tailscale integration for network discovery, and legacy Telnet support for older network equipment.
 Sources: [README.md:1-15](README.md#L1-L15), [VISION.md:130-150](VISION.md#L130-L150)
 
 ## SSH Port Forwarding
@@ -65,7 +65,7 @@ Sources: [README.md:95-105](README.md#L95-L105), [Sources/SSHCore/PortForward.sw
 Bastion integrates with several third-party networking and proxy technologies to enhance connectivity and security.
 
 ### WireGuard Configuration
-The `WireGuardConfig.swift` module provides a comprehensive parser and serializer for `.conf` files used by `wg-quick` and `wg setconf`. While it currently handles the management of profiles (including `[Interface]` and `[Peer]` sections), the actual establishment of tunnels is planned for future phases to avoid external dependencies.
+The `WireGuardConfig.swift` module provides a comprehensive parser and serializer for `.conf` files used by `wg-quick` and `wg setconf`. The current implementation focuses on configuration management only—parsing, editing, and serializing WireGuard profiles. The actual establishment of VPN tunnels is planned for future phases to avoid external dependencies and enable Bastion to create tunnels natively without requiring external binaries.
 
 **Key WireGuard Data Structures:**
 *  `Interface`: Contains `PrivateKey`, `Address`, `DNS`, `ListenPort`, `MTU`, and `wg-quick` specific scripts (`PreUp`, `PostUp`, etc.).
@@ -114,11 +114,11 @@ Sources: [App/HostListView.swift:230-250](App/HostListView.swift#L230-L250)
 ### Protocol Summary Table
 | Protocol | Component | Security | Use Case |
 | :--- | :--- | :--- | :--- |
-| **SSH** | `SSHSession` | Encrypted (AES/Ed25519) | Primary secure remote access |
+| **SSH** | `SSHSession` | Encrypted transport (AES); Ed25519 authentication | Primary secure remote access |
 | **SFTP** | `SFTPClient` | Encrypted (over SSH) | Secure file transfer and management |
 | **WireGuard** | `WireGuardConfig` | Encrypted (ChaCha20) | VPN tunnel configuration |
 | **Telnet** | `TelnetTarget` | Unencrypted | Legacy device management |
-| **S3** | `S3Client` | Signed (AWS SigV4) | Object storage interaction |
+| **S3** | `S3Client` | Request authentication (AWS SigV4); transport confidentiality (HTTPS/TLS) | Object storage interaction |
 
 Sources: [README.md:90-120](README.md#L90-L120), [Sources/SSHCore/WireGuardConfig.swift](Sources/SSHCore/WireGuardConfig.swift), [App/HostListView.swift:180-200](App/HostListView.swift#L180-L200)
 
@@ -144,4 +144,4 @@ if line.hasPrefix("["), line.hasSuffix("]") {
 Sources: [Sources/SSHCore/WireGuardConfig.swift:80-95](Sources/SSHCore/WireGuardConfig.swift#L80-L95)
 
 ## Conclusion
-Networking in Bastion is defined by its "standalone" philosophy, aiming to provide full SSH tunneling and VPN capabilities without requiring external binaries or containers. By combining standard port forwarding with modern network discovery like Tailscale and robust configuration management for WireGuard, Bastion serves as a comprehensive networking hub for system administrators.
+Networking in Bastion is defined by its "standalone" philosophy, aiming to provide full SSH tunneling capabilities without requiring external binaries or containers. By combining standard port forwarding with modern network discovery like Tailscale and robust configuration management for WireGuard (with tunnel establishment planned for future phases), Bastion serves as a comprehensive networking hub for system administrators.

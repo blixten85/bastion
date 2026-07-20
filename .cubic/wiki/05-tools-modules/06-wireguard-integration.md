@@ -69,13 +69,15 @@ The diagram shows the relationship between the main configuration object and its
 Sources: [Sources/SSHCore/WireGuardConfig.swift:13-64](Sources/SSHCore/WireGuardConfig.swift#L13-L64)
 
 ### Profile and Persistence
-A `WireGuardProfile` acts as a container that associates a unique ID, a user-friendly name, and a modification timestamp with a `WireGuardConfig`. These profiles are managed by the `WireGuardProfileStore`, which handles JSON-based persistence to disk at `~/.bastion/wireguard.json`.
+A `WireGuardProfile` acts as a container that associates a unique ID, a user-friendly name, and a modification timestamp with a `WireGuardConfig`. These profiles are managed by the `WireGuardProfileStore`, which handles JSON-based persistence to disk at `~/.bastion/wireguard.json`. In the current v1 implementation, all profile data including WireGuard private keys and preshared keys is stored in plaintext JSON for cross-platform compatibility. This follows the same approach as `S3ConnectionStore` and represents a deliberate v1 scope limitation: Linux and Windows do not yet have a Keychain-equivalent abstraction in the codebase. Future iterations are planned to migrate sensitive key material to platform-specific secure storage (system Keychain on Apple platforms) while retaining non-sensitive profile metadata in the JSON file.
 
 | Component | Description |
 |---|---|
-| `WireGuardProfile` | Codable and Identifiable structure for stored profiles. |
-| `WireGuardProfileStore` | Thread-safe manager for CRUD operations on profiles. |
+| `WireGuardProfile` | Codable and Identifiable structure for stored profiles. Contains the full `WireGuardConfig` including private keys. |
+| `WireGuardProfileStore` | Thread-safe manager for CRUD operations on profiles. Persists to JSON with filesystem permissions (0700). |
 | `defaultPath` | Standard storage location: `~/.bastion/wireguard.json`. |
+
+**Security Note:** Users should ensure appropriate filesystem permissions (0700) are set on the `~/.bastion` directory to restrict access to profile files containing sensitive key material.
 
 Sources: [Sources/SSHCore/WireGuardProfileStore.swift:6-33](Sources/SSHCore/WireGuardProfileStore.swift#L6-L33)
 

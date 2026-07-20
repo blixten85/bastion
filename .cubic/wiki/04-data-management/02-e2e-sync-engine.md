@@ -115,10 +115,10 @@ Sources: [SECURITY.md:50-53](SECURITY.md#L50-L53), [SyncSettingsView.swift](Sync
 The system supports multiple transport mechanisms through the `SyncProvider` protocol. This abstraction allows the application to support various storage backends interchangeably.
 
 ### Supported Transport Methods
-1.  **FolderSyncProvider:** Points to a local directory that is synchronized by an external service (e.g., iCloud Drive, Syncthing, or a local Git repository).
-2.  **DropboxSyncProvider:** Communicates directly with the Dropbox API using OAuth2 + PKCE.
-3.  **GoogleDriveSyncProvider:** Uses the `drive.appdata` scope to store data in a hidden app folder.
-4.  **OneDriveSyncProvider:** Integrates with Microsoft Graph API using path-based storage.
+1.  **FolderSyncProvider:** Points to a local directory that is synchronized by an external service (e.g., iCloud Drive, Syncthing, or a local Git repository). Implemented in `Sources/SSHCore/SyncProvider.swift`.
+2.  **DropboxSyncProvider:** Communicates directly with the Dropbox API using OAuth2 + PKCE. Implemented in `App/DropboxSyncProvider.swift`.
+3.  **GoogleDriveSyncProvider:** Uses the `drive.appdata` scope to store data in a hidden app folder. Implemented in `App/GoogleDriveSyncProvider.swift`.
+4.  **OneDriveSyncProvider:** Integrates with Microsoft Graph API using path-based storage. Implemented in `App/OneDriveSyncProvider.swift`.
 
 ### Provider Configuration
 
