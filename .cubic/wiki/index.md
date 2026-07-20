@@ -2,10 +2,10 @@
 
 > This directory is machine-managed by cubic. Edit wiki content through [cubic wiki settings](https://www.cubic.dev/wiki/blixten85/bastion) and custom instructions.
 
-Wiki version: 1
-Source commit: 06476d6115a33c3c5d2442ef672196e0ae434172
+Wiki version: 2
+Source commit: 48541b07d78afaec164500d019bbfaecd3728fa1
 Source branch: main
-Generated: 2026-07-19T20:20:52.540Z
+Generated: 2026-07-20T06:23:47.620Z
 
 ## Contents
 
@@ -13,7 +13,7 @@ Generated: 2026-07-19T20:20:52.540Z
 
 - [Home & Overview](01-overview/01-home-overview.md)
 - [Vision & Roadmap](01-overview/02-vision-roadmap.md)
-- [Security Policies](01-overview/03-security-policies.md)
+- [Security Policies & Vulnerability Reporting](01-overview/03-security-policies.md)
 
 ### System Architecture
 
@@ -23,36 +23,36 @@ Generated: 2026-07-19T20:20:52.540Z
 ### Core Features
 
 - [SSH Engine Implementation](03-core-features/01-ssh-engine.md)
-- [Authentication Systems](03-core-features/02-authentication-systems.md)
-- [Networking, Forwarding & Proxying](03-core-features/03-networking-forwarding.md)
-- [Terminal Emulation](03-core-features/04-terminal-emulation.md)
-
-### Extra Tools & Modules
-
-- [Docker Management Features](04-tools-modules/01-docker-management.md)
-- [SFTP & File Explorer](04-tools-modules/02-sftp-file-explorer.md)
-- [Object Storage (S3) Integration](04-tools-modules/03-object-storage-s3.md)
-- [System Dashboard & Probes](04-tools-modules/04-system-dashboard.md)
-- [Command Library & Snippets](04-tools-modules/05-command-snippets.md)
-- [Network Integrations (WireGuard & Tailscale)](04-tools-modules/06-network-integrations.md)
-- [Wake on LAN Utility](04-tools-modules/07-wake-on-lan.md)
+- [Terminal Emulation & PTY](03-core-features/02-terminal-emulation.md)
+- [Authentication Systems](03-core-features/03-authentication-systems.md)
+- [Networking, Proxies & Port Forwarding](03-core-features/04-networking-port-forwarding.md)
 
 ### Data Management & Flow
 
-- [Host Database & Configurations](05-data-management/01-host-database.md)
-- [Sync Engine & End-to-End Encryption](05-data-management/02-sync-engine-encryption.md)
-- [Cloud Providers & OAuth Integrations](05-data-management/03-cloud-providers-oauth.md)
+- [Host Database & Configuration](04-data-management/01-host-database.md)
+- [Sync Engine & End-to-End Encryption](04-data-management/02-e2e-sync-engine.md)
+- [Cloud Providers & OAuth Integrations](04-data-management/03-cloud-oauth-providers.md)
+
+### Tools & Modules
+
+- [Docker Management Module](05-tools-modules/01-docker-management.md)
+- [SFTP & File Explorer](05-tools-modules/02-sftp-file-explorer.md)
+- [System Probes & Dashboard](05-tools-modules/03-system-probes.md)
+- [Command Library & Snippets](05-tools-modules/04-command-snippets.md)
+- [S3 Object Storage Integration](05-tools-modules/05-s3-object-storage.md)
+- [WireGuard Integration](05-tools-modules/06-wireguard-integration.md)
+- [Tailscale Discovery Integration](05-tools-modules/07-tailscale-integration.md)
+- [Wake on LAN Utility](05-tools-modules/08-wake-on-lan.md)
 
 ### Frontend Components
 
-- [Apple Platforms (iOS and macOS) UI](06-frontend/01-apple-platforms-ui.md)
-- [Linux Desktop UI](06-frontend/02-linux-desktop-ui.md)
-- [Windows Desktop UI](06-frontend/03-windows-desktop-ui.md)
-- [Android Client Implementation](06-frontend/04-android-client.md)
+- [Apple Platforms (iOS & macOS) UI](06-frontend-platforms/01-apple-platforms-ui.md)
+- [Linux Desktop UI](06-frontend-platforms/02-linux-desktop-ui.md)
+- [Windows Desktop UI](06-frontend-platforms/03-windows-desktop-ui.md)
+- [Android Client Implementation](06-frontend-platforms/04-android-client.md)
 
 ### Deployment & Infrastructure
 
-- [CI/CD Pipelines & TestFlight Publishing](07-deployment-infrastructure/01-ci-cd-testflight.md)
-- [AI Agents & Contributor Rules](07-deployment-infrastructure/02-ai-agents-rules.md)
-- [Development Standards (Guldstandard)](07-deployment-infrastructure/03-development-standards.md)
-- [Automated Testing Infrastructure](07-deployment-infrastructure/04-testing-infrastructure.md)
+- [CI/CD Pipelines & TestFlight Automation](07-deployment-infrastructure/01-ci-cd-testflight.md)
+- [Development Standards & AI Agents Guide](07-deployment-infrastructure/02-dev-standards-agents.md)
+- [Testing Infrastructure & Mocking](07-deployment-infrastructure/03-testing-infrastructure.md)

@@ -8,119 +8,124 @@ wiki_page_id: "platform-strategy"
 
 The following files were used as context for generating this wiki page:
 
-- [README.md](README.md)
 - [VISION.md](VISION.md)
+- [README.md](README.md)
 - [CLAUDE.md](CLAUDE.md)
 - [App/project.yml](App/project.yml)
 - [Package.swift](Package.swift)
+- [LinuxApp/Package.swift](LinuxApp/Package.swift)
+- [WindowsApp/Package.swift](WindowsApp/Package.swift)
 - [App/BastionApp.swift](App/BastionApp.swift)
-- [LinuxApp/Sources/bastion-gui/BastionGUIApp.swift](LinuxApp/Sources/bastion-gui/BastionGUIApp.swift)
-- [WindowsApp/Sources/bastion-gui/BastionGUIApp.swift](WindowsApp/Sources/bastion-gui/BastionGUIApp.swift)
 </details>
 
 # Platform Integration Strategy
 
-## Introduction
-The Bastion project is designed as a cross-platform SSH client that prioritizes a shared core logic with platform-specific user interface layers. The primary objective is to maintain a "single source of truth" for business logic, networking, and security, while providing a native user experience across iOS, macOS, Linux, and Windows. This approach ensures that features like SSH session management, host databases, and deterministic synchronization remain consistent regardless of the host operating system.
+The Platform Integration Strategy for Bastion defines how the project maintains a shared, high-performance SSH core while delivering native user experiences across iOS, macOS, Linux, Windows, and Android. The primary architectural goal is to encapsulate all business logic, SSH transport, and security protocols within a unified "Core" layer, leaving only a thin, platform-specific UI layer for each target operating system.
 
-The architecture is divided into a robust core library (`SSHCore`) built on SwiftNIO and several specialized application targets. While the core is strictly platform-agnostic, the UI layers utilize the most appropriate frameworks for each ecosystem: SwiftUI for Apple platforms and SwiftCrossUI for Linux and Windows.
+Sources: [README.md:1-8](README.md#L1-L8), [VISION.md:23-28](VISION.md#L23-L28)
 
-Sources: [README.md:10-15](README.md#L10-L15), [VISION.md:23-28](VISION.md#L23-L28), [CLAUDE.md:3-8](CLAUDE.md#L3-L8)
+## Core-UI Separation Architecture
 
-## Core Architecture and Portability
-The foundation of the integration strategy is `SSHCore`, a pure Swift library that handles the SSH protocol, SFTP, and data persistence. By using SwiftNIO SSH, the project achieves binary-level compatibility across different operating systems.
+The architecture relies on a "Core-first" approach where the `SSHCore` library, built on `SwiftNIO SSH`, handles all non-visual tasks. This shared library is verified on Linux and Apple platforms to ensure consistency in behavior across different environments.
 
 ```mermaid
 graph TD
-    subgraph Shared_Core [Shared Logic: SSHCore]
-        A[SSH Transport]
-        B[SFTP Client]
-        C[Host Database]
-        D[Sync Engine]
+    subgraph Shared_Core [Shared Core: SSHCore]
+        A[SwiftNIO SSH] --> B[SSHSession]
+        B --> C[SFTPClient]
+        B --> D[DockerService]
+        B --> E[SyncEngine]
     end
 
-    subgraph Platform_Layers [Platform-Specific UIs]
-        E[iOS/macOS: SwiftUI]
-        F[Linux: SwiftCrossUI + GTK4]
-        G[Windows: SwiftCrossUI + WinUI]
+    Shared_Core --> F[Apple UI: SwiftUI]
+    Shared_Core --> G[Linux UI: GTK4]
+    Shared_Core --> H[Windows UI: WinUI]
+    
+    subgraph Platform_specific [Platform UI Layers]
+        F --> F1[iPhone/iPad]
+        F --> F2[macOS]
+        G --> G1[Linux Desktop]
+        H --> H1[Windows Desktop]
     end
-
-    A --> E
-    A --> F
-    A --> G
-    C --> E
-    C --> F
-    C --> G
 ```
 
-The diagram shows the relationship between the centralized `SSHCore` and the platform-specific UI implementations.
+*The diagram shows the hierarchical relationship where the shared SSHCore feeds into distinct platform UI implementations.*
 
-Sources: [README.md:120-170](README.md#L120-L170), [VISION.md:33-45](VISION.md#L33-L45), [Package.swift:10-30](Package.swift#L10-L30)
+Sources: [README.md:12-19](README.md#L12-L19), [CLAUDE.md:1-5](CLAUDE.md#L1-L5)
 
-### Key Component Distribution
-| Component | Implementation | Target Platforms |
-| :--- | :--- | :--- |
-| **Networking/SSH** | `SSHCore` (SwiftNIO SSH) | All |
-| **Persistence** | `HostStore`, `SnippetStore` (JSON/File) | All |
-| **Terminal UI** | SwiftTerm | Apple (iOS/macOS) |
-| **Terminal UI** | Custom ANSI Interpreter | Linux/Windows |
-| **Security** | Keychain / AES-256-GCM | All (Platform-native where possible) |
+### Key Shared Components
+| Component | Description | File Path |
+|---|---|---|
+| **SSHSession** | Manages connections, authentication, and execution streams. | `Sources/SSHCore/SSHSession.swift` |
+| **SyncEngine** | Deterministic merge logic for cross-device host database synchronization. | `Sources/SSHCore/SyncEngine.swift` |
+| **SyncCrypto** | End-to-end encryption (AES-256-GCM) for cloud transport. | `Sources/SSHCore/SyncCrypto.swift` |
+| **DockerService** | Orchestrates remote Docker containers via SSH channels. | `Sources/SSHCore/DockerService.swift` |
 
-Sources: [README.md:120-195](README.md#L120-L195), [CLAUDE.md:3-10](CLAUDE.md#L3-L10)
+Sources: [README.md:46-95](README.md#L46-L95)
 
-## Platform-Specific Implementation Details
+## Platform Implementation Details
 
-### Apple Ecosystem (iOS & macOS)
-The Apple integration utilizes a unified SwiftUI codebase. A single Xcode project, managed via `XcodeGen`, generates targets for both iOS and macOS. This allows for sharing views like `HostListView` and `DashboardView` while handling platform differences (such as App Sandbox requirements on macOS) through conditional compilation and specific entitlement files.
+### Apple Ecosystem (iOS and macOS)
+The Apple targets use a shared SwiftUI codebase defined in a single Xcode project. Integration is managed via `XcodeGen`, which generates the `.xcodeproj` file from `project.yml`. The strategy leverages `SwiftTerm` for terminal emulation on these platforms because it supports UIKit/AppKit environments.
 
-*  **iOS Target:** Focuses on touch interactions and biometric security (Face ID/Touch ID).
-*  **macOS Target:** Includes App Sandbox and outgoing network entitlements.
-*  **Tooling:** Uses `project.yml` for project generation and Fastlane for TestFlight distribution.
+*  **iOS Target**: Specifically focuses on iPhone and iPad, utilizing biometrics (FaceID/TouchID) and a specialized terminal keyboard.
+*  **macOS Target**: Includes App Sandbox entitlements and outgoing network permissions for SSH traffic.
+*  **Commonality**: Both targets share the same `SSHCore` and `SwiftUI` views where possible, with a `Platform.swift` file handling minor alias differences.
 
-Sources: [App/project.yml:18-170](App/project.yml#L18-L170), [README.md:245-255](README.md#L245-L255), [App/BastionApp.swift:3-10](App/BastionApp.swift#L3-L10)
+Sources: [App/project.yml:21-135](App/project.yml#L21-L135), [VISION.md:46-51](VISION.md#L46-L51), [README.md:11-15](README.md#L11-L15)
 
-### Linux Implementation
-The Linux application is isolated into a separate SwiftPM package (`LinuxApp/`) to prevent GUI dependencies (like GTK4) from impacting the core build process on other platforms. It uses `SwiftCrossUI` with the `GtkBackend` to interface with the GTK4 system libraries.
+### Linux and Windows (SwiftCrossUI)
+For Linux and Windows, the strategy shifts to using `SwiftCrossUI`, which provides a cross-platform wrapper around native backends (`GTK4` for Linux and `WinUI` for Windows). 
+
+*  **Linux Integration**: The Linux app is housed in a separate SwiftPM package (`LinuxApp/`) to prevent GUI dependencies from interfering with the root core library builds. It requires GTK4 system headers (`libgtk-4-dev`).
+*  **Windows Integration**: Similar to Linux, the Windows app resides in `WindowsApp/`. A critical integration detail is the pinning of `swift-nio` to version `2.86.2` to resolve Windows-specific compilation errors related to strict concurrency.
+
+Sources: [LinuxApp/Package.swift:5-15](LinuxApp/Package.swift#L5-L15), [WindowsApp/Package.swift:5-15](WindowsApp/Package.swift#L5-L15), [Package.swift:23-32](Package.swift#L23-L32)
+
+### Android
+Unlike the other platforms, Android is treated as a separate port. Because `SSHCore` is written in pure Swift and lacks a direct Android runtime equivalent in the current stack, the Android implementation utilizes a Kotlin-based architecture with `Apache MINA SSHD` as the transport layer.
+
+Sources: [VISION.md:165-177](VISION.md#L165-L177), [CLAUDE.md:8-10](CLAUDE.md#L8-L10)
+
+## External System Integrations
+
+### Cloud Storage and Synchronization
+Bastion integrates with multiple cloud providers for host database synchronization. The strategy employs a "Dumb Storage" model where the cloud provider only sees encrypted blobs.
 
 ```mermaid
-flowchart TD
-    subgraph Linux_Build [Linux App Package]
-        A[bastion-gui Target]
-        B[SSHCore Dependency]
-        C[SwiftCrossUI Dependency]
-        D[GtkBackend]
-    end
+sequenceDiagram
+    participant App as Bastion App
+    participant Crypto as SyncCrypto (AES-256-GCM)
+    participant Cloud as Cloud Provider (Dropbox/Google)
     
-    A --> B
-    A --> C
-    C --> D
-    D --> E[System GTK4 Libs]
+    App->>Crypto: Request Sync (Plaintext JSON)
+    Crypto->>Crypto: Derive Key (PBKDF2)
+    Crypto-->>App: Encrypted Payload
+    App->>Cloud: OAuth2 + PKCE Upload
+    Cloud-->>App: Success (200 OK)
 ```
 
-The Linux build flow emphasizes the separation of the GUI dependencies from the root package to maintain build stability.
+*The sequence illustrates how data is encrypted locally before being transmitted to third-party providers.*
 
-Sources: [LinuxApp/Package.swift:5-25](LinuxApp/Package.swift#L5-L25), [README.md:215-225](README.md#L215-L225), [LinuxApp/Sources/bastion-gui/BastionGUIApp.swift](LinuxApp/Sources/bastion-gui/BastionGUIApp.swift)
+Sources: [README.md:27-40](README.md#L27-L40), [SECURITY.md:24-30](SECURITY.md#L24-L30)
 
-### Windows Implementation
-Similar to Linux, the Windows version resides in its own package (`WindowsApp/`). It leverages `SwiftCrossUI` but switches the backend to `WinUIBackend`. The current strategy involves a "minimal first version" to verify the CI/CD pipeline on `windows-latest` runners before porting the full UI from the Linux version.
+### Native OS Extensions (Future Strategy)
+The roadmap includes deep integration with native OS file managers to allow remote servers to be browsed as local drives:
+1.  **Apple Finder/Files**: Implementation of `NSFileProviderReplicatedExtension` for iOS and macOS.
+2.  **Windows Explorer**: Integration via `WinFsp` (FUSE for Windows) to mount SFTP hosts as network drives.
 
-Sources: [WindowsApp/Package.swift:8-20](WindowsApp/Package.swift#L8-L20), [WindowsApp/Sources/bastion-gui/BastionGUIApp.swift:5-15](WindowsApp/Sources/bastion-gui/BastionGUIApp.swift#L5-L15)
+Sources: [VISION.md:237-260](VISION.md#L237-L260)
 
-### Android Strategy
-Unlike the other platforms, Android is treated as a separate port. Because `SSHCore` is written in Swift and lacks a direct Android runtime equivalent, the Android implementation is built with Kotlin and uses the Apache MINA SSHD library instead of sharing the `SSHCore` logic.
+## Build and CI Strategy
+The project uses GitHub Actions to automate the integration testing across all supported architectures (x86/amd64 and ARM64).
 
-Sources: [CLAUDE.md:3-8](CLAUDE.md#L3-L8), [VISION.md:105-120](VISION.md#L105-L120)
+*  **Cross-platform CI**: Workflows verify `SSHCore` on both Linux and macOS runners.
+*  **Automatic Signing**: The Apple integration uses `fastlane match` and App Store Connect API keys to handle provisioning profiles and certificates automatically for TestFlight distribution.
+*  **Toolchain Sensitivity**: The Linux GUI requires Swift 6.5+ dev snapshots to bypass known compiler bugs in the `swift-mutex` dependency.
 
-## Security and Authentication Integration
-Platform integration extends to security hardware and system services. The strategy emphasizes using native secure storage (Keychain) on Apple platforms. On non-Apple platforms, non-secret host metadata may be stored in encrypted files, while credentials that must not be persisted (e.g. Linux passwords) are deliberately never written to disk.
-
-*  **OAuth:** Uses PKCE-based flows to avoid storing client secrets within the apps.
-*  **Encryption:** Employs AES-256-GCM with keys derived via PBKDF2-HMAC-SHA256 for end-to-end encrypted synchronization.
-*  **Biometrics:** Integration with Face ID/Touch ID via `AppLockManager` on iOS.
-
-Sources: [README.md:33-40](README.md#L33-L40), [App/BastionApp.swift:10-30](App/BastionApp.swift#L10-L30), [SECURITY.md:40-55](SECURITY.md#L40-L55)
+Sources: [README.md:120-155](README.md#L120-L155), [App/project.yml:102-115](App/project.yml#L102-L115), [VISION.md:215-225](VISION.md#L215-L225)
 
 ## Conclusion
-The Bastion platform integration strategy successfully balances code reusability with native performance. By anchoring all platforms to the `SSHCore` library, the project ensures that critical SSH and sync logic is only implemented once, while the modular app structure allows each platform to adopt its own UI paradigms and system-level integrations (like GTK on Linux or the Keychain on iOS). This tiered architecture facilitates rapid expansion to new platforms like Windows and Android while maintaining high technical standards for security and networking.
+Bastion's platform integration strategy centers on maintaining a strictly decoupled architecture. By isolating SSH logic in a platform-agnostic Swift core, the project achieves high code reuse across Apple, Linux, and Windows, while selectively using native toolsets (like Kotlin for Android or GTK4 for Linux) where language or framework constraints require specialized implementation.
 
-Sources: [README.md:12-20](README.md#L12-L20), [VISION.md:23-28](VISION.md#L23-L28), [CLAUDE.md:3-10](CLAUDE.md#L3-L10)
+Sources: [README.md:195-200](README.md#L195-L200), [VISION.md:315-325](VISION.md#L315-L325)

@@ -8,9 +8,9 @@ wiki_page_id: "core-architecture"
 
 The following files were used as context for generating this wiki page:
 
-- [VISION.md](VISION.md)
-- [README.md](README.md)
 - [Package.swift](Package.swift)
+- [README.md](README.md)
+- [VISION.md](VISION.md)
 - [Sources/SSHCore/SystemProbe.swift](Sources/SSHCore/SystemProbe.swift)
 - [Sources/SSHCore/CommandLibrary.swift](Sources/SSHCore/CommandLibrary.swift)
 - [Sources/SSHCore/WireGuardConfig.swift](Sources/SSHCore/WireGuardConfig.swift)
@@ -18,167 +18,133 @@ The following files were used as context for generating this wiki page:
 
 # Core Architecture (SSHCore)
 
-`SSHCore` serves as the centralized, cross-platform business logic layer for the Bastion project. Built primarily using **SwiftNIO SSH**, it is designed to be a "standalone" core that functions identically across iOS, macOS, Linux, and Windows. While the user interface layer is platform-specific (SwiftUI for Apple platforms, SwiftCrossUI for Linux/Windows), all networking, protocol handling, and data parsing reside within `SSHCore`.
+The **SSHCore** module serves as the cross-platform backbone of the Bastion SSH client. It is a pure Swift implementation built on top of `swift-nio-ssh`, designed to provide consistent business logic across iOS, macOS, Linux, and Windows. By encapsulating all SSH transport, authentication, and system interaction logic within this core, the project ensures that only thin, platform-specific UI layers are required for different operating systems.
 
-Sources: [README.md:5-10](README.md#L5-L10), [VISION.md:27-40](VISION.md#L27-L40)
+The scope of SSHCore includes session management, file transfers via SFTP, Docker container orchestration, and a deterministic synchronization engine for host databases. It acts as the "Engine" of the platform, verified through intensive testing on Linux and Apple platforms to ensure reliability and security without requiring external server dependencies for its test suite.
 
-The architecture prioritizes a "thin UI" approach, ensuring that critical features like SSH session management, SFTP operations, and system monitoring are thoroughly tested and portable. This allows for a consistent experience whether the application is running as a CLI tool or a native graphical application.
+Sources: [README.md:1-15](README.md#L1-L15), [VISION.md:25-35](VISION.md#L25-L35), [Package.swift:5-15](Package.swift#L5-L15)
 
-Sources: [README.md:10-15](README.md#L10-L15), [Package.swift:5-10](Package.swift#L5-L10)
+## Module Structure and Dependencies
 
-## Component Overview
+The architecture is layered to separate the low-level network primitives from high-level administrative tools. It utilizes the `SwiftNIO` ecosystem for asynchronous I/O and `swift-crypto` for secure operations.
 
-The `SSHCore` module is composed of several distinct functional areas, ranging from low-level protocol implementations to high-level system monitoring tools.
-
-### High-Level Architecture Flow
-
-The following diagram illustrates how `SSHCore` interacts with platform-specific UIs and remote servers:
-
-```mermaid
-graph TD
-    subgraph UI_Layer [Platform UI Layer]
-        iOS[App/ iOS SwiftUI]
-        macOS[App/ macOS SwiftUI]
-        Linux[LinuxApp/ SwiftCrossUI]
-        Windows[WindowsApp/ WinUI]
-    end
-
-    subgraph SSHCore_Module [SSHCore]
-        Session[SSHSession]
-        Auth[SSHUserAuth]
-        SFTP[SFTPClient]
-        Probe[SystemProbe]
-        Sync[SyncEngine]
-    end
-
-    subgraph Remote [Remote Servers]
-        Srv1[Linux Server]
-        Srv2[Docker Host]
-    end
-
-    iOS --> Session
-    macOS --> Session
-    Linux --> Session
-    Windows --> Session
-
-    Session --> Auth
-    Session --> Probe
-    Session --> SFTP
-    
-    Auth -.-> Remote
-    Probe -.-> Remote
-    SFTP -.-> Remote
-```
-
-Sources: [VISION.md:30-40](VISION.md#L30-L40), [README.md:80-140](README.md#L80-L140)
-
-### Core Components and Responsibilities
-
-| Component | Responsibility | Relevant Files |
-| :--- | :--- | :--- |
-| **SSHSession** | Manages connections, command execution, and interactive shells. | `SSHSession.swift` |
-| **SFTPClient** | Handles file system operations over SSH (version 3). | `SFTPClient.swift`, `SFTPProtocol.swift` |
-| **SystemProbe** | Agentless monitoring that parses remote system status (CPU, RAM, Docker). | `SystemProbe.swift` |
-| **SyncEngine** | Deterministic merging of host databases with E2E encryption. | `SyncEngine.swift`, `SyncCrypto.swift` |
-| **CommandLibrary** | A static reference of common sysadmin commands (Docker, Git, etc.). | `CommandLibrary.swift` |
-
-Sources: [README.md:85-115](README.md#L85-L115)
-
-## System Monitoring (SystemProbe)
-
-The `SystemProbe` component provides an "agentless" dashboard capability. It executes a single concatenated SSH command to retrieve a variety of system metrics, which are then parsed into structured Swift data types.
-
-### Data Flow: Remote to Dashboard
-
-```mermaid
-sequenceDiagram
-    participant UI as Dashboard UI
-    participant SP as SystemProbe
-    participant SSH as SSHSession
-    participant RM as Remote Server
-
-    UI->>SP: requestSnapshot()
-    SP->>SSH: run(SystemProbe.command)
-    SSH->>RM: Execute: df; cat /proc/meminfo; docker ps...
-    RM-->>SSH: Raw String Output
-    SSH-->>SP: rawOutput
-    Note over SP: parse() logic
-    SP->>SP: Extract @@LOADAVG, @@MEM, @@DOCKER
-    SP-->>UI: SystemSnapshot (Struct)
-```
-
-Sources: [Sources/SSHCore/SystemProbe.swift:42-65](Sources/SSHCore/SystemProbe.swift#L42-L65)
-
-### Snapshot Data Structures
-The parser transforms raw shell output into the `SystemSnapshot` struct, which includes:
-- **LoadAverage**: 1, 5, and 15-minute averages.
-- **MemoryInfo**: Total, available, and used bytes.
-- **DiskUsage**: Per-mount statistics including capacity percentages.
-- **DockerContainer**: Status and image information for remote containers.
-
-Sources: [Sources/SSHCore/SystemProbe.swift:8-40](Sources/SSHCore/SystemProbe.swift#L8-L40)
-
-## Command and Snippet Management
-
-`SSHCore` distinguishes between static reference data and user-defined templates.
-
-### Command Library
-The `CommandLibrary` is a hardcoded set of common commands categorized by technology (e.g., Docker, Tailscale, systemd). Each entry includes a summary and optional documentation URLs.
-
-Sources: [Sources/SSHCore/CommandLibrary.swift:10-25](Sources/SSHCore/CommandLibrary.swift#L10-L25)
-
-### Variable Template System
-Both the Command Library and user-defined Snippets support a `{{variable}}` syntax. The architecture allows these templates to be rendered with user input before execution.
-
-```swift
-// Example of a template with variables
-// Category: Docker
-"docker compose restart {{service}}"
-```
-
-Sources: [Sources/SSHCore/CommandLibrary.swift:45-47](Sources/SSHCore/CommandLibrary.swift#L45-L47)
-
-## Networking and External Protocols
-
-While the core focus is SSH, `SSHCore` includes support for related network configurations, specifically WireGuard.
-
-### WireGuard Configuration
-The `WireGuardConfig` component handles the parsing and serialization of `.conf` files. It supports the standard `[Interface]` and `[Peer]` sections used by `wg-quick`.
-
-| Section | Key Fields |
-| :--- | :--- |
-| **Interface** | PrivateKey, Address, DNS, ListenPort, MTU, PreUp/PostUp scripts |
-| **Peer** | PublicKey, AllowedIPs, Endpoint, PersistentKeepalive |
-
-Sources: [Sources/SSHCore/WireGuardConfig.swift:11-50](Sources/SSHCore/WireGuardConfig.swift#L11-L50)
-
-### WireGuard Parsing Logic
-The parser is designed to be case-insensitive and handles multi-line accumulations for keys like `Address` or `AllowedIPs`.
+### Dependency Graph
+The following diagram illustrates the relationship between the SSHCore target and its underlying library dependencies.
 
 ```mermaid
 flowchart TD
-    Start[Raw Text Input] --> Split[Split by Newlines]
-    Split --> Filter[Remove Comments #]
-    Filter --> Section{Is Header?}
-    Section -- "[Interface]" --> SetInt[Set Section: Interface]
-    Section -- "[Peer]" --> SetPeer[Initialize New Peer]
-    Section -- "Key = Value" --> Map[Assign to Struct Field]
-    Map --> SetInt
-    Map --> SetPeer
+    subgraph App_Targets
+        iOS[Bastion iOS]
+        macOS[Bastion macOS]
+        Linux[bastion-gui Linux]
+    end
+
+    subgraph SSHCore_Module
+        SSHCore[SSHCore Library]
+    end
+
+    subgraph External_Dependencies
+        NIOSSH[swift-nio-ssh]
+        NIO[swift-nio]
+        Crypto[swift-crypto]
+    end
+
+    iOS --> SSHCore
+    macOS --> SSHCore
+    Linux --> SSHCore
+    SSHCore --> NIOSSH
+    SSHCore --> NIO
+    SSHCore --> Crypto
 ```
 
-Sources: [Sources/SSHCore/WireGuardConfig.swift:70-130](Sources/SSHCore/WireGuardConfig.swift#L70-L130)
+| Dependency | Purpose |
+| :--- | :--- |
+| `swift-nio-ssh` | Primary SSH transport and protocol implementation. |
+| `swift-nio` | Event-driven network framework (NIOCore, NIOPosix). |
+| `swift-crypto` | Cryptographic primitives for E2E encryption and key handling. |
 
-## External Dependencies and Compatibility
+Sources: [Package.swift:25-50](Package.swift#L25-L50), [README.md:18-35](README.md#L18-L35)
 
-The project relies on a specific set of libraries to maintain cross-platform support.
+## Core Components
 
-- **swift-nio-ssh**: The primary SSH implementation.
-- **swift-nio**: Low-level networking (pinned to version 2.86.2 to avoid Windows compilation issues).
-- **swift-crypto**: Provides cryptographic primitives like AES-256-GCM for sync encryption.
+### Session and Transport Management
+The primary entry point for remote interaction is `SSHSession`. It manages the lifecycle of a connection, including authentication (Passwords, Ed25519, OpenSSH Certificates) and execution of remote commands.
 
-Sources: [Package.swift:20-35](Package.swift#L20-L35)
+*  **SSHUserAuth**: Handles client authentication mechanisms.
+*  **SSHShell**: Manages interactive PTY (Pseudo-Terminal) sessions.
+*  **ExecHandler**: Streams output between `ByteBuffer` and SSH channels.
+*  **PortForward**: Implements local (-L), remote (-R), and dynamic (-D) port forwarding.
+
+Sources: [README.md:70-85](README.md#L70-L85)
+
+### Host and Synchronization Engine
+Bastion utilizes a "Sync without login" philosophy. The `SyncEngine` provides deterministic merging of host databases using Last-Write-Wins (LWW) and tombstones for deletions.
+
+*  **HostStore**: A thread-safe, JSON-based persistent database for host metadata.
+*  **SyncCrypto**: Provides End-to-End Encryption (E2E) using **AES-256-GCM** with keys derived via **PBKDF2-HMAC-SHA256**.
+*  **SyncProvider**: Abstracted transport layers supporting local folders, iCloud, Dropbox, Google Drive, and OneDrive.
+
+Sources: [README.md:37-55](README.md#L37-L55), [README.md:88-100](README.md#L88-L100)
+
+## System Interaction and Probing
+
+SSHCore includes a `SystemProbe` utility that performs "agentless" monitoring. It executes a combined string of commands in a single SSH round-trip to gather system metrics without requiring specialized software on the remote host.
+
+### Data Flow: System Probe
+The following sequence diagram demonstrates how the `SystemProbe` gathers and parses system data.
+
+```mermaid
+sequenceDiagram
+    participant UI as UI Component
+    participant SP as SystemProbe
+    participant SSH as SSHSession
+    participant Host as Remote Server
+
+    UI->>SP: request snapshot()
+    SP->>SSH: run(probeCommand)
+    SSH->>Host: Exec concatenated commands
+    Note right of Host: cat /proc/loadavg; df -kP; etc.
+    Host-->>SSH: Raw String Output
+    SSH-->>SP: Combined Output
+    SP->>SP: parse(output)
+    Note over SP: Split by @@SECTION markers
+    SP-->>UI: SystemSnapshot (Struct)
+```
+
+The `SystemSnapshot` struct contains structured data for:
+*  **LoadAverage**: 1, 5, and 15-minute intervals.
+*  **MemoryInfo**: Total, available, and used bytes.
+*  **DiskUsage**: Filesystem mounts and capacity percentages.
+*  **DockerContainer**: Container IDs, names, images, and status.
+
+Sources: [Sources/SSHCore/SystemProbe.swift:10-75](Sources/SSHCore/SystemProbe.swift#L10-L75)
+
+## Command and Configuration Management
+
+### Command Library
+The `CommandLibrary` acts as a static reference for common administrative tasks across categories like Docker, Linux, Git, and networking tools. These entries can be converted into `Snippet` objects for execution.
+
+```swift
+// Example Entry in CommandLibrary.swift
+.init(category: .docker, 
+      command: "docker compose restart {{service}}", 
+      summary: "Restart a service in Compose project",
+      example: "docker compose restart web")
+```
+
+Sources: [Sources/SSHCore/CommandLibrary.swift:10-45](Sources/SSHCore/CommandLibrary.swift#L10-L45)
+
+### Network Configuration Tools
+SSHCore includes parsers for advanced network configurations, notably for **WireGuard**. The `WireGuardConfig` struct handles parsing and serialization of `.conf` files, adhering to `wg(8)` and `wg-quick(8)` standards.
+
+| Section | Keys Handled |
+| :--- | :--- |
+| `[Interface]` | PrivateKey, Address, DNS, ListenPort, MTU, Table, PreUp, PostUp, FwMark. |
+| `[Peer]` | PublicKey, PresharedKey, AllowedIPs, Endpoint, PersistentKeepalive. |
+
+Sources: [Sources/SSHCore/WireGuardConfig.swift:15-50](Sources/SSHCore/WireGuardConfig.swift#L15-L50)
 
 ## Summary
+The **SSHCore** architecture facilitates a truly cross-platform SSH client by centralizing complex networking and security logic. By utilizing a "local-first" data model with E2E-encrypted synchronization, it maintains user privacy while providing powerful features like agentless dashboard probing and integrated Docker management. This modular approach allows the Bastion project to expand into multiple platforms (iOS, macOS, Linux, Windows) while maintaining a single, highly-tested source of truth for its core functionality.
 
-`SSHCore` represents a robust, platform-agnostic foundation for the Bastion SSH client. By encapsulating protocol logic, system probing, and configuration management within a single Swift module, the project ensures that sophisticated features—such as agentless monitoring and E2E encrypted sync—are available consistently across mobile, desktop, and command-line interfaces. Its design allows the UI layers to remain purely declarative, focusing on presentation while the core handles the complexities of secure remote management.
+Sources: [VISION.md:150-165](VISION.md#L150-L165), [README.md:200-210](README.md#L200-L210)

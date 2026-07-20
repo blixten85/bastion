@@ -10,120 +10,150 @@ The following files were used as context for generating this wiki page:
 
 - [README.md](README.md)
 - [VISION.md](VISION.md)
+- [Package.swift](Package.swift)
+- [AGENTS.md](AGENTS.md)
 - [SECURITY.md](SECURITY.md)
 - [App/project.yml](App/project.yml)
-- [Package.swift](Package.swift)
-- [Sources/SSHCore/CommandLibrary.swift](Sources/SSHCore/CommandLibrary.swift)
 </details>
 
 # Home & Overview
 
-Bastion is a free, open-source, and standalone SSH client designed for cross-platform availability across iOS, macOS, Linux, and Windows. Built on top of Apple's `swift-nio-ssh`, it utilizes a shared core logic (`SSHCore`) to ensure consistent behavior across all supported platforms while maintaining native user interfaces for each. The project's vision is to provide a privacy-friendly alternative to commercial SSH clients like Termius, offering core features without mandatory logins, subscriptions, or advertising.
+Bastion is a free, open-source, and standalone SSH client designed for multiple platforms including iOS, macOS, Linux, and Windows. Unlike many modern tools, Bastion is not a containerized application but a native executable built on top of [SwiftNIO SSH](https://github.com/apple/swift-nio-ssh). Its primary goal is to provide a high-performance, privacy-focused experience for system administrators, DevOps engineers, and Linux enthusiasts, offering features like SFTP, Docker management, and end-to-end encrypted synchronization without mandatory logins or subscriptions.
 
-The platform emphasizes security through local encryption of keys and E2E-encrypted synchronization, as well as productivity features like a built-in Docker manager, SFTP file browser, and a comprehensive command library. It aims to be the fastest and most aesthetically pleasing client for system administrators, DevOps professionals, and homelab enthusiasts.
-
-Sources: [README.md:1-12](README.md#L1-L12), [VISION.md:1-12](VISION.md#L1-L12)
+Sources: [README.md:1-8](README.md#L1-L8), [VISION.md:3-8](VISION.md#L3-L8), [AGENTS.md:3-5](AGENTS.md#L3-L5)
 
 ## Architecture & Core Philosophy
 
-Bastion is architected to separate business logic from the presentation layer. The `SSHCore` module, written in pure Swift, handles all networking, protocol implementations, and data persistence. This allows the core to be built and tested on both Linux and Apple platforms.
+The project follows a "thin UI, thick core" architecture. The business logic is encapsulated in a pure Swift library called `SSHCore`, which is tested and compatible across all supported platforms. The user interface layer is platform-specific, utilizing native frameworks to ensure the best possible user experience on each device.
 
-### High-Level Architecture
-The following diagram illustrates the relationship between the shared core and the platform-specific UI layers.
+### Multi-Platform Strategy
+
+| Component | Technology | Target Platforms |
+| :--- | :--- | :--- |
+| **Core Logic** | SwiftNIO (`SSHCore`) | All (Linux, macOS, iOS, Windows) |
+| **Mobile/Desktop UI** | SwiftUI (`App/`) | iOS, iPadOS, macOS |
+| **Linux UI** | SwiftCrossUI / GTK4 (`LinuxApp/`) | Linux Distributions |
+| **Windows UI** | SwiftCrossUI / WinUI (`WindowsApp/`) | Windows |
+| **Android UI** | Kotlin / Apache MINA SSHD | Android (Separate Implementation) |
+
+Sources: [README.md:10-18](README.md#L10-L18), [CLAUDE.md:4-9](CLAUDE.md#L4-L9), [VISION.md:27-32](VISION.md#L27-L32)
+
+### System Components Flow
+
+The following diagram illustrates how different application targets interact with the shared `SSHCore` library and external services.
 
 ```mermaid
 flowchart TD
     subgraph UI_Layer [Platform Specific UI]
-        iOS[iOS/iPadOS - SwiftUI]
-        macOS[macOS - SwiftUI]
-        Linux[Linux - SwiftCrossUI/GTK4]
-        Windows[Windows - SwiftCrossUI/WinUI]
+        IOS[iOS/iPadOS App]
+        MAC[macOS App]
+        LINUX[Linux GUI]
+        WIN[Windows GUI]
+        CLI[bastion-cli]
     end
 
-    subgraph Core [SSHCore - Shared Logic]
-        SSH[SSH/SFTP Transport]
-        Auth[Authentication & Key Mgmt]
-        Sync[E2E Sync Engine]
-        DB[SQLite/JSON Persistence]
-        Logic[Docker & System Probe]
+    subgraph Core_Layer [Shared Logic]
+        SSHCore[SSHCore Library]
+        Sync[Sync Engine]
+        Crypto[Sync Crypto]
     end
 
-    UI_Layer --> Core
-    Core --> NIO[SwiftNIO SSH]
+    subgraph External [External Connections]
+        SSH[Remote Servers via SSH]
+        Cloud[Cloud Storage: iCloud/Dropbox/GDrive]
+    end
+
+    IOS --> SSHCore
+    MAC --> SSHCore
+    LINUX --> SSHCore
+    WIN --> SSHCore
+    CLI --> SSHCore
+    
+    SSHCore --> SSH
+    SSHCore --> Sync
+    Sync --> Crypto
+    Crypto --> Cloud
 ```
 
-The UI layer remains thin, acting as "glue" to the robust, tested logic within `SSHCore`.
-
-Sources: [README.md:1-12](README.md#L1-L12), [VISION.md:31-42](VISION.md#L31-L42), [Package.swift:1-15](Package.swift#L1-L15)
-
-## Cross-Platform Implementation
-
-The project targets major operating systems using different UI frameworks while retaining the same Swift-based core.
-
-| Platform | Core Implementation | UI Framework | Status |
-| :--- | :--- | :--- | :--- |
-| **iOS / iPadOS** | `SSHCore` | SwiftUI (`App/`) | Phase 1 - Active |
-| **macOS** | `SSHCore` | SwiftUI (Shared with iOS) | Phase 2 - Active |
-| **Linux** | `SSHCore` | SwiftCrossUI / GTK4 (`LinuxApp/`) | Phase 3 - Active |
-| **Windows** | `SSHCore` | SwiftCrossUI / WinUI (`WindowsApp/`) | Phase 4 - In Progress |
-
-Sources: [README.md:14-25](README.md#L14-L25), [VISION.md:44-50](VISION.md#L44-L50), [App/project.yml:25-35](App/project.yml#L25-L35)
-
-### Development and Build Tools
-The project utilizes several modern tools to manage cross-platform builds:
-*  **SwiftPM**: Used for the root package and the dedicated Linux/Windows GUI packages.
-*  **XcodeGen**: Generates the `Bastion.xcodeproj` from `project.yml` for Apple platforms.
-*  **Fastlane**: Manages TestFlight uploads and signing certificates for iOS.
-
-Sources: [README.md:152-162](README.md#L152-L162), [App/project.yml:1-10](App/project.yml#L1-L10)
+This diagram shows the relationship between platform-specific UI targets and the centralized `SSHCore` library.
+Sources: [README.md:10-18](README.md#L10-L18), [README.md:65-125](README.md#L65-L125), [VISION.md:34-40](VISION.md#L34-L40)
 
 ## Key Features
 
-### 1. SSH & Terminal
-Bastion supports modern SSH protocols including Ed25519, ECDSA, and RSA. It provides advanced features like ProxyJump, Agent Forwarding, and YubiKey support. The terminal emulation is designed for high performance, supporting True Color, UTF-8, and custom keyboard extensions for mobile devices.
+### SSH and Terminal
+Bastion aims to surpass competitors by focusing on UX parity with premium tools like Termius while remaining free. It supports standard SSH features such as Ed25519, ECDSA, RSA, and OpenSSH certificates. The terminal implementation supports multiple tabs, split views, and specialized mobile keyboards with Esc, Tab, and function keys.
 
-Sources: [VISION.md:52-71](VISION.md#L52-L71)
+Sources: [VISION.md:52-66](VISION.md#L52-L66), [README.md:66-70](README.md#L66-L70)
 
-### 2. Synchronization & Privacy
-The app features a "Sync without login" mechanism. The host database is merged deterministically via a `SyncEngine` and stored as a file.
-*  **Transport**: Supports iCloud Drive, Dropbox, Syncthing, or Git.
-*  **Encryption**: Uses `EncryptedFolderSyncProvider` with **AES-256-GCM** encryption. Keys are derived via **PBKDF2-HMAC-SHA256**.
-*  **OAuth**: Implements PKCE-based OAuth2 for account integrations (Dropbox, Google Drive, OneDrive).
+### SFTP and File Management
+The SFTP client is a full-featured file manager. It supports drag-and-drop, permissions management (chmod/chown), and archive operations (Zip/Tar) performed over the exec channel to remain injection-safe.
+Sources: [README.md:88-91](README.md#L88-L91), [VISION.md:87-90](VISION.md#L87-L90)
 
-Sources: [README.md:27-46](README.md#L27-L46), [SECURITY.md:59-65](SECURITY.md#L59-L65)
+### Docker Integration
+A standout feature is the native Docker management, allowing users to list, start, stop, restart, and view logs of containers on remote servers without requiring an agent on the host.
+Sources: [README.md:92](README.md#L92), [VISION.md:83-85](VISION.md#L83-L85)
 
-### 3. Command Library & Snippets
-The `CommandLibrary` provides a static reference for common administrative tasks, while the `SnippetStore` allows users to save custom commands with variables.
+### Synchronization and Security
+Synchronization is designed to be "serverless" and privacy-first.
+*  **Encrypted Sync**: Uses `AES-256-GCM` with keys derived via `PBKDF2-HMAC-SHA256`.
+*  **Transport Agnostic**: Syncs via simple files that can be placed in iCloud Drive, Dropbox, Syncthing, or Git.
+*  **Identity Management**: Secrets are stored in the system Keychain (iOS/macOS) and never leave the device unencrypted.
+
+Sources: [README.md:20-33](README.md#L20-L33), [SECURITY.md:28-40](SECURITY.md#L28-L40)
+
+## Project Structure
+
+The repository is organized to separate the cross-platform core from platform-specific UI implementations.
 
 ```mermaid
-graph TD
-    Entry[Command Library Entry] --> Cat{Category}
-    Cat --> Docker[Docker]
-    Cat --> Linux[Linux]
-    Cat --> Net[Networking/Tailscale]
-    Cat --> Sys[systemd]
+classDiagram
+    class SSHCore {
+        +SSHSession
+        +SSHUserAuth
+        +SFTPClient
+        +DockerService
+        +SyncEngine
+    }
+    class App_Target {
+        <<iOS/macOS>>
+        +SwiftUI Views
+        +SwiftTerm
+    }
+    class LinuxApp_Target {
+        <<GTK4>>
+        +SwiftCrossUI
+        +TerminalBuffer
+    }
+    class bastion_cli {
+        <<Executable>>
+        +Main entry point
+    }
     
-    Entry --> Snippet[As Snippet]
-    Snippet --> Render[Variable Rendering]
+    App_Target ..> SSHCore : depends on
+    LinuxApp_Target ..> SSHCore : depends on
+    bastion_cli ..> SSHCore : depends on
 ```
 
-Commonly used categories include `docker compose`, `systemctl`, and `git` operations.
+This class diagram highlights the dependency of various application targets on the `SSHCore` module.
+Sources: [Package.swift:23-44](Package.swift#L23-L44), [App/project.yml:106-111](App/project.yml#L106-L111), [LinuxApp/Package.swift:15-20](LinuxApp/Package.swift#L15-L20)
 
-Sources: [Sources/SSHCore/CommandLibrary.swift:8-30](Sources/SSHCore/CommandLibrary.swift#L8-L30)
+### Directory Map
+*  `Sources/SSHCore/`: Pure SwiftNIO implementation of SSH, SFTP, and Docker logic.
+*  `App/`: Xcode project specification (`project.yml`) and SwiftUI code for Apple platforms.
+*  `LinuxApp/`: A separate SwiftPM package for the Linux GUI to avoid dependency conflicts on stable toolchains.
+*  `WindowsApp/`: Minimal initial implementation for Windows using WinUI.
+*  `Tests/SSHCoreTests/`: Comprehensive end-to-end tests using an in-process SSH server.
 
-## Security Policy
+Sources: [README.md:65-125](README.md#L65-L125), [AGENTS.md:3-8](AGENTS.md#L3-L8)
 
-Security is a primary pillar of the Bastion project. On Apple platforms (iOS/macOS), sensitive data including SSH keys and OAuth tokens are stored in the system Keychain and never in plaintext on disk. On Linux, the GUI does not use a Keychain-equivalent; credentials are handled per the platform-specific storage described in the architecture pages and are never persisted in plaintext.
+## Security Standards
 
-### Security Best Practices
-*  **No Secrets in Code**: Clients use PKCE-based OAuth; no client secrets are stored in the repository.
-*  **Local Encryption**: Keys and passwords never leave the device unencrypted.
-*  **Auditability**: The project is 100% open-source (MIT License) to allow for public security audits.
+Bastion implements a strict security policy to protect user credentials:
+1.  **OAuth PKCE**: Authentication against cloud providers (Dropbox, Google, OneDrive) uses PKCE to avoid storing client secrets in the binary.
+2.  **Local Encryption**: All host databases and keys are encrypted locally before any synchronization occurs.
+3.  **No Public Disclosure**: Security vulnerabilities are managed via private reporting rather than public issues.
 
-Sources: [SECURITY.md:1-15](SECURITY.md#L1-L15), [SECURITY.md:55-68](SECURITY.md#L55-L68), [VISION.md:118-122](VISION.md#L118-L122)
+Sources: [SECURITY.md:1-25](SECURITY.md#L1-L25), [README.md:46-60](README.md#L46-L60)
 
-## Summary & Significance
-
-Bastion represents a significant effort to provide a high-quality, professional SSH toolset that remains accessible and privacy-focused. By utilizing a shared Swift core across mobile, desktop, and server environments, it minimizes maintenance overhead while maximizing performance through native UI implementations. Its commitment to open-source and E2E-encrypted synchronization positions it as a competitive, user-respecting alternative in the systems administration software market.
-
-Sources: [VISION.md:1-12](VISION.md#L1-L12), [README.md:1-12](README.md#L1-L12)
+## Conclusion
+Bastion is positioned as a high-quality, open-source alternative to commercial SSH clients. By leveraging a shared Swift core and native UI layers, it provides a consistent and secure experience across mobile and desktop environments, specifically targeting users who value privacy and native performance without recurring costs.
