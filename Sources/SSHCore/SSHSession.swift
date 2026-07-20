@@ -66,24 +66,24 @@ public final class SSHSession {
     // löses (kräver en fram-och-tillbaka SSH-kanalöppning, inte omedelbar).
     // Om close() kör channel.close() + group.shutdownGracefully() medan
     // childPromise fortfarande är olöst på den event loop-gruppen kraschar
-    // NIOs läckagedetektor ("leaking promise") — precis det som bevisades
-    // reproducerbart på macOS-CI, se project-bastion-ci-flaky-race-crash.md.
-    // Löst genom att close() VÄNTAR IN alla pågående createChannel-anrop
-    // (räknade här) innan kanalen/gruppen rivs — motsvarar "synkronisera
-    // close() mot ett aktivt event loop-jobb", den ursprungligen föreslagna
-    // riktiga fixen.
+    // NIOs läckagedetektor ("leaking promise") — reproducerat på macOS-CI.
+    // Löst genom att close() STÄNGER INPASSERINGEN (isClosed) ATOMÄRT innan
+    // den dränerar räknaren, och att beginChildOp() kastar om sessionen
+    // redan är stängd — garanterar att inga nya operationer kan börja efter
+    // att close() börjat dränera, så att dränering faktiskt innebär "inga
+    // fler operationer kommer någonsin".
     private let inFlightChildOps = NIOLockedValueBox<Int>(0)
     private let drainLock = NIOLock()
-    // En closure, INTE en rå CheckedContinuation — closuren är själv en
-    // "resolveOnce"-vakt (se waitForChildOpsToDrain), så att både
-    // endChildOp() (det normala fallet) och en säkerhetstimeout kan anropa
-    // SAMMA guardade återupptagning utan att någonsin fullborda en
-    // continuation två gånger (det hade kraschat, precis samma familj av
-    // fel som denna fix åtgärdar för childPromise).
-    private var onDrained: (() -> Void)?
+    private var isClosed = false
+    private var onDrainedCallbacks: [() -> Void] = []
 
-    private func beginChildOp() {
-        inFlightChildOps.withLockedValue { $0 += 1 }
+    private func beginChildOp() throws {
+        try drainLock.withLock {
+            guard !isClosed else {
+                throw SSHError.channelFailed("stängd")
+            }
+            inFlightChildOps.withLockedValue { $0 += 1 }
+        }
     }
 
     /// Anropas när ETT specifikt childPromise-resultat (oavsett lyckat/
@@ -97,26 +97,30 @@ public final class SSHSession {
             return count
         }
         guard remaining == 0 else { return }
-        drainLock.withLock {
-            onDrained?()
-            onDrained = nil
+        let callbacks = drainLock.withLock {
+            let result = onDrainedCallbacks
+            onDrainedCallbacks = []
+            return result
+        }
+        for callback in callbacks {
+            callback()
         }
     }
 
-    /// Väntar tills `inFlightChildOps` når noll, med en säkerhetsmarginal
-    /// (5s). Använder OSTRUKTURERADE `Task`er (inte en `TaskGroup`) för
-    /// timeouten — en TaskGroup väntar in ALLA barn-tasks innan den
-    /// returnerar även efter `cancelAll()` om en av dem hänger i en
-    /// `withCheckedContinuation` som aldrig resumeras av cancellation
-    /// (exakt samma TaskGroup-fallgrop som redan dokumenterats och fixats
-    /// i Tests/SSHCoreTests/TerminalTeardownRaceTests.swifts `withTimeout`,
-    /// se project-bastion-ci-flaky-race-crash.md). Om ett childPromise av
-    /// någon anledning ALDRIG löses (t.ex. ett nätverksavbrott utan NIOSSH-
-    /// timeout) ska `close()` ändå kunna slutföras istället för att hänga
-    /// för evigt — det byter en bevisad krasch mot ett extremt osannolikt
-    /// racefönster i det pathologiska fallet, inte mot en ny hängningsrisk.
+    /// Väntar tills `inFlightChildOps` når noll. Använder OSTRUKTURERADE
+    /// `Task`er (inte en `TaskGroup`) för timeouten — en TaskGroup väntar
+    /// in ALLA barn-tasks innan den returnerar även efter `cancelAll()` om
+    /// en av dem hänger i en `withCheckedContinuation` som aldrig resumeras
+    /// av cancellation (samma TaskGroup-fallgrop som dokumenterats i
+    /// Tests/SSHCoreTests/TerminalTeardownRaceTests.swift i `withTimeout`).
+    /// Timeout (15s) som sista utväg om ett childPromise aldrig löses (t.ex.
+    /// nätverksavbrott utan NIOSSH-timeout) — men teardown tillåts ENDAST om
+    /// räknaren faktiskt når noll, även efter timeouten, för att bevara
+    /// säkerhetsinvarianten.
     private func waitForChildOpsToDrain() async {
-        if inFlightChildOps.withLockedValue({ $0 == 0 }) { return }
+        if drainLock.withLock({ isClosed && inFlightChildOps.withLockedValue({ $0 == 0 }) }) {
+            return
+        }
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             var didResume = false
             let resumeLock = NIOLock()
@@ -131,13 +135,19 @@ public final class SSHSession {
 
             let alreadyDrained: Bool = drainLock.withLock {
                 if inFlightChildOps.withLockedValue({ $0 == 0 }) { return true }
-                onDrained = resumeOnce
+                onDrainedCallbacks.append(resumeOnce)
                 return false
             }
             if alreadyDrained { resumeOnce(); return }
 
             Task {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                let stillWaiting = drainLock.withLock {
+                    inFlightChildOps.withLockedValue({ $0 > 0 })
+                }
+                if stillWaiting {
+                    assertionFailure("waitForChildOpsToDrain: timeout med \(inFlightChildOps.withLockedValue({ $0 })) kvarvarande ops — potentiell hängning")
+                }
                 resumeOnce()
             }
         }
@@ -256,7 +266,12 @@ public final class SSHSession {
             // strömmen avslutas (finish(), fel, eller att konsumenten
             // avbryter iterationen) — motsvarar resultPromise.whenComplete
             // i openShell().
-            self.beginChildOp()
+            do {
+                try self.beginChildOp()
+            } catch {
+                continuation.finish(throwing: error)
+                return
+            }
             continuation.onTermination = { _ in self.endChildOp() }
             guard let channel = self.channel else {
                 continuation.finish(throwing: SSHError.channelFailed("inte ansluten"))
@@ -310,7 +325,7 @@ public final class SSHSession {
         // createChannel-anropet var för sent, verifierat empiriskt: gav
         // "Cannot schedule tasks on an EventLoop that has already shut
         // down" följt av en hängning istället för en krasch).
-        beginChildOp()
+        try beginChildOp()
 
         var cont: AsyncThrowingStream<SSHChunk, Error>.Continuation!
         let stream = AsyncThrowingStream<SSHChunk, Error> { cont = $0 }
@@ -391,6 +406,13 @@ public final class SSHSession {
 
     public func close() async {
         signalFatal(SSHError.channelFailed("stängd"))
+        // Stänger inpasseringen ATOMÄRT (isClosed = true) innan dränering
+        // börjar — garanterar att inga nya operationer kan börja efter denna
+        // punkt, så att dräneringen faktiskt innebär "inga fler operationer
+        // kommer någonsin" (P0-fixen från cubic ultrareview).
+        drainLock.withLock {
+            isClosed = true
+        }
         // Väntar in eventuella pågående createChannel-anrop (openShell()s
         // childPromise) INNAN kanalen/event loop-gruppen rivs — den faktiska
         // fixen för CI-racet, se waitForChildOpsToDrain() ovan.
