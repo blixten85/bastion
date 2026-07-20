@@ -16,8 +16,17 @@ final class TailscaleDiscoveryModel: ObservableObject {
         case failed(String)
     }
     @Published var state: LoadState = .idle
+    // `fetch(...)` är actor-reentrant (flera `await`-punkter), och "Hämta"-
+    // knappen inaktiveras inte under `.loading` — ett andra tryck kan alltså
+    // starta en NY anslutning medan den första fortfarande väntar. Utan denna
+    // generationsräknare skulle en äldre, senare avslutad hämtning kunna
+    // skriva över `state` med sitt (inaktuella) resultat EFTER att en nyare
+    // redan slutfört och visat sitt (cubic P2 på PR #172).
+    private var generation = 0
 
-    func fetch(source: Source, password: String?) async {
+    func fetch(source: Source, password: String?, store: HostStore?) async {
+        generation += 1
+        let myGeneration = generation
         state = .loading
         do {
             let suggestions: [(hostName: String, address: String)]
@@ -43,18 +52,33 @@ final class TailscaleDiscoveryModel: ObservableObject {
                 return
                 #endif
             case .remote(let host):
-                guard let auth = resolveAuth(for: host, password: password) else {
-                    state = .failed("Kan inte autentisera värden.")
+                guard let plan = resolveConnectionPlan(for: host, password: password, store: store) else {
+                    state = .failed("Kan inte autentisera värden (eller dess jump-host, om en är vald).")
                     return
                 }
-                let session = SSHSession(target: host.target, auth: auth)
-                try await session.connect()
-                defer { Task { await session.close() } }
-                let status = try await TailscaleStatus.fetch(over: session)
+                let chain = try await SSHConnectionChain.connect(
+                    target: host.target, targetAuth: plan.auth, jump: plan.jump)
+                // `defer { Task { await chain.close() } }` hade schemalagt
+                // stängningen som en FRISTÅENDE task — den kunde då fortfarande
+                // köra medan ett nytt `fetch(...)`-anrop redan startat en ny
+                // kedja, med två anslutningar mot samma tailnet-peer öppna
+                // samtidigt (cubic P3 på PR #172). `Result` + explicit `await
+                // chain.close()` på BÅDA vägarna gör livstiden deterministisk
+                // — kedjan är garanterat stängd innan `fetch(...)` returnerar.
+                let statusResult: Result<TailscaleStatus, Error>
+                do {
+                    statusResult = .success(try await TailscaleStatus.fetch(over: chain.target))
+                } catch {
+                    statusResult = .failure(error)
+                }
+                await chain.close()
+                let status = try statusResult.get()
                 suggestions = status.suggestedHosts
             }
+            guard myGeneration == generation else { return }
             state = .loaded(suggestions)
         } catch {
+            guard myGeneration == generation else { return }
             state = .failed("\(error)")
         }
     }
@@ -67,6 +91,11 @@ final class TailscaleDiscoveryModel: ObservableObject {
 struct TailscaleDiscoveryView: View {
     @Environment(\.dismiss) private var dismiss
     let hosts: [Host]
+    /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
+    var store: HostStore? = nil
     let onAddHost: (_ alias: String, _ hostName: String) -> Void
 
     @StateObject private var model = TailscaleDiscoveryModel()
@@ -115,9 +144,9 @@ struct TailscaleDiscoveryView: View {
                     Button("Hämta") {
                         Task {
                             if useLocal {
-                                await model.fetch(source: .local, password: nil)
+                                await model.fetch(source: .local, password: nil, store: store)
                             } else if let selectedHost {
-                                await model.fetch(source: .remote(selectedHost), password: password.isEmpty ? nil : password)
+                                await model.fetch(source: .remote(selectedHost), password: password.isEmpty ? nil : password, store: store)
                             }
                         }
                     }

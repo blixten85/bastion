@@ -23,10 +23,16 @@ final class KeyDeployModel: ObservableObject {
     private let host: Host
     private let password: String?
     private let comment: String
+    /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
+    private let store: HostStore?
 
-    init(host: Host, password: String?) {
+    init(host: Host, password: String?, store: HostStore? = nil) {
         self.host = host
         self.password = password
+        self.store = store
         self.comment = "bastion-\(host.alias.isEmpty ? host.hostName : host.alias)"
     }
 
@@ -90,23 +96,23 @@ final class KeyDeployModel: ObservableObject {
         verified = false
         statusMessage = nil
         defer { busy = false }
-        guard let auth = resolveAuth(for: host, password: password) else {
-            statusMessage = "Kan inte autentisera värden."
+        guard let plan = resolveConnectionPlan(for: host, password: password, store: store) else {
+            statusMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
             return
         }
-        let session = SSHSession(target: host.target, auth: auth)
         do {
-            try await session.connect()
-            // Sessionen ska stängas oavsett om deployPublicKey lyckas eller
+            let chain = try await SSHConnectionChain.connect(
+                target: host.target, targetAuth: plan.auth, jump: plan.jump)
+            // Kedjan ska stängas oavsett om deployPublicKey lyckas eller
             // kastar — annars läcker en öppen SSH-anslutning vid fel.
             let deployResult: Result<Void, Error>
             do {
-                try await session.deployPublicKey(key.publicKeyLine, platform: host.platform)
+                try await chain.target.deployPublicKey(key.publicKeyLine, platform: host.platform)
                 deployResult = .success(())
             } catch {
                 deployResult = .failure(error)
             }
-            await session.close()
+            await chain.close()
             try deployResult.get()
             deployed = true
         } catch {
@@ -115,7 +121,7 @@ final class KeyDeployModel: ObservableObject {
         }
 
         let ok = await SSHSession.verifyKeyAuthWorks(
-            target: host.target, seed: key.seed, knownHosts: KnownHosts())
+            target: host.target, seed: key.seed, knownHosts: KnownHosts(), jump: plan.jump)
         // `generate()` kan inte köra medan `busy` är sant (se guarden ovan),
         // men kontrollen här är ändå den definitiva garantin: verifierings-
         // resultatet gäller bara om det fortfarande är SAMMA nyckel som
@@ -161,8 +167,8 @@ struct KeyDeployView: View {
     @State private var pastedKey = ""
     let onHostUpdated: (Host) -> Void
 
-    init(request: ConnectRequest, onHostUpdated: @escaping (Host) -> Void) {
-        _model = StateObject(wrappedValue: KeyDeployModel(host: request.host, password: request.password))
+    init(request: ConnectRequest, store: HostStore? = nil, onHostUpdated: @escaping (Host) -> Void) {
+        _model = StateObject(wrappedValue: KeyDeployModel(host: request.host, password: request.password, store: store))
         self.onHostUpdated = onHostUpdated
     }
 

@@ -40,8 +40,8 @@ struct SFTPBrowserView: View {
     @State private var activeFileAction: ActiveFileAction?
     @State private var isDropTargeted = false
 
-    init(request: ConnectRequest) {
-        _model = StateObject(wrappedValue: SFTPBrowserModel(request: request))
+    init(request: ConnectRequest, store: HostStore? = nil) {
+        _model = StateObject(wrappedValue: SFTPBrowserModel(request: request, store: store))
     }
 
     var body: some View {

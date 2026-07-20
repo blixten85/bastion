@@ -13,9 +13,17 @@ final class DashboardModel: ObservableObject {
     @Published var isRefreshing = false
     @Published var lastUpdated: Date?
     private let request: ConnectRequest
+    /// För att slå upp en ev. jump-host, se `resolveConnectionPlan`. `nil`
+    /// på anropsplatser utan delad store — bara en host UTAN jump-host
+    /// ansluter då direkt; en host MED jumpHostID nekas anslutning
+    /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
+    private let store: HostStore?
     private static let pollInterval: Duration = .seconds(15)
 
-    init(request: ConnectRequest) { self.request = request }
+    init(request: ConnectRequest, store: HostStore? = nil) {
+        self.request = request
+        self.store = store
+    }
 
     func load(isPoll: Bool = false) async {
         if isPoll, case .loaded = state {
@@ -23,20 +31,28 @@ final class DashboardModel: ObservableObject {
         } else {
             state = .loading
         }
-        guard let auth = resolveAuth(for: request.host, password: request.password) else {
-            state = .failed("Kan inte autentisera värden.")
+        guard let plan = resolveConnectionPlan(for: request.host, password: request.password, store: store) else {
+            state = .failed("Kan inte autentisera värden (eller dess jump-host, om en är vald).")
             isRefreshing = false
             return
         }
-        let session = SSHSession(target: request.host.target, auth: auth)
         do {
-            try await session.connect()
-            let snapshot = try await SystemProbe.snapshot(over: session)
-            await session.close()
+            let chain = try await SSHConnectionChain.connect(
+                target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
+            // Kedjan måste stängas här om snapshot() kastar också — annars
+            // läcker anslutningen tyst vid varje misslyckad hämtning
+            // (CodeRabbit-fynd, PR #172).
+            let snapshotResult: Result<SystemSnapshot, Error>
+            do {
+                snapshotResult = .success(try await SystemProbe.snapshot(over: chain.target))
+            } catch {
+                snapshotResult = .failure(error)
+            }
+            await chain.close()
+            let snapshot = try snapshotResult.get()
             state = .loaded(snapshot)
             lastUpdated = Date()
         } catch {
-            await session.close()
             // Ett övergående fel under periodisk uppdatering ska inte ersätta
             // redan visad data med en felskärm — bara den allra första hämtningen gör det.
             if !isPoll { state = .failed("\(error)") }
@@ -59,8 +75,8 @@ final class DashboardModel: ObservableObject {
 struct DashboardView: View {
     @StateObject private var model: DashboardModel
 
-    init(request: ConnectRequest) {
-        _model = StateObject(wrappedValue: DashboardModel(request: request))
+    init(request: ConnectRequest, store: HostStore? = nil) {
+        _model = StateObject(wrappedValue: DashboardModel(request: request, store: store))
     }
 
     var body: some View {

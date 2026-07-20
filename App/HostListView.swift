@@ -211,6 +211,7 @@ struct HostListView: View {
             }) {
                 TailscaleDiscoveryView(
                     hosts: model.hosts,
+                    store: model.store,
                     onAddHost: { alias, hostName in
                         pendingHostFromDiscovery = Host(alias: alias, hostName: hostName, user: "")
                     }

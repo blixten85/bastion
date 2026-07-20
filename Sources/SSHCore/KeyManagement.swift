@@ -155,18 +155,38 @@ extension SSHSession {
     }
 
     /// Öppnar en TYST, separat anslutning mot samma mål med den angivna
-    /// nyckeln och kontrollerar att autentiseringen faktiskt lyckas — utan
-    /// att köra något kommando eller lämna sessionen öppen. Används för att
-    /// bevisa att en nyss deployad nyckel verkligen fungerar INNAN ett
-    /// lösenord tas bort ur Bastions egen lagring för host-profilen.
-    public static func verifyKeyAuthWorks(target: SSHTarget, seed: Data, knownHosts: KnownHosts) async -> Bool {
-        let probe = SSHSession(target: target, auth: .ed25519Seed(seed), knownHosts: knownHosts)
+    /// nyckeln och kontrollerar att autentiseringen faktiskt lyckas. Används
+    /// för att bevisa att en nyss deployad nyckel verkligen fungerar INNAN
+    /// ett lösenord tas bort ur Bastions egen lagring för host-profilen.
+    /// `jump` speglar `SSHConnectionChain.connect(target:targetAuth:jump:)` —
+    /// target bakom en jump-host är annars overifierbar (probe:en skulle
+    /// försöka nå target direkt och alltid misslyckas).
+    ///
+    /// Kör ETT no-op-kommando innan den rapporterar lyckat resultat —
+    /// `SSHConnectionChain.connect` ENSAMT räcker INTE som bevis: en
+    /// target-auth-misslyckning genom en jump-host kan vara asynkron och
+    /// synas först vid första faktiska kanalanvändningen (dokumenterat av
+    /// `ProxyJumpTests.testConnectionChainClosesJumpWhenTargetAuthFails` —
+    /// samma repo, samma beteende). Utan detta hade en trasig nyckel kunnat
+    /// rapporteras som "verifierad" och låsa ute användaren när lösenordet
+    /// sedan tas bort (codex-fynd, PR #172).
+    public static func verifyKeyAuthWorks(
+        target: SSHTarget, seed: Data, knownHosts: KnownHosts,
+        jump: (target: SSHTarget, auth: SSHAuth)? = nil
+    ) async -> Bool {
         do {
-            try await probe.connect()
-            await probe.close()
-            return true
+            let chain = try await SSHConnectionChain.connect(
+                target: target, targetAuth: .ed25519Seed(seed), jump: jump, knownHosts: knownHosts)
+            do {
+                _ = try await chain.target.run("exit 0")
+                await chain.close()
+                guard !Task.isCancelled else { return false }
+                return true
+            } catch {
+                await chain.close()
+                return false
+            }
         } catch {
-            await probe.close()
             return false
         }
     }
