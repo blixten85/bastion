@@ -114,11 +114,11 @@ Sources: [App/HostListView.swift:230-250](App/HostListView.swift#L230-L250)
 ### Protocol Summary Table
 | Protocol | Component | Security | Use Case |
 | :--- | :--- | :--- | :--- |
-| **SSH** | `SSHSession` | Encrypted transport (AES); Ed25519 authentication | Primary secure remote access |
+| **SSH** | `SSHSession` | Transport encryption (AES); authentication/signing (Ed25519) | Primary secure remote access |
 | **SFTP** | `SFTPClient` | Encrypted (over SSH) | Secure file transfer and management |
 | **WireGuard** | `WireGuardConfig` | Encrypted (ChaCha20) | VPN tunnel configuration |
 | **Telnet** | `TelnetTarget` | Unencrypted | Legacy device management |
-| **S3** | `S3Client` | Request authentication (AWS SigV4); transport confidentiality (HTTPS/TLS) | Object storage interaction |
+| **S3** | `S3Client` | Request authentication/signing (AWS SigV4); transport confidentiality (HTTPS/TLS) | Object storage interaction |
 
 Sources: [README.md:90-120](README.md#L90-L120), [Sources/SSHCore/WireGuardConfig.swift](Sources/SSHCore/WireGuardConfig.swift), [App/HostListView.swift:180-200](App/HostListView.swift#L180-L200)
 
