@@ -1,7 +1,7 @@
 import XCTest
 @testable import SSHCore
 
-#if !os(iOS)
+#if !os(iOS) && !os(tvOS) && !os(watchOS)
 final class BitwardenClientTests: XCTestCase {
     /// Skriver ett riktigt, körbart `/bin/sh`-skript — samma mönster som
     /// `TailscaleStatusTests.makeScript`, en verklig kortlivad process

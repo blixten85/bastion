@@ -80,15 +80,16 @@ extension TailscaleStatus {
         return try parse(jsonData: Data(output.utf8))
     }
 
-    #if !os(iOS)
+    #if !os(iOS) && !os(tvOS) && !os(watchOS)
     /// Kör `tailscale status --json` LOKALT (Foundation `Process`) på
     /// maskinen appen själv exekverar på — samma idé som ssh-config-import
     /// läser en lokal fil, men källan här är Tailscales egen lokala daemon.
     /// Föreslår DENNA maskins tailnet-peers.
     ///
-    /// Finns INTE på iOS — `Foundation.Process` är otillgängligt där
-    /// (sandboxen tillåter inte att spawna godtyckliga subprocesser).
-    /// iOS-appen har bara `fetch(over:)` (SSH-remote) tillgängligt.
+    /// Finns INTE på iOS/tvOS/watchOS — `Foundation.Process` är
+    /// otillgängligt där (sandboxen tillåter inte att spawna godtyckliga
+    /// subprocesser på någon av de tre). iOS-appen har bara `fetch(over:)`
+    /// (SSH-remote) tillgängligt.
     ///
     /// `executableURL`/`arguments` är injicerbara (inte bara ett `binaryName`)
     /// så tester kan peka på ett riktigt, kortlivat skript istället för att
