@@ -11,113 +11,139 @@ The following files were used as context for generating this wiki page:
 - [VISION.md](VISION.md)
 - [README.md](README.md)
 - [SECURITY.md](SECURITY.md)
-- [AGENTS.md](AGENTS.md)
 - [CLAUDE.md](CLAUDE.md)
+- [AGENTS.md](AGENTS.md)
 - [Package.swift](Package.swift)
 
 </details>
 
 # Vision & Roadmap
 
-The Bastion project is an ambitious, multi-year initiative to develop the fastest, most aesthetically pleasing, and privacy-friendly SSH client for iPhone, iPad, macOS, Windows, and Linux. The project is committed to being 100% open source under the MIT license, with no advertising, mandatory logins, or subscriptions. It is positioned as a free alternative to Termius, prioritizing superior user experience (UX) and native performance across all supported platforms.
+The Bastion project is an ambitious initiative to create the fastest, most aesthetically pleasing, and privacy-friendly SSH client for iOS, macOS, Windows, and Linux. It is designed as a long-term platform rather than a single application, emphasizing 100% open-source availability (MIT license), no advertisements, no mandatory logins, and no subscriptions. All core features are intended to remain free, with potential revenue derived from voluntary cloud synchronization services.
 
-Sources: [VISION.md:1-12](VISION.md#L1-L12), [README.md:1-5](README.md#L1-L5), [CLAUDE.md:3-8](CLAUDE.md#L3-L8)
+The high-level architecture utilizes a shared core (`SSHCore`) built on SwiftNIO, ensuring that logic for SSH transport, authentication, and database management is consistent across all platforms. Only the UI layer is platform-specific, utilizing SwiftUI for Apple devices and SwiftCrossUI (GTK4/WinUI) for Linux and Windows.
 
-## Core Philosophy and Architecture
+Sources: [VISION.md:1-15](VISION.md#L1-L15), [README.md:1-10](README.md#L1-L10), [Package.swift:1-15](Package.swift#L1-L15)
 
-Bastion is designed as a platform rather than a single application. It utilizes a shared core written in Swift, leveraging the `SwiftNIO SSH` library to ensure consistent behavior across Apple and desktop platforms. The architecture separates business logic into a cross-platform core (`SSHCore`) while maintaining thin, platform-specific UI layers.
+## Core Architecture and Platform Strategy
 
-### Structural Components
+The project follows a "Core-First" philosophy. The `SSHCore` library contains the essential business logic, which is tested on Linux and verified for Apple platforms. This modularity allows for a unified experience regardless of the host operating system.
 
-| Component | Responsibility | Technical Stack |
+```mermaid
+graph TD
+    subgraph Core_Layer
+        SC[SSHCore]
+        SN[SwiftNIO SSH]
+        SC --> SN
+    end
+
+    subgraph UI_Layer
+        iOS[SwiftUI - iOS/iPadOS]
+        macOS[SwiftUI - macOS]
+        Linux[SwiftCrossUI/GTK4]
+        Windows[SwiftCrossUI/WinUI]
+    end
+
+    iOS --> SC
+    macOS --> SC
+    Linux --> SC
+    Windows --> SC
+```
+
+The diagram above illustrates the separation between the platform-agnostic `SSHCore` and the platform-specific UI implementations.
+
+Sources: [README.md:14-25](README.md#L14-L25), [VISION.md:27-35](VISION.md#L27-L35)
+
+### Platform Roadmap Phases
+The development is structured into sequential phases to manage resources effectively:
+
+| Phase | Platform | Status/Technology |
 | :--- | :--- | :--- |
-| **SSHCore** | SSH transport, authentication, sync engine, host database, and encryption. | Swift / SwiftNIO / swift-crypto |
-| **App/** | Native UI for iOS, iPadOS, and macOS. | SwiftUI / SwiftTerm |
-| **LinuxApp/** | Native UI for Linux environments. | SwiftCrossUI / GTK4 |
-| **WindowsApp/** | Native UI for Windows (in development). | SwiftCrossUI / WinUIBackend |
-| **Android/** | Separate port for Android devices. | Kotlin / Apache MINA SSHD |
+| **Phase 1** | iPhone, iPad | SwiftUI (`App/`) |
+| **Phase 2** | macOS | SwiftUI (Shared with iOS) |
+| **Phase 3** | Linux | SwiftCrossUI/GTK4 (`LinuxApp/`) |
+| **Phase 4** | Windows | SwiftCrossUI/WinUI (`WindowsApp/`) |
+| **Future** | Android | Kotlin/Apache MINA SSHD (Separate port) |
+| **Bonus** | tvOS | Dashboard/Docker view only |
 
-Sources: [VISION.md:27-33](VISION.md#L27-L33), [README.md:9-15](README.md#L9-L15), [CLAUDE.md:3-8](CLAUDE.md#L3-L8)
+Sources: [VISION.md:37-44](VISION.md#L37-L44), [VISION.md:155-185](VISION.md#L155-L185), [CLAUDE.md:1-15](CLAUDE.md#L1-L15)
 
-### System Data Flow
-The following diagram illustrates the relationship between the shared core and the platform-specific UI implementations.
+## Key Features and Functional Vision
 
-```mermaid
-flowchart TD
-    subgraph UI_Layers [UI Layers]
-        iOS[iOS/macOS SwiftUI]
-        Linux[Linux SwiftCrossUI]
-        Windows[Windows SwiftCrossUI]
-    end
+Bastion aims to surpass competitors like Termius by focusing on UX parity, speed, and advanced features like native Docker management and comprehensive SFTP support.
 
-    subgraph Core [Shared Core - SSHCore]
-        SSH[SSH/SFTP Transport]
-        Auth[SSH User Auth]
-        Sync[Sync Engine]
-        Crypto[AES-256-GCM Crypto]
-        Store[Host/Snippet Stores]
-    end
+### SSH and Terminal
+*  **Protocols:** Ed25519, ECDSA, RSA, OpenSSH Certificates, and Agent Forwarding.
+*  **Terminal:** Multi-tab, Split View, True Color support, and customizable iPhone keyboards with programmable keys (Ctrl, Esc, Tab, etc.).
+*  **Security:** Local encryption via AES-256-GCM. Keys never leave the device unencrypted. Integration with Face ID/Touch ID and Hardware-backed Secure Enclave where possible.
 
-    iOS --> Core
-    Linux --> Core
-    Windows --> Core
-    Core --> TargetServers[Remote Servers]
-```
+### Systems Management
+*  **Dashboard:** Agent-less monitoring of CPU, RAM, Disk, Docker, and system temperatures via SSH probes.
+*  **Docker:** Comprehensive container management including logs, restart/update actions, and shell access directly from the mobile client.
+*  **SFTP:** A full file manager supporting drag-and-drop, permissions management (`chmod`/`chown`), and built-in syntax-highlighted editing for YAML, JSON, and Python.
 
-The UI layers interact with `SSHCore` to perform operations, which in turn manages communication with remote servers and local encrypted storage. 
+Sources: [VISION.md:46-103](VISION.md#L46-L103), [README.md:33-50](README.md#L33-L50), [SECURITY.md:55-65](SECURITY.md#L55-L65)
 
-Sources: [VISION.md:27-33](VISION.md#L27-L33), [README.md:73-120](README.md#L73-L120), [Package.swift:27-37](Package.swift#L27-L37)
+## Synchronization and Security Logic
 
-## Feature Roadmap
-
-The development of Bastion is structured into progressive phases, moving from basic SSH functionality to advanced orchestration and plugin support.
-
-### Development Phases
-
-| Phase | Key Milestones |
-| :--- | :--- |
-| **v0.1** | Basic SSH, Key Management, Host List, Terminal, SFTP. |
-| **v0.5** | Tagging, Dashboard (System Probe), Snippets, Biometrics (Face ID), `~/.ssh/config` import. |
-| **v1.0** | Docker support, Built-in Editor, Multi-device Sync, Split View. |
-| **v2.0** | Plugin system (Proxmox, K8s), Tailscale/WireGuard integration, Git integration. |
-
-Sources: [VISION.md:109-130](VISION.md#L109-L130)
-
-### Key Technical Features
-*  **Encrypted Sync:** Host databases are merged deterministically using a `SyncEngine` with Last-Write-Wins logic and tombstones. Transport is E2E encrypted via AES-256-GCM.
-*  **Docker Management:** Direct management of containers, images, volumes, and logs on remote servers via SSH without requiring a local agent.
-*  **System Dashboard:** Real-time visualization of CPU, RAM, Disk, and Docker status retrieved via SSH probes.
-*  **Port Forwarding:** Support for Local (-L), Remote (-R), and Dynamic (-D) forwarding.
-
-Sources: [VISION.md:68-81](VISION.md#L68-L81), [README.md:21-30](README.md#L21-L30), [README.md:86-90](README.md#L86-L90)
-
-## Platform Strategy
-
-Bastion aims for broad cross-platform coverage while maintaining a "Native-First" approach for Apple devices.
+Bastion utilizes a "Sync without Login" model. The host database is merged deterministically between devices using a `SyncEngine` that employs last-write-wins logic and "gravestones" for deletions.
 
 ```mermaid
-flowchart TD
-    Start[Phase 1: iOS/iPadOS] --> Mac[Phase 2: macOS]
-    Mac --> Linux[Phase 3: Linux]
-    Linux --> Win[Phase 4: Windows]
-    Win --> Android[Phase 5: Android]
-    Win --> tvOS[Bonus: tvOS Dashboard]
+sequenceDiagram
+    participant App as "Bastion App"
+    participant SE as "SyncEngine"
+    participant Crypt as "SyncCrypto (AES-256-GCM)"
+    participant Cloud as "Cloud Storage (iCloud/Dropbox/Git)"
+
+    App->>SE: Trigger Sync
+    SE->>Crypt: Encrypt Host Database
+    Note over Crypt: Derived key via PBKDF2
+    Crypt-->>SE: Ciphertext
+    SE->>Cloud: Upload Encrypted File
+    Cloud-->>App: Sync Complete
 ```
 
-While `SSHCore` is shared between Apple, Linux, and Windows, the Android implementation is a separate Kotlin-based app due to the lack of a Swift toolchain for Android, utilizing Apache MINA SSHD as its backend.
+The sequence diagram shows the End-to-End Encryption (E2EE) flow where cloud providers only see encrypted blobs.
 
-Sources: [VISION.md:39-44](VISION.md#L39-L44), [VISION.md:154-180](VISION.md#L154-L180), [CLAUDE.md:3-8](CLAUDE.md#L3-L8)
+Sources: [README.md:27-40](README.md#L27-L40), [SECURITY.md:55-60](SECURITY.md#L55-L60)
 
-## Security and Integrity
+## Development Roadmap (Version Milestones)
 
-Bastion follows a strict security policy where private keys and passwords never leave the device unencrypted.
+The project tracks progress through specific version targets:
 
-*  **Local Encryption:** Keys and secrets are stored in the system Keychain (iOS/macOS) and never in plaintext on disk.
-*  **OAuth Security:** External integrations (Dropbox, Google Drive, OneDrive) utilize OAuth2 with PKCE, ensuring no client secrets are embedded in the code.
-*  **E2E Sync:** The `EncryptedFolderSyncProvider` ensures that even when using cloud storage for sync, the provider only sees ciphertext.
+### Version 0.1 (Current Focus)
+*  Basic SSH transport and key management.
+*  Host list implementation.
+*  Initial Terminal and SFTP capabilities.
 
-Sources: [SECURITY.md:55-66](SECURITY.md#L55-L66), [README.md:21-35](README.md#L21-L35), [AGENTS.md:12-14](AGENTS.md#L12-L14)
+### Version 0.5
+*  Host tagging and advanced grouping.
+*  System Dashboard.
+*  Snippet support and Face ID integration.
+*  Import functionality for `~/.ssh/config`.
 
-Bastion's roadmap emphasizes UX parity with premium competitors while maintaining a lightweight, plugin-extendable core. The ultimate goal is a completely standalone application that manages its own networking layer, including native WireGuard and Tailscale tunnels.
+### Version 1.0
+*  Full Docker support.
+*  Integrated code editor.
+*  Cross-platform synchronization.
+*  Multi-session support and Split View.
 
-Sources: [VISION.md:132-137](VISION.md#L132-L137), [VISION.md:210-216](VISION.md#L210-L216)
+### Version 2.0+
+*  **Plugin System:** Allowing extensions for Proxmox, Kubernetes, and TrueNAS.
+*  **Native Networking:** Built-in WireGuard and Tailscale support without external dependencies.
+*  **Broad Packaging:** `.deb` and `.rpm` packages for Linux distribution.
+
+Sources: [VISION.md:135-153](VISION.md#L135-L153), [VISION.md:188-210](VISION.md#L188-L210), [README.md:105-150](README.md#L105-L150)
+
+## Implementation Constraints
+
+The roadmap is governed by specific technical realities identified during development:
+*  **Swift Versioning:** Linux GUI development requires Swift-toolchain > 6.1.3 due to specific compiler bugs in older versions.
+*  **Android Divergence:** Unlike Apple/Linux/Windows targets, Android cannot use `SSHCore` (Swift) and must be a separate Kotlin implementation using Apache MINA SSHD.
+*  **Windows UI:** The Windows GUI is in a minimal state, serving as a pipeline proof-of-concept while waiting for upstream SwiftNIO fixes.
+
+Sources: [README.md:195-210](README.md#L195-L210), [CLAUDE.md:1-15](CLAUDE.md#L1-L15), [Package.swift:25-35](Package.swift#L25-L35)
+
+The Bastion vision prioritizes a core that a system administrator uses every day, ensuring it is faster and simpler than existing commercial alternatives, while allowing specialized growth through a modular plugin architecture.
+
+Sources: [VISION.md:212-220](VISION.md#L212-L220)

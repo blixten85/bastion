@@ -1,5 +1,5 @@
 ---
-title: "Security Policies"
+title: "Security Policies & Vulnerability Reporting"
 wiki_page_id: "security-policies"
 ---
 
@@ -11,125 +11,118 @@ The following files were used as context for generating this wiki page:
 - [SECURITY.md](SECURITY.md)
 - [VISION.md](VISION.md)
 - [README.md](README.md)
-- [AGENTS.md](AGENTS.md)
 - [GULDSTANDARD.md](GULDSTANDARD.md)
-- [App/project.yml](App/project.yml)
-- [LinuxApp/Sources/bastion-gui/KeyDeployView.swift](LinuxApp/Sources/bastion-gui/KeyDeployView.swift)
+- [AGENTS.md](AGENTS.md)
+- [App/BastionApp.swift](App/BastionApp.swift)
 </details>
 
-# Security Policies
+# Security Policies & Vulnerability Reporting
 
-## Introduction
-The Bastion project is an open-source SSH client designed with a core focus on privacy and security. The system architecture separates the core logic into `SSHCore`, which handles the sensitive SSH transport, authentication, and encryption tasks, while the platform-specific UI layers (iOS, macOS, Linux, Windows) interact with this core. The project adheres to a "standalone" philosophy where keys and sensitive credentials never leave the local device in an unencrypted state. 
+The Bastion project prioritizes security and privacy as core pillars of its architecture. As an open-source SSH client, the system is designed to handle sensitive credentials—including SSH keys, OAuth tokens, and passphrases—without ever exposing them unencrypted. The security policy defines a rigorous process for reporting vulnerabilities and establishes best practices for data handling to ensure that user secrets remain within the control of the local device or encrypted during synchronization.
 
-Security policies within Bastion cover vulnerability reporting, local data protection through hardware-backed storage (Keychain/Secure Enclave), and End-to-End Encryption (E2EE) for cloud-based synchronization. The scope of these policies includes the `SSHCore` library, mobile and desktop applications, and the automation workflows within the repository.
+The scope of these security measures covers the core SSH transport logic in `Sources/SSHCore`, the native applications for Apple, Linux, and Windows platforms, and the automated GitHub Actions workflows. Third-party dependencies, such as SwiftNIO and swift-crypto, are managed through automated tools like Dependabot to ensure timely updates.
 
-Sources: [SECURITY.md:32-40](SECURITY.md#L32-L40), [VISION.md:88-92](VISION.md#L88-L92), [README.md:1-12](README.md#L1-L12)
+Sources: [SECURITY.md:1-40](SECURITY.md#L1-L40), [VISION.md:110-115](VISION.md#L110-L115), [README.md:1-15](README.md#L1-L15)
 
-## Vulnerability Reporting and Scope
-Bastion maintains a private disclosure policy for security vulnerabilities. Discovered issues should not be reported through public GitHub issues but rather via private channels.
+## Vulnerability Reporting Process
 
-### Reporting Process
-*  **Email:** [dev@denied.se]
-*  **GitHub:** "Report a vulnerability" button under the Security tab.
+Bastion maintains a private reporting channel for security researchers and users to disclose potential flaws without exposing them to the public prematurely.
+
+### Disclosure Channels
+Vulnerabilities should be reported via:
+*  **Email:** Direct communication to [dev@denied.se].
+*  **GitHub Security Tab:** Utilizing the "Report a vulnerability" button on the repository.
+
+Sources: [SECURITY.md:5-15](SECURITY.md#L5-L15), [GULDSTANDARD.md:105-110](GULDSTANDARD.md#L105-L110)
+
+### Response Timeline
+The project adheres to a structured timeline for managing reported vulnerabilities to ensure timely fixes.
 
 | Stage | Timeframe |
 | :--- | :--- |
-| Initial acknowledgment | Within 48 hours |
+| Initial Acknowledgment | Within 48 hours |
 | Assessment | Within 5 business days |
-| Fix implementation | Based on severity |
-| Public disclosure | After fix is released |
+| Fix Implementation | Based on severity |
+| Public Disclosure | After the fix is released |
 
-Sources: [SECURITY.md:3-23](SECURITY.md#L3-L23)
+Sources: [SECURITY.md:17-25](SECURITY.md#L17-L25)
 
-### In-Scope Components
-The following components are subject to Bastion's security policy:
-*  `Sources/SSHCore`: Handles SSH transport, authentication, host database, and sync encryption.
-*  `App/`: iOS/macOS applications and OAuth account integrations.
-*  `LinuxApp/`: Linux GUI.
-*  GitHub Actions workflows and repository configurations.
+## Data Security & Encryption Architecture
 
-Third-party dependencies such as SwiftNIO, SwiftNIO SSH, and SwiftCrossUI are considered out of scope, and vulnerabilities should be reported to their respective projects.
+The system utilizes a multi-layered security approach to protect sensitive information, focusing on local storage safety and end-to-end (E2E) encryption for synchronization.
 
-Sources: [SECURITY.md:27-39](SECURITY.md#L27-L39)
+### Secure Storage (Keychain & Enclave)
+On Apple platforms, all secrets such as OAuth tokens and synchronization passphrases are stored in the system's **Keychain**. The project also aims to utilize hardware-backed **Secure Enclave** where possible. Secrets are never stored in plaintext on the disk and are excluded from version control via `.gitignore`.
 
-## Data Protection and Encryption
-Bastion implements several layers of security to ensure that SSH keys, passwords, and tokens are protected both at rest and in transit.
+Sources: [SECURITY.md:46-55](SECURITY.md#L46-L55), [VISION.md:110-115](VISION.md#L110-L115), [README.md:120-130](README.md#L120-L130)
 
-### Local Storage and Keychain
-Sensitive credentials, such as OAuth tokens and SSH private keys, are stored using system-level secure storage:
-*  **Apple Platforms:** Uses the system Keychain and hardware-backed Secure Enclave where possible.
-*  **Linux:** Currently, the Linux GUI does not use a Keychain and does not save passwords to disk.
-
-Sources: [SECURITY.md:46-51](SECURITY.md#L46-L51), [VISION.md:88-90](VISION.md#L88-L90), [LinuxApp/Sources/bastion-gui/KeyDeployView.swift:14-18](LinuxApp/Sources/bastion-gui/KeyDeployView.swift#L14-L18)
-
-### Sync Encryption (E2EE)
-When synchronizing host databases across devices, Bastion uses an `EncryptedFolderSyncProvider` to ensure the payload is unreadable to cloud providers (e.g., Dropbox, Google Drive, iCloud).
+### Sync Engine & E2E Encryption
+When host databases or settings are synchronized across devices, the data is encrypted before it leaves the device. The encryption uses **AES-256-GCM**, with keys derived from user-provided passphrases via **PBKDF2-HMAC-SHA256**. This ensures that cloud providers (such as Dropbox, Google Drive, or iCloud) only see ciphertext.
 
 ```mermaid
 flowchart TD
-    Data[Host Database] --> PBKDF2[PBKDF2-HMAC-SHA256]
-    Pass[User Passphrase] --> PBKDF2
-    PBKDF2 --> AES[AES-256-GCM Encryption]
-    AES --> EncryptedFile[Encrypted Payload]
-    EncryptedFile --> Cloud[Cloud Storage / Sync Folder]
-    
-    style EncryptedFile fill:#f96,stroke:#333,stroke-width:2px
+    A[Local Host Database] --> B{Sync Engine}
+    B --> C[SyncCrypto: PBKDF2]
+    C --> D[AES-256-GCM Encryption]
+    D --> E[Encrypted Payload]
+    E --> F[Cloud Provider/Folder]
+    F --> G[Remote Device]
+    G --> H[Decrypt with Passphrase]
 ```
 
-*The diagram shows the transformation of raw database data into an encrypted payload using AES-256-GCM before it is uploaded to cloud storage.*
+The diagram above illustrates the data flow where secrets are transformed into encrypted payloads before being transmitted to external storage providers.
+Sources: [README.md:25-45](README.md#L25-L45), [SECURITY.md:46-50](SECURITY.md#L46-L50)
 
-Sources: [README.md:33-40](README.md#L33-L40), [SECURITY.md:46-51](SECURITY.md#L46-L51)
+## Implementation Best Practices
 
-## Authentication Security
+The project enforces specific coding and configuration standards to prevent accidental credential leakage and ensure robust authentication.
 
-### OAuth with PKCE
-Bastion utilizes OAuth 2.0 with Proof Key for Code Exchange (PKCE) for third-party integrations (Dropbox, Google Drive, OneDrive). This approach ensures that the client app does not need to embed or carry secret client keys; only a public Client ID is stored in the source code.
+### OAuth and PKCE
+All OAuth2 integrations (Dropbox, Google, OneDrive) utilize **PKCE (Proof Key for Code Exchange)**. This architecture ensures that the client application does not need to store a client secret; only a public client ID is embedded in the source code (`App/OAuthProviders.swift`).
 
-Sources: [SECURITY.md:45-46](SECURITY.md#L45-L46), [README.md:58-62](README.md#L58-L62), [AGENTS.md:15](AGENTS.md#L15)
+Sources: [SECURITY.md:46-50](SECURITY.md#L46-L50), [README.md:55-65](README.md#L55-L65), [AGENTS.md:10-15](AGENTS.md#L10-L15)
 
-### SSH Key Deployment
-The application provides a secure workflow for generating and deploying SSH keys. It emphasizes Ed25519 keys and includes verification steps before modifying local host profiles.
+### Contributor Security Guidelines
+1.  **Secret Management:** Never commit secrets, tokens, or passphrases.
+2.  **Encryption Integrity:** Ensure keys/passwords never leave the device unencrypted.
+3.  **Dependency Auditing:** Utilize Dependabot for automated version updates and security alerts.
+4.  **Credential Exposure:** If a secret is accidentally exposed, it must be revoked immediately at the provider level, and the GitHub sensitive data removal guide must be followed.
+
+Sources: [SECURITY.md:41-65](SECURITY.md#L41-L65), [GULDSTANDARD.md:70-80](GULDSTANDARD.md#L70-L80), [AGENTS.md:15-25](AGENTS.md#L15-L25)
+
+## Privacy & Application Security Features
+
+Beyond data encryption, the application includes features to protect the user interface and monitor application health securely.
+
+### App Lock & Privacy Covers
+The application implements an `AppLockManager` to handle biometric authentication (Face ID/Touch ID). When the application becomes inactive or moves to the background, a `PrivacyCoverView` or `AppLockView` is triggered to obscure sensitive terminal data.
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant App as Bastion App
-    participant Server as Remote Server
-    
-    User->>App: Initiate Key Generation
-    App->>App: Generate Ed25519 Key pair
-    User->>App: Provide Server Password
-    App->>Server: SSH Connect (Password Auth)
-    App->>Server: Append Public Key to authorized_keys
-    App->>Server: Close Session
-    App->>Server: Verify Key Auth (New Key)
-    Server-->>App: Success
-    App-->>User: Offer to switch to Key-based Auth
+    participant OS as Operating System
+    participant App as BastionApp
+    participant Lock as AppLockManager
+    OS->>App: scenePhase changed to .inactive
+    App->>Lock: obscure()
+    OS->>App: scenePhase changed to .background
+    App->>Lock: lock()
+    App->>Lock: isUnlocked == false
+    Note right of App: Display AppLockView
 ```
 
-*The sequence illustrates the "Deploy and Verify" workflow which prevents accidental lockouts by verifying the new key before discarding password-based access.*
+The sequence diagram demonstrates how the application reacts to state changes to protect the UI from unauthorized viewing.
+Sources: [App/BastionApp.swift:53-73](App/BastionApp.swift#L53-L73), [VISION.md:110-115](VISION.md#L110-L115)
 
-Sources: [LinuxApp/Sources/bastion-gui/KeyDeployView.swift:65-125](LinuxApp/Sources/bastion-gui/KeyDeployView.swift#L65-L125), [README.md:128-132](README.md#L128-L132)
+### Privacy-Conscious Telemetry
+The project uses Sentry for crash reporting but explicitly disables session replays to protect user privacy. Terminal output, credentials, and host details are never captured in telemetry.
 
-## Repository and CI/CD Security
-Bastion adheres to a "Guldstandard" (Gold Standard) for repository configuration to minimize the risk of credential leakage and ensure code integrity.
+| Feature | Configuration | Reason |
+| :--- | :--- | :--- |
+| Session Replay | Disabled (0.0 sample rate) | Privacy: Prevent capture of SSH output/keys |
+| Traces Sample Rate | 0.1 | Performance monitoring |
+| Profile App Starts | Enabled (.manual lifecycle) | App startup optimization |
 
-### Commit and Push Protection
-*  **Secret Scanning:** GitHub secret scanning and push protection are enabled.
-*  **No Secrets in Code:** Contributors are strictly forbidden from committing client secrets, tokens, or passphrases.
-*  **Mandatory Sign-off:** Contributors must sign off on web-based commits.
-*  **Branch Rules:** The `main` branch is protected, requiring Pull Requests for changes.
-
-Sources: [GULDSTANDARD.md:40-52](GULDSTANDARD.md#L40-L52), [AGENTS.md:18-25](AGENTS.md#L18-L25)
-
-### Code Analysis and Tooling
-The repository uses automated tools to maintain security:
-*  **Dependabot:** Automatically monitors and updates third-party dependencies.
-*  **CodeQL:** Static analysis is enabled specifically for injection-sensitive areas like Docker command builders and SSH key parsers.
-*  **App Sandbox:** The macOS application target enables App Sandbox with restricted network client permissions.
-
-Sources: [SECURITY.md:52](SECURITY.md#L52), [GULDSTANDARD.md:76-80](GULDSTANDARD.md#L76-L80), [App/project.yml:158-161](App/project.yml#L158-L161)
+Sources: [App/BastionApp.swift:15-45](App/BastionApp.swift#L15-L45)
 
 ## Conclusion
-Bastion's security policy is rooted in the principle of local control. By leveraging platform-native secure storage, enforcing E2EE for synchronization, and utilizing modern authentication protocols like PKCE and Ed25519, the project provides a hardened environment for system administration. The rigid repository standards and automated security scanning further protect the integrity of the open-source codebase.
+The security policy of Bastion ensures a "local-first" privacy model where the user maintains total control over their SSH keys and credentials. By combining system-level secure storage with robust E2E encryption for synchronization, the project mitigates risks associated with cloud storage and multi-device usage. Strict adherence to PKCE for OAuth and automated dependency scanning further hardens the application against modern attack vectors.
