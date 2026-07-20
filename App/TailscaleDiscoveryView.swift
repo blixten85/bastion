@@ -139,6 +139,7 @@ struct TailscaleDiscoveryView: View {
                             }
                         }
                         SecureField("Lösenord (om värden kräver det)", text: $password)
+                            .autofillPassword()
                     }
 
                     Button("Hämta") {

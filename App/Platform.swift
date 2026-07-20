@@ -35,6 +35,32 @@ extension View {
         #endif
     }
 
+    /// Låter iOS Password AutoFill (inkl. tredjeparts-lösenordshanterare
+    /// som Bitwarden/1Password, om installerade och aktiverade som AutoFill-
+    /// leverantör i Inställningar) erbjuda ifyllnad för ett lösenordsfält —
+    /// se gap-listepost #7 i [[project-bastion-termius-parity-mandate]].
+    /// SSH är ingen webbadress, så det finns ingen domänkoppling som en
+    /// webbläsares AutoFill — förslaget blir generellt/manuellt valt av
+    /// användaren, inte automatiskt kopplat till just den här värden.
+    /// `textContentType` finns bara på iOS, ingen effekt på macOS.
+    @ViewBuilder func autofillPassword() -> some View {
+        #if os(iOS)
+        self.textContentType(.password)
+        #else
+        self
+        #endif
+    }
+
+    /// Samma resonemang som `autofillPassword()`, för användarnamnsfältet
+    /// bredvid — hjälper AutoFill matcha rätt par ur lösenordshanteraren.
+    @ViewBuilder func autofillUsername() -> some View {
+        #if os(iOS)
+        self.textContentType(.username)
+        #else
+        self
+        #endif
+    }
+
     /// Presentera fullskärm på iOS, som ark på macOS (som saknar fullScreenCover).
     @ViewBuilder func cover<Item: Identifiable, Content: View>(
         item: Binding<Item?>, @ViewBuilder content: @escaping (Item) -> Content
