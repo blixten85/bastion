@@ -11,13 +11,15 @@ import Foundation
 /// `TailscaleStatus.fetchLocal` (`Foundation.Process` otillgängligt på alla
 /// tre). iOS behöver native AutoFill/`ASCredentialProviderExtension`
 /// istället, ett separat, Xcode/device-only arbete som inte kan byggas
-/// eller verifieras här.
+/// eller verifieras här. Felenumet exkluderas här också — det finns bara
+/// för att beskriva fel `BitwardenClient` kan kasta, ingen anledning att
+/// vara publikt på plattformar där klienten själv inte existerar.
+#if !os(iOS) && !os(tvOS) && !os(watchOS)
 public enum BitwardenClientError: Error, Sendable, Equatable {
     case commandFailed(exitCode: Int32, stderr: String)
     case emptyPassword
 }
 
-#if !os(iOS) && !os(tvOS) && !os(watchOS)
 public enum BitwardenClient {
     /// `itemID` kan vara ett Bitwarden-item-id (UUID) eller ett unikt namn —
     /// `bw get password` accepterar båda. `session` skickas via miljövariabeln
