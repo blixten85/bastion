@@ -129,6 +129,12 @@ struct HostListView: View {
     @State private var showTelnetConnect = false
     @State private var pendingTelnetTarget: TelnetTarget?
     @State private var telnetTarget: TelnetTarget?
+    #if os(macOS)
+    // Seriell/USB — bara macOS, se filkommentaren i SerialConnectView.swift.
+    @State private var showSerialConnect = false
+    @State private var pendingSerialConfig: SerialConfig?
+    @State private var serialConfig: SerialConfig?
+    #endif
     @State private var searchText = ""
     @State private var wakeMessage: String?
 
@@ -174,6 +180,9 @@ struct HostListView: View {
                         Button { showTerminalTheme = true } label: { Label("Terminaltema", systemImage: "paintpalette") }
                         Button { showQuickConnect = true } label: { Label("Snabbanslutning", systemImage: "bolt.horizontal") }
                         Button { showTelnetConnect = true } label: { Label("Telnet", systemImage: "terminal") }
+                        #if os(macOS)
+                        Button { showSerialConnect = true } label: { Label("Seriell/USB", systemImage: "cable.connector") }
+                        #endif
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -252,12 +261,30 @@ struct HostListView: View {
                     pendingTelnetTarget = target
                 }
             }
+            #if os(macOS)
+            .sheet(isPresented: $showSerialConnect, onDismiss: {
+                // Samma mönster som Telnet ovan.
+                if let pending = pendingSerialConfig {
+                    pendingSerialConfig = nil
+                    serialConfig = pending
+                }
+            }) {
+                SerialConnectView { config in
+                    pendingSerialConfig = config
+                }
+            }
+            #endif
             .cover(isPresented: $showSessions) {
                 MultiSessionView(manager: sessionManager, store: model.store)
             }
             #if canImport(SwiftTerm) && (os(iOS) || os(macOS))
             .cover(item: $telnetTarget) { target in
                 TelnetSessionView(target: target)
+            }
+            #endif
+            #if canImport(SwiftTerm) && os(macOS)
+            .cover(item: $serialConfig) { config in
+                SerialSessionView(config: config)
             }
             #endif
             // Sista fliken stängd -> tillbaka till värdlistan automatiskt,
@@ -267,6 +294,7 @@ struct HostListView: View {
             }
             .alert("Lösenord", isPresented: .constant(passwordFor != nil)) {
                 SecureField("Lösenord", text: $passwordInput)
+                    .autofillPassword()
                 Button("Anslut") {
                     if let h = passwordFor {
                         sessionManager.open(

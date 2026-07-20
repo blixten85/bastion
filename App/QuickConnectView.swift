@@ -27,11 +27,12 @@ struct QuickConnectView: View {
                     TextField("Värd (t.ex. 10.0.0.5)", text: $hostName)
                         .noAutocap().autocorrectionDisabled()
                     TextField("Användare", text: $user)
-                        .noAutocap().autocorrectionDisabled()
+                        .noAutocap().autocorrectionDisabled().autofillUsername()
                     TextField("Port", text: $portText).numberPad()
                 }
                 Section("Autentisering") {
                     SecureField("Lösenord (tomt = agent/standardnyckel)", text: $password)
+                        .autofillPassword()
                 }
                 Section {
                     Text("Den här värden sparas INTE i din värdlista — perfekt för en "
