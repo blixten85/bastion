@@ -1,4 +1,4 @@
-name: Xcode-bygge (iOS + macOS)
+name: Xcode-bygge (iOS + macOS + tvOS)
 
 # Verifierar att App/ (iPhone/iPad/Mac) faktiskt kompilerar. Ingen signering
 # eller enhetsinstallation här — det kräver ett Apple Developer-konto, se
@@ -35,6 +35,16 @@ jobs:
       - name: Generera Xcode-projekt
         run: cd App && xcodegen generate
 
+      # MÅSTE köras FÖRE alla `xcodebuild build`-anrop, inte bara innan
+      # tvOS-schemat byggs — Xcodes nya byggsystem beräknar paketgrafen för
+      # ALLA targets i .xcodeproj:en (ComputePackagePrebuildTargetDependency-
+      # Graph) oavsett vilket scheme som faktiskt byggs, så en saknad tvOS-SDK
+      # bröt även iOS-bygget nedan ("Unable to resolve module dependency:
+      # 'Sentry'", PR #191 — tvOS-targeten fanns i projektet, men
+      # plattformen var inte nedladdad på runnern än).
+      - name: Ladda ner tvOS-simulatorplattform
+        run: xcodebuild -downloadPlatform tvOS
+
       - name: Bygg iOS (simulator, osignerat)
         run: |
           xcodebuild build \
@@ -49,6 +59,14 @@ jobs:
             -project App/Bastion.xcodeproj \
             -scheme Bastion-macOS \
             -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Bygg tvOS (simulator, osignerat)
+        run: |
+          xcodebuild build \
+            -project App/Bastion.xcodeproj \
+            -scheme Bastion-tvOS \
+            -destination 'generic/platform=tvOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
 
   swiftpm-macos:
