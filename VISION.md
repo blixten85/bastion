@@ -314,15 +314,6 @@ originalvisionen: "Inte kopiera Termius").
   nämner ProxyJump/Agent Forwarding).
 - **Tailscale-stöd** — koppla mot Tailscale-nätverk för värdar.
 - **WireGuard-profiler** — hantera WireGuard-konfigurationer i appen.
-- **Mosh-stöd** (tillägg, 2026-07-07, ägarfråga) — INTE påbörjat, inte
-  bara ett SSH-tillägg: Mosh startar visserligen en session över SSH,
-  men växlar sedan till ett HELT EGET protokoll (SSP, State
-  Synchronization Protocol) över UDP, med lokal predikering av
-  tangenttryckningar (döljer latens på dåliga/mobila nät — Mosh:s hela
-  poäng). Kräver en `mosh-server`-binär installerad OCH körande på
-  fjärrsystemet (Mosh startar den via den initiala SSH-anslutningen) och
-  en egen `mosh-client`-motsvarighet i Bastion — ett väsentligt större
-  scope än något annat nätverksprotokoll i den här listan.
 - **Telnet-stöd** (tillägg, 2026-07-07, ägarfråga) — INTE påbörjat.
   Enklare protokoll (RFC 854) men HELT SEPARAT från SSH — okrypterat,
   ingen nyckelhantering, egen förhandling (option negotiation). Skulle
