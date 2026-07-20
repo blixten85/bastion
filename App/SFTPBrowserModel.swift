@@ -32,24 +32,12 @@ final class SFTPBrowserModel: ObservableObject {
     /// ansluter då direkt; en host MED jumpHostID nekas anslutning
     /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     private let store: HostStore?
-    private var chain: SSHConnectionChain?
-    private var sftp: SFTPClient?
-    private var connectingTask: Task<SFTPClient?, Never>?
-    // `SSHConnectionChain.connect` har redan lyckats (target+ev. jump-kedjan
-    // är UPPE) medan `SFTPClient.open(on:)` fortfarande förhandlar
-    // subsystemet — `disconnect()` har annars INGET att stänga under tiden
-    // (self.chain sätts inte förrän open() returnerat), och `Task.cancel()`
-    // avbryter inte en pågående, icke-avbrytbar NIO-future i open() (samma
-    // begränsning som #183:s kärnproblem). Den här referensen ger
-    // `disconnect()` något att agera på REDAN under öppningsfönstret, i
-    // stället för att kedjan hänger öppen tills open() till slut ger sig
-    // (cubic P2 på PR #172).
-    private var connectingChain: SSHConnectionChain?
+    private let connector = ChainConnector<SFTPClient>(closeClient: { await $0.close() })
 
     /// Target-sessionen i den aktiva kedjan — samma anropskontrakt som
     /// tidigare (`ArchiveOperations` m.fl. kör alltid mot target, aldrig
     /// jump-hoppet).
-    private var session: SSHSession? { chain?.target }
+    private var session: SSHSession? { connector.target }
 
     init(request: ConnectRequest, store: HostStore? = nil) {
         self.request = request
@@ -67,91 +55,17 @@ final class SFTPBrowserModel: ObservableObject {
     }
 
     private func ensureClient() async -> SFTPClient? {
-        if let sftp { return sftp }
-        if let connectingTask { return await connectingTask.value }
-
-        let task = Task<SFTPClient?, Never> { [weak self] in
-            guard let self else { return nil }
-            guard let plan = resolveConnectionPlan(for: self.request.host, password: self.request.password, store: self.store) else {
-                self.errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
-                return nil
-            }
-            let c: SSHConnectionChain
-            do {
-                c = try await SSHConnectionChain.connect(
-                    target: self.request.host.target, targetAuth: plan.auth, jump: plan.jump)
-            } catch {
-                // SSHConnectionChain.connect städar redan sina egna fel innan
-                // den kastar, så inget extra att stänga här.
-                self.errorMessage = "\(error)"
-                return nil
-            }
-            // Kollas HÄR, INNAN `connectingChain` sätts: om `disconnect()`
-            // redan hann köra FÄRDIGT medan vi väntade på `connect()` ovan
-            // (den såg då `connectingChain == nil`, för vi hade inte satt den
-            // än), skulle den aldrig få en ny chans att stänga `c` — den körs
-            // inte igen. Genom att stänga `c` direkt här i stället för att
-            // publicera den, undviker vi det race:t (cubic P1 på PR #172).
-            guard !Task.isCancelled else {
-                await c.close()
-                return nil
-            }
-            // Synlig för disconnect() REDAN nu — se kommentaren vid fältet.
-            // Det här skyddar den ANDRA halvan: om disconnect() kör EFTER
-            // den här punkten men medan `SFTPClient.open` fortfarande väntar.
-            self.connectingChain = c
-            do {
-                let client = try await SFTPClient.open(on: c.target)
-                // "Claimar" kedjan (kollar OCH nollar `connectingChain` i
-                // samma MainActor-tur, ingen `await` emellan) innan den
-                // ev. stängs nedan — om disconnect() redan hunnit nolla
-                // fältet och stänga `c` själv, ska VI inte stänga den igen
-                // (sentry MEDIUM på PR #172: dubbelstängning av samma
-                // SSHConnectionChain, `group.shutdownGracefully()` två
-                // gånger på samma event loop-grupp är inte garanterat säkert).
-                let stillOwnedByUs = self.connectingChain != nil
-                self.connectingChain = nil
-                // disconnect() kan ha körts (vyn stängd) medan vi väntade på
-                // connect()/open — utan den här kollen skulle vi återuppliva
-                // self.chain/self.sftp EFTER att disconnect() redan städat,
-                // och den nya anslutningen skulle aldrig stängas (CodeRabbit-
-                // fynd, PR #48).
-                guard !Task.isCancelled else {
-                    await client.close()
-                    if stillOwnedByUs { await c.close() }
-                    return nil
+        await connector.ensure(
+            connect: { [request, store] in
+                guard let plan = resolveConnectionPlan(for: request.host, password: request.password, store: store) else {
+                    throw PlainMessageError(message: "Kan inte autentisera värden (eller dess jump-host, om en är vald).")
                 }
-                // self.sftp sätts HÄR, tillsammans med self.chain, inte av
-                // anroparen efter att task.value returnerat — annars finns
-                // ett fönster där disconnect() hinner köra (chain redan
-                // satt av oss, men sftp fortfarande nil ur anroparens
-                // perspektiv) mellan att tasken returnerar och anroparen
-                // skriver tillbaka sftp, vilket skulle skriva över
-                // disconnect()s städning med en redan stängd klient
-                // (CodeRabbit-fynd, PR #50).
-                self.chain = c
-                self.sftp = client
-                return client
-            } catch {
-                // Samma "claima innan stängning"-mönster som ovan — disconnect()
-                // kan redan ha nollat connectingChain och stängt c själv
-                // (sentry MEDIUM på PR #172).
-                let stillOwnedByUs = self.connectingChain != nil
-                self.connectingChain = nil
-                // Om connect() lyckades men SFTPClient.open(on:) kastade
-                // (t.ex. subsystemet avvisat) sattes self.chain aldrig —
-                // stäng den öppna anslutningen explicit, annars läcker den
-                // tyst vid varje misslyckat SFTP-öppningsförsök (CodeRabbit-
-                // fynd, PR #172).
-                if stillOwnedByUs { await c.close() }
-                self.errorMessage = "\(error)"
-                return nil
-            }
-        }
-        connectingTask = task
-        let result = await task.value
-        connectingTask = nil
-        return result
+                return try await SSHConnectionChain.connect(
+                    target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
+            },
+            open: { chain in try await SFTPClient.open(on: chain.target) },
+            onFailure: { [weak self] in self?.errorMessage = $0 }
+        )
     }
 
     func refresh() async {
@@ -398,27 +312,7 @@ final class SFTPBrowserModel: ObservableObject {
     }
 
     func disconnect() {
-        // Avbryter en ev. pågående anslutning — annars kan den hinna klart
-        // EFTER städningen nedan och skriva tillbaka ett levande session/
-        // sftp som aldrig stängs (CodeRabbit-fynd, PR #48).
-        connectingTask?.cancel()
-        let ch = chain
-        let c = sftp
-        // Stängs REDAN här, inte bara efter att `SFTPClient.open` råkar
-        // returnera — se kommentaren vid fältet: `Task.cancel()` avbryter
-        // inte en pågående subsystem-förhandling, så utan detta hänger
-        // target+jump-kedjan öppen tills open() till slut ger sig (cubic P2
-        // på PR #172). `ensureClient()` nollar `connectingChain` själv när
-        // den är klar, så den dubbelstängs inte i det vanliga fallet.
-        let connectingCh = connectingChain
-        connectingChain = nil
-        chain = nil
-        sftp = nil
-        Task {
-            await c?.close()
-            await ch?.close()
-            await connectingCh?.close()
-        }
+        connector.disconnect()
     }
 }
 #endif
