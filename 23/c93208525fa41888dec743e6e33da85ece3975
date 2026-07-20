@@ -1,0 +1,26 @@
+Sources/SSHCore/SSHSession.swift
+  s_57e3d8f9ebd074::t_b5c6b8f7888a2e 77-83,101-102,107-117,120-127,129,131-139,141
+  s_57e3d8f9ebd074::t_0b986f17286f3b 394-397
+  s_57e3d8f9ebd074::t_266d72faa3194a 62-76,84-100,103-106,118-119,128,130,140,142-145
+  s_57e3d8f9ebd074::t_2aa23db556bcce 251-260
+  s_57e3d8f9ebd074::t_35e8bffb6a6868 302-314
+  s_57e3d8f9ebd074::t_832286d5c82339 333-336
+Tests/SSHCoreTests/TerminalTeardownRaceTests.swift
+  s_57e3d8f9ebd074::t_f47b93f1cf64fb 228-271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "23c93208525fa41888dec743e6e33da85ece3975",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
