@@ -142,11 +142,12 @@ public final class SSHSession {
 
             Task {
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
-                let stillWaiting = drainLock.withLock {
-                    inFlightChildOps.withLockedValue({ $0 > 0 })
+                let remaining = drainLock.withLock {
+                    inFlightChildOps.withLockedValue { $0 }
                 }
-                if stillWaiting {
-                    assertionFailure("waitForChildOpsToDrain: timeout med \(inFlightChildOps.withLockedValue({ $0 })) kvarvarande ops — potentiell hängning")
+                if remaining > 0 {
+                    assertionFailure("waitForChildOpsToDrain: timeout med \(remaining) kvarvarande ops — potentiell hängning")
+                    return
                 }
                 resumeOnce()
             }
@@ -258,40 +259,29 @@ public final class SSHSession {
     /// Kastar `SSHError.remoteExit` om exitkoden är != 0.
     public func execute(_ command: String) -> AsyncThrowingStream<SSHChunk, Error> {
         AsyncThrowingStream { continuation in
-            // Samma skydd som openShell() (se beginChildOp()/
-            // waitForChildOpsToDrain()/close() ovan) — execute() hade INTE
-            // ens det gamla, ofullständiga #169-skyddet (ingen resolveOnce/
-            // isClosingOrClosed-koll alls), samma sårbarhetsklass men mer
-            // exponerad. `onTermination` fyrar EXAKT en gång oavsett hur
-            // strömmen avslutas (finish(), fel, eller att konsumenten
-            // avbryter iterationen) — motsvarar resultPromise.whenComplete
-            // i openShell().
             do {
                 try self.beginChildOp()
             } catch {
                 continuation.finish(throwing: error)
                 return
             }
-            continuation.onTermination = { _ in self.endChildOp() }
             guard let channel = self.channel else {
+                self.endChildOp()
                 continuation.finish(throwing: SSHError.channelFailed("inte ansluten"))
                 return
             }
-            // Om hela anslutningen stängs (t.ex. misslyckad autentisering sker
-            // asynkront efter TCP-connect) avslutas strömmen med fel i stället
-            // för att hänga. finish() är idempotent — en normalt avslutad ström
-            // påverkas inte när vi själva stänger senare.
             channel.closeFuture.whenComplete { _ in
                 continuation.finish(throwing: SSHError.channelFailed("anslutningen stängdes"))
             }
-            // Tyst handshake-fel (auth eller avvisad värdnyckel): avsluta med felet.
             self.fatal.futureResult.whenSuccess { continuation.finish(throwing: $0) }
             channel.pipeline.handler(type: NIOSSHHandler.self).whenComplete { result in
                 switch result {
                 case .failure(let e):
+                    self.endChildOp()
                     continuation.finish(throwing: SSHError.channelFailed(String(describing: e)))
                 case .success(let sshHandler):
                     let promise = channel.eventLoop.makePromise(of: Channel.self)
+                    promise.futureResult.whenComplete { _ in self.endChildOp() }
                     sshHandler.createChannel(promise, channelType: .session) { child, _ in
                         child.pipeline.addHandler(
                             ExecHandler(command: command, continuation: continuation))
