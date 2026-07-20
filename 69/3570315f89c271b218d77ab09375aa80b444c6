@@ -1,0 +1,34 @@
+Sources/SSHCore/SFTPClient.swift
+  s_57e3d8f9ebd074::t_4b765725f273ae 60-70,72-83
+Sources/SSHCore/SSHSession.swift
+  s_57e3d8f9ebd074::t_40e3f4ba3270c2 98-101
+  s_57e3d8f9ebd074::t_fbf0ddd43a1f87 115
+App/ChainConnector.swift
+  s_57e3d8f9ebd074::t_11cd4d5770ac5c 7
+  s_57e3d8f9ebd074::t_396b1c9f696fe9 91-98,101,103
+  s_57e3d8f9ebd074::t_314bdaee793d9c 33-41
+  s_57e3d8f9ebd074::t_a06feccaa2219e 70-80,84-85,90,99-100,102,104-115,117-142,144,147,151-161,163-165
+  s_57e3d8f9ebd074::t_77866197d89218 150
+App/DockerView.swift
+  s_57e3d8f9ebd074::t_f95b86ca719080 39
+App/PortForwardView.swift
+  s_57e3d8f9ebd074::t_68ee2718f820c5 63-71
+App/SFTPBrowserModel.swift
+  s_57e3d8f9ebd074::t_1a840e42c93d9e 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "693570315f89c271b218d77ab09375aa80b444c6",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
