@@ -163,18 +163,36 @@ public final class SSHSession {
                 let remaining = drainLock.withLock {
                     inFlightChildOps.withLockedValue { $0 }
                 }
+                guard remaining > 0 else {
+                    resumeOnce()
+                    return
+                }
+                // Inte längre den kända NIOSSH-host-key-rejection-buggen
+                // (den stänger redan kanalen omedelbart via signalFatal()) —
+                // men skydda ändå mot en GENUINT långsam createChannel-
+                // operation (t.ex. ett riktigt, förlustfyllt nätverk, till
+                // skillnad från loopback-testerna) genom att aktivt PRÖVA
+                // den bevisade åtgärden i stället för att bara ge upp:
+                // stänga kanalen igen (idempotent om redan stängd) — det
+                // är precis det som får NIOSSH att fela en föräldralös
+                // promise i stället för att aldrig röra den (se
+                // signalFatal()). En kort nådatid ger `endChildOp()` en
+                // chans att faktiskt köra innan vi (cubic P1 på PR #183:
+                // annars kringgår detta dräneringsinvarianten och kan
+                // riva event loop-gruppen med en promise fortfarande olöst).
+                channel?.close(promise: nil)
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                let stillRemaining = drainLock.withLock {
+                    inFlightChildOps.withLockedValue { $0 }
+                }
                 // `assertionFailure` no-opar i release-bygge — att returnera
                 // HÄR utan att köra `resumeOnce()` hade då hängt `close()`
-                // FÖR ALLTID i produktion om `remaining > 0` bara berodde på
-                // en ovanligt långsam (inte äkta läckt) op under
-                // maskinbelastning, i stället för att krascha som i debug.
-                // `resumeOnce()` körs därför OVILLKORLIGT — assertionen är
-                // bara ett debug-larm om invarianten (alla `beginChildOp()`
-                // ska matchas av exakt en `endChildOp()`, se `execute()`/
-                // `openShell()`) någonsin bryts, inte en spärr mot att
-                // fortsätta stänga sessionen.
-                if remaining > 0 {
-                    assertionFailure("waitForChildOpsToDrain: timeout med \(remaining) kvarvarande ops — potentiell hängning")
+                // FÖR ALLTID i produktion om den extra kanalstängningen ändå
+                // inte hjälpte, i stället för att krascha som i debug.
+                // `resumeOnce()` körs därför OVILLKORLIGT som sista utväg —
+                // assertionen är bara ett debug-larm, ingen spärr.
+                if stillRemaining > 0 {
+                    assertionFailure("waitForChildOpsToDrain: timeout med \(stillRemaining) kvarvarande ops efter aktiv kanalstängning — potentiell hängning")
                 }
                 resumeOnce()
             }
