@@ -32,13 +32,14 @@ final class BitwardenClientTests: XCTestCase {
         XCTAssertEqual(password, " a b ")
     }
 
-    func testFetchPasswordPassesSessionArgument() async throws {
-        // Ekar bara argumenten så testet kan verifiera att `--session` skickas.
-        let script = try makeScript("#!/bin/sh\necho \"$@\"\n")
+    func testFetchPasswordPassesSessionViaEnvironment() async throws {
+        // Ekar BW_SESSION-miljövariabeln så testet kan verifiera att sessionen
+        // skickas som miljö (INTE som argv `--session`, som läcker via `/proc/*/cmdline`).
+        let script = try makeScript("#!/bin/sh\necho \"$BW_SESSION\"\n")
         let password = try await withTimeout(seconds: 10) {
             try BitwardenClient.fetchPassword(itemID: "my-item", session: "tok123", executableURL: script, binaryName: "")
         }
-        XCTAssertEqual(password, "get password my-item --session tok123")
+        XCTAssertEqual(password, "tok123")
     }
 
     func testFetchPasswordThrowsOnNonZeroExit() async throws {

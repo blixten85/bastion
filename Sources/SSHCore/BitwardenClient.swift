@@ -19,7 +19,8 @@ public enum BitwardenClientError: Error, Sendable, Equatable {
 #if !os(iOS)
 public enum BitwardenClient {
     /// `itemID` kan vara ett Bitwarden-item-id (UUID) eller ett unikt namn —
-    /// `bw get password` accepterar båda. `session` skickas som `--session`
+    /// `bw get password` accepterar båda. `session` skickas via miljövariabeln
+    /// `BW_SESSION` (inte som argv `--session`, vilket läcker via `/proc/*/cmdline`)
     /// om satt, annars faller `bw` tillbaka på egen sessionscache/miljö.
     public static func fetchPassword(
         itemID: String,
@@ -29,10 +30,11 @@ public enum BitwardenClient {
     ) throws -> String {
         var arguments = binaryName.isEmpty ? [] : [binaryName]
         arguments += ["get", "password", itemID]
+        var environment: [String: String]? = nil
         if let session, !session.isEmpty {
-            arguments += ["--session", session]
+            environment = ["BW_SESSION": session]
         }
-        let result = try ProcessRunner.run(executableURL: executableURL, arguments: arguments)
+        let result = try ProcessRunner.run(executableURL: executableURL, arguments: arguments, environment: environment)
         guard result.exitCode == 0 else {
             throw BitwardenClientError.commandFailed(
                 exitCode: result.exitCode,

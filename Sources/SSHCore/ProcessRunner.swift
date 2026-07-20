@@ -16,10 +16,17 @@ enum ProcessRunner {
         let exitCode: Int32
     }
 
-    static func run(executableURL: URL, arguments: [String]) throws -> Result {
+    static func run(executableURL: URL, arguments: [String], environment: [String: String]? = nil) throws -> Result {
         let process = Process()
         process.executableURL = executableURL
         process.arguments = arguments
+        // Ärv nuvarande miljö och lägg till extra variabler om satta, istället
+        // för att ersätta hela miljön (vilket skulle bryta PATH/HOME/osv).
+        if let environment, !environment.isEmpty {
+            var env = ProcessInfo.processInfo.environment
+            env.merge(environment) { _, new in new }
+            process.environment = env
+        }
         let stdout = Pipe()
         let stderr = Pipe()
         process.standardOutput = stdout
