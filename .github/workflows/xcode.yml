@@ -42,8 +42,26 @@ jobs:
       # bröt även iOS-bygget nedan ("Unable to resolve module dependency:
       # 'Sentry'", PR #191 — tvOS-targeten fanns i projektet, men
       # plattformen var inte nedladdad på runnern än).
+      # `-downloadPlatform` misslyckas ibland transient på en färsk runner
+      # med "Unable to connect to simulator" (CoreSimulator-daemonen inte
+      # redo än) — hoppar över nedladdningen helt om tvOS-runtime redan
+      # finns förinstallerad (vanligt på GitHub-imagens macOS-runners),
+      # annars några återförsök med kort paus.
       - name: Ladda ner tvOS-simulatorplattform
-        run: xcodebuild -downloadPlatform tvOS
+        run: |
+          if xcrun simctl list runtimes 2>/dev/null | grep -q "tvOS"; then
+            echo "tvOS-runtime redan tillgänglig, hoppar över nedladdning."
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if xcodebuild -downloadPlatform tvOS; then
+              exit 0
+            fi
+            echo "Försök $attempt misslyckades, väntar innan omförsök..."
+            sleep 15
+          done
+          echo "Alla nedladdningsförsök misslyckades." >&2
+          exit 1
 
       - name: Bygg iOS (simulator, osignerat)
         run: |
