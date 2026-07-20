@@ -43,18 +43,7 @@ final class PortForwardModel: ObservableObject {
     /// ansluter då direkt; en host MED jumpHostID nekas anslutning
     /// (jump-hosten går inte att lösa upp utan store), se `resolveConnectionPlan`.
     private let store: HostStore?
-    private var chain: SSHConnectionChain?
-    // Cachar det pågående anslutningsförsöket så samtidiga anrop väntar in
-    // samma försök i stället för att skapa varsin kedja var, och så
-    // disconnect() kan avbryta det (samma mönster som DockerModel/
-    // SFTPBrowserModel, PR #172).
-    private var connectingTask: Task<SSHSession?, Never>?
-    // Samma skydd som `DockerModel.isTornDown`: `start()` startas från vyn
-    // som en fristående `Task { }`, inte `.task { }`, så den avbryts inte
-    // automatiskt av `.onDisappear`. Utan flaggan skulle `ensureSession()`
-    // kunna återuppliva en ny anslutning efter att `disconnect()` redan kört
-    // (cubic P2 på PR #172).
-    private var isTornDown = false
+    private let connector = ChainConnector<SSHSession>()
 
     init(request: ConnectRequest, store: HostStore? = nil) {
         self.request = request
@@ -62,76 +51,17 @@ final class PortForwardModel: ObservableObject {
     }
 
     private func ensureSession() async -> SSHSession? {
-        guard !isTornDown else { return nil }
-        if let chain { return chain.target }
-        if let connectingTask {
-            let result = await connectingTask.value
-            // `disconnect()` kan ha kört FÄRDIGT (nollat `chain`) medan vi
-            // väntade på en ANNAN anropares `connectingTask` här — utan den
-            // här omkontrollen skulle vi returnera en session som redan är
-            // (eller snart blir) stängd, i stället för att upptäcka teardownen
-            // (cubic P2 på PR #172, samma race som förklaras nedan för den
-            // task vi själva startar).
-            guard !isTornDown, let result, chain?.target === result else {
-                // Sätts bara om (1) vyn INTE lämnats — annars är den som
-                // skulle visa felet redan borta — OCH (2) tasken INTE redan
-                // satt ett SPECIFIKT felmeddelande i sitt eget catch-block
-                // (auth-fel, anslutningsfel) — annars skriver denna generiska
-                // fallback tyst över den faktiska, mer användbara orsaken
-                // (cubic P2 på PR #172). Utan fallback ALLS hade en snabb
-                // avbryt-och-försök-igen fortfarande failat tyst (sentry-fynd).
-                if !isTornDown && errorMessage == nil {
-                    errorMessage = "Anslutningen avbröts, försök igen."
+        await connector.ensure(
+            connect: { [request, store] in
+                guard let plan = resolveConnectionPlan(for: request.host, password: request.password, store: store) else {
+                    throw PlainMessageError(message: "Kan inte autentisera värden (eller dess jump-host, om en är vald).")
                 }
-                return nil
-            }
-            return result
-        }
-
-        let task = Task<SSHSession?, Never> { [weak self] in
-            guard let self else { return nil }
-            guard let plan = resolveConnectionPlan(for: self.request.host, password: self.request.password, store: self.store) else {
-                self.errorMessage = "Kan inte autentisera värden (eller dess jump-host, om en är vald)."
-                return nil
-            }
-            do {
-                let c = try await SSHConnectionChain.connect(
-                    target: self.request.host.target, targetAuth: plan.auth, jump: plan.jump)
-                // disconnect() kan ha körts (vyn stängd) medan vi väntade på
-                // connect() — utan den här kollen skulle vi återuppliva
-                // self.chain EFTER att disconnect() redan städat, och den nya
-                // anslutningen skulle aldrig stängas.
-                guard !Task.isCancelled else {
-                    await c.close()
-                    return nil
-                }
-                self.chain = c
-                return c.target
-            } catch {
-                self.errorMessage = "\(error)"
-                return nil
-            }
-        }
-        connectingTask = task
-        let result = await task.value
-        connectingTask = nil
-        // Se kommentaren ovan vid den delade `connectingTask`-vägen: `disconnect()`
-        // kan ha hunnit köra (och nolla `chain`) medan VI väntade på vår egen
-        // task, trots att tasken själv redan kollade `Task.isCancelled` innan
-        // den satte `self.chain` — ett fönster kvarstår mellan den kollen och
-        // att `await task.value` returnerar här. Utan omkontrollen skulle en
-        // uppringare som redan lämnat vyn ändå kunna få tillbaka en session
-        // och öppna en tunnel genom en kedja som är på väg att stängas
-        // (cubic P2 på PR #172, med föreslagen fix).
-        guard !isTornDown, let result, chain?.target === result else {
-            // Se kommentaren vid den delade vägen ovan: bara om vyn INTE
-            // lämnats OCH tasken inte redan satt ett specifikt fel (cubic P2).
-            if !isTornDown && errorMessage == nil {
-                errorMessage = "Anslutningen avbröts, försök igen."
-            }
-            return nil
-        }
-        return result
+                return try await SSHConnectionChain.connect(
+                    target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
+            },
+            open: { $0.target },
+            onError: { [weak self] in self?.errorMessage = $0 }
+        )
     }
 
     /// `targetHost`/`targetPort` ignoreras för `.dynamic` (SOCKS-klienten
@@ -170,16 +100,14 @@ final class PortForwardModel: ObservableObject {
     }
 
     func disconnect() {
-        isTornDown = true
-        connectingTask?.cancel()
-        let c = chain
-        chain = nil
         let forwards = active
         active = []
-        Task {
+        // Tunnlarna stängs FÖRE kedjan — de dirigerar trafik genom
+        // kedjans session, så den ska hållas vid liv tills varje tunnels
+        // egen stängning hunnit köra klart.
+        connector.disconnect(before: {
             for f in forwards { await f.close() }
-            await c?.close()
-        }
+        })
     }
 }
 
