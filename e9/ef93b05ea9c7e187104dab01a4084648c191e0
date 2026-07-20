@@ -1,0 +1,23 @@
+Tests/SSHCoreTests/BitwardenClientTests.swift
+  s_57e3d8f9ebd074::t_a5322196cde3af 4
+Sources/SSHCore/BitwardenClient.swift
+  s_57e3d8f9ebd074::t_efe05186b07844 14-17
+App/TVApp/TVDashboardView.swift
+  s_57e3d8f9ebd074::t_a3063664843880 5-12,22-49,57-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e9ef93b05ea9c7e187104dab01a4084648c191e0",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
