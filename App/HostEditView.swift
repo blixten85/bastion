@@ -14,6 +14,7 @@ struct HostEditView: View {
     @State private var certPath: String
     @State private var keyText: String
     @State private var showKeyImporter = false
+    @State private var bitwardenItemIDText: String
     /// Övriga sparade värdar, för jump-host-väljaren nedan. Utesluter alltid
     /// `draft.id` själv (kan inte vara sin egen jump-host) — djupare
     /// cykeldetektering (A→B→A) görs inte här, bara den mest uppenbara.
@@ -25,6 +26,7 @@ struct HostEditView: View {
         case password = "Fråga lösenord"
         case key = "Nyckelfil (sökväg)"
         case certificate = "OpenSSH-certifikat (nyckel + -cert.pub)"
+        case bitwarden = "Bitwarden (bw CLI, endast macOS)"
         case keychainImport = "Importera nyckel"
         var id: String { rawValue }
     }
@@ -69,6 +71,11 @@ struct HostEditView: View {
         _tagsText = State(initialValue: host.tags.joined(separator: ", "))
         self.allHosts = allHosts
         self.onSave = onSave
+        if case .bitwardenItem(let itemID) = host.auth {
+            _bitwardenItemIDText = State(initialValue: itemID)
+        } else {
+            _bitwardenItemIDText = State(initialValue: "")
+        }
         switch host.auth {
         case .agentDefault:
             _authKind = State(initialValue: .agent); _keyPath = State(initialValue: "")
@@ -82,6 +89,9 @@ struct HostEditView: View {
         case .certificateFile(let keyPath, let certPath):
             _authKind = State(initialValue: .certificate); _keyPath = State(initialValue: keyPath)
             _certPath = State(initialValue: certPath); _keyText = State(initialValue: "")
+        case .bitwardenItem:
+            _authKind = State(initialValue: .bitwarden); _keyPath = State(initialValue: "")
+            _certPath = State(initialValue: ""); _keyText = State(initialValue: "")
         case .keychainKey(let id):
             _authKind = State(initialValue: .keychainImport); _keyPath = State(initialValue: "")
             _certPath = State(initialValue: "")
@@ -116,6 +126,14 @@ struct HostEditView: View {
                             .noAutocap().autocorrectionDisabled()
                         TextField("Sökväg till certifikat (t.ex. nyckel-cert.pub)", text: $certPath)
                             .noAutocap().autocorrectionDisabled()
+                    }
+                    if authKind == .bitwarden {
+                        TextField("Bitwarden item-id eller namn", text: $bitwardenItemIDText)
+                            .noAutocap().autocorrectionDisabled()
+                        Text("Kräver `bw login` gjort sedan tidigare i Terminal (BW_SESSION i "
+                             + "miljön eller redan upplåst valv). Fungerar bara på macOS — iOS "
+                             + "saknar stöd för att köra lokala processer.")
+                            .font(.caption2).foregroundStyle(.secondary)
                     }
                     if authKind == .keychainImport {
                         Button {
@@ -212,6 +230,8 @@ struct HostEditView: View {
         case .certificate:
             return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
                 && !certPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .bitwarden:
+            return !bitwardenItemIDText.trimmingCharacters(in: .whitespaces).isEmpty
         case .agent, .password:
             return true
         }
@@ -264,6 +284,8 @@ struct HostEditView: View {
         case .password: host.auth = .askPassword
         case .key: host.auth = .keyFile(keyPath)
         case .certificate: host.auth = .certificateFile(keyPath: keyPath, certPath: certPath)
+        case .bitwarden:
+            host.auth = .bitwardenItem(bitwardenItemIDText.trimmingCharacters(in: .whitespaces))
         case .keychainImport:
             let id = Self.keychainID(for: host)
             Keychain.set(keyText, for: id)
