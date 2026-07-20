@@ -735,10 +735,10 @@ Inget nytt att bygga, bara verifiera/lansera:
   anslut+autentisera+kör-kommando+läs-utdata-runda, plus ett negativt
   test (fel lösenord avvisas). Ingen UI, ingen host-lagring, ingen
   nyckelbaserad auth eller jump host än — bara den minsta beviskärnan.
-- **Telnet-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
-  påbörjat. Helt separat från SSH (RFC 854, okrypterat, egen
-  option-negotiation) — en egen `TelnetSession`, inte en utökning av
-  `SSHSession`. En egen protokollimplementation från grunden.
+- **Telnet-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — ✅ klart.
+  Helt separat från SSH (RFC 854, okrypterat, egen option-negotiation) —
+  egen `TelnetSession`, inte en utökning av `SSHSession`. En egen
+  protokollimplementation från grunden.
 - **Paketering + BSD-täckning** (nytt, 2026-07-07, se VISION.md
   "Plattforms- och paketeringsmål, fullständigt") — inte påbörjat:
   `.deb`-paket (Debian/Ubuntu), `.rpm`-paket (RHEL/Fedora), FreeBSD-bygge
