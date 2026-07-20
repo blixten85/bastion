@@ -42,9 +42,9 @@ struct HostEditView: View {
     /// ("Trace/BPT trap") så fort `Process.run()` försöker starta en extern,
     /// osignerad binär som `bw` — inte bara en åtkomstbegränsning, utan ett
     /// omedelbart kraschande fel varje gång. Om värden REDAN har läget
-    /// (synkad från LinuxApp/Windows, där `bw` faktiskt fungerar eftersom de
-    /// inte är sandboxade) hålls det kvar i listan så Pickern kan visa det
-    /// som valt, i stället för att tyst nollställa det.
+    /// (synkad från LinuxApp, där `bw` faktiskt fungerar eftersom den inte
+    /// är sandboxad) hålls det kvar i listan så Pickern kan visa det som
+    /// valt, i stället för att tyst nollställa det.
     private var availableAuthKinds: [AuthKind] {
         var kinds = AuthKind.allCases.filter { $0 != .bitwarden }
         if authKind == .bitwarden { kinds.append(.bitwarden) }
@@ -63,18 +63,22 @@ struct HostEditView: View {
     /// omöjliga också — en kandidat utan egen jump-host kan per definition
     /// inte peka tillbaka på något.
     ///
-    /// `.bitwardenItem`-värdar (t.ex. synkade från LinuxApp/Windows, där
-    /// `bw` faktiskt fungerar) utesluts också, på BÅDA App/-plattformarna —
-    /// se `availableAuthKinds` ovan om varför varken iOS eller det
-    /// sandboxade macOS-målet kan köra `bw` via `BitwardenClient`.
-    /// `resolveAuth` skulle alltid returnera `nil` för en sådan jump-host —
-    /// utan detta filter skulle valet vara möjligt men alltid misslyckas
-    /// med ett generiskt anslutningsfel.
+    /// `.bitwardenItem`-värdar (t.ex. synkade från LinuxApp, där `bw`
+    /// faktiskt fungerar) utesluts också för NYA val, på BÅDA
+    /// App/-plattformarna — se `availableAuthKinds` ovan om varför varken
+    /// iOS eller det sandboxade macOS-målet kan köra `bw` via
+    /// `BitwardenClient`. `resolveAuth` skulle alltid returnera `nil` för en
+    /// sådan jump-host — utan detta filter skulle valet vara möjligt men
+    /// alltid misslyckas med ett generiskt anslutningsfel. Precis som
+    /// `availableAuthKinds` ovan hålls dock draftens REDAN valda jump-host
+    /// kvar även om den är en bitwardenItem-värd (cubic-fynd på PR #185) —
+    /// annars visar Pickern ett tomt val trots att `save()` faktiskt
+    /// behåller den, tills användaren aktivt byter jump-host.
     private var jumpCandidates: [Host] {
         allHosts.filter { candidate in
             guard candidate.id != draft.id else { return false }
             if case .askPassword = candidate.auth { return false }
-            if case .bitwardenItem = candidate.auth { return false }
+            if case .bitwardenItem = candidate.auth, candidate.id != draft.jumpHostID { return false }
             return candidate.jumpHostID == nil
         }
     }
@@ -149,8 +153,8 @@ struct HostEditView: View {
                         // `availableAuthKinds`) — anslutning skulle deterministiskt
                         // misslyckas för varje värd som väljer det läget här.
                         // Redan sparade `.bitwardenItem`-värdar (synkade från
-                        // LinuxApp/Windows, där `bw` faktiskt fungerar) förblir
-                        // dock läsbara/oförändrade — bara VALET döljs.
+                        // LinuxApp, där `bw` faktiskt fungerar) förblir dock
+                        // läsbara/oförändrade — bara VALET döljs.
                         ForEach(availableAuthKinds) { Text($0.rawValue).tag($0) }
                     }
                     if authKind == .key {
@@ -167,7 +171,7 @@ struct HostEditView: View {
                         TextField("Bitwarden item-id eller namn", text: $bitwardenItemIDText)
                             .noAutocap().autocorrectionDisabled()
                         Text("Detta värde är synkat från en enhet där Bitwarden CLI faktiskt fungerar "
-                             + "(LinuxApp/Windows). Varken iOS eller det sandboxade macOS-bygget kan "
+                             + "(LinuxApp). Varken iOS eller det sandboxade macOS-bygget kan "
                              + "köra `bw` här — anslutningen kommer att misslyckas på DEN HÄR enheten. "
                              + "Ändra auth-metod om du vill ansluta från en Apple-enhet.")
                             .font(.caption2).foregroundStyle(.secondary)

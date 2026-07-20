@@ -18,22 +18,22 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
         return try? OpenSSHPrivateKey.parse(pem)
     case .certificateFile(let keyPath, let certPath):
         return try? OpenSSHPrivateKey.loadCertificate(keyPath: keyPath, certPath: certPath)
-    case .bitwardenItem(let itemID):
-        #if !os(iOS)
-        do {
-            return .password(try BitwardenClient.fetchPassword(itemID: itemID))
-        } catch {
-            // Loggas (inte bara tystad via `try?`) så orsaken (saknad `bw`,
-            // utgången BW_SESSION, fel item-id) syns i stället för ett
-            // generiskt anslutningsfel — cubic-fynd på PR #185.
-            FileHandle.standardError.write(Data("Bitwarden-hämtning för \"\(itemID)\" misslyckades: \(error)\n".utf8))
-            return nil
-        }
-        #else
-        // iOS saknar `Foundation.Process` — kräver native AutoFill/
-        // `ASCredentialProviderExtension` istället, inte byggt här.
+    case .bitwardenItem:
+        // BÅDA App/-plattformarna saknar en säker väg att köra `bw` här:
+        // iOS har inget `Foundation.Process` alls, och macOS-målets App
+        // Sandbox (`com.apple.security.app-sandbox: true`, se
+        // `App/project.yml`) dödar processen med ett okatchbart SIGTRAP så
+        // fort `Process.run()` försöker starta en extern, osignerad binär
+        // som `bw` — empiriskt verifierat på riktig macOS-hårdvara
+        // (2026-07-20). `#if !os(iOS)` här hade fortsatt låtit detta nås på
+        // macOS för en värd synkad från LinuxApp, där `bw` faktiskt fungerar
+        // (sentry CRITICAL +
+        // cubic P1 på PR #185: UI-filtret i HostEditView hindrar bara NYA
+        // val, inte redan synkade värdar som väljs för ANSLUTNING). Kraschen
+        // är inte en Swift-error ett `do/catch` kan fånga, så det enda
+        // korrekta är att aldrig försöka — strukturellt omöjligt, inte bara
+        // UI-dolt.
         return nil
-        #endif
     }
 }
 #endif
