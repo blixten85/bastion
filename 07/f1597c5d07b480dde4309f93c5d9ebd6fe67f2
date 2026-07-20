@@ -1,0 +1,24 @@
+App/HostEditView.swift
+  s_57e3d8f9ebd074::t_aa1c523e599fc2 17
+  s_57e3d8f9ebd074::t_23daef25936b44 233-234
+  s_57e3d8f9ebd074::t_0da39b91b21ab3 29
+  s_57e3d8f9ebd074::t_9577181d5b3f65 74-78,92-94
+  s_57e3d8f9ebd074::t_fd160f8eba5aef 130-137
+  s_57e3d8f9ebd074::t_a61411741aa077 287-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "07f1597c5d07b480dde4309f93c5d9ebd6fe67f2",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
