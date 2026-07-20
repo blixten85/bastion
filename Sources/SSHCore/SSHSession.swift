@@ -45,7 +45,25 @@ public final class SSHSession {
             fatalResolved = true
             return true
         }
-        if firstToResolve { fatal.succeed(error) }
+        guard firstToResolve else { return }
+        fatal.succeed(error)
+        // NIOSSH stänger INTE kanalen självt vid ett avvisat auth-/värdnyckel-
+        // handslag (se `TOFUHostKeyValidator`s kommentar) — SSH-handskakningen
+        // abortas internt, men den råa TCP-kanalen förblir öppen och
+        // `channel.closeFuture` triggas ALDRIG. Ett `createChannel(...)`-anrop
+        // (execute()/openShell()) som redan hunnit starta MOT den kanalen får
+        // därför sitt promise föräldralöst för alltid — NIOSSHs multiplexer
+        // svarar aldrig, varken lyckat eller misslyckat, eftersom den aldrig
+        // nådde "auktoriserad"-läget. Utan att stänga kanalen HÄR hänger
+        // `waitForChildOpsToDrain()` (och därmed `close()`) i sin 15s-timeout
+        // varje gång — bevisat 100 % reproducerbart på riktig macOS-hårdvara
+        // 2026-07-20 via ett fristående repro-program (KnownHostsTests.
+        // testChangedHostKeyRejected). Att stänga kanalen här får NIOSSHs
+        // egen kanalstädning att köra, vilket i sin tur får den föräldralösa
+        // createChannel-promisen att faktiskt misslyckas (via dess egen
+        // closeFuture-koppling i NIOSSHHandler) i stället för att aldrig
+        // röras.
+        channel?.close(promise: nil)
     }
 
     // close() anropar signalFatal(...) synkront som sitt FÖRSTA steg, innan
@@ -58,6 +76,128 @@ public final class SSHSession {
     // processen med NIOs "leaking promise"-fatal error istället för att kasta
     // ett vanligt Swift-fel (reproducerat i TerminalTeardownRaceTests).
     private var isClosingOrClosed: Bool { fatalLock.withLock { fatalResolved } }
+
+    // Den KVARVARANDE racet efter a413e25 (#169): den fixen skyddar bara
+    // SJÄLVA pipeline-uppslagningen (channel.pipeline.handler(type:).whenComplete)
+    // mot close() — men INTE fönstret DÄREFTER, mellan att sshHandler.
+    // createChannel(childPromise, ...) anropas och att childPromise faktiskt
+    // löses (kräver en fram-och-tillbaka SSH-kanalöppning, inte omedelbar).
+    // Om close() kör channel.close() + group.shutdownGracefully() medan
+    // childPromise fortfarande är olöst på den event loop-gruppen kraschar
+    // NIOs läckagedetektor ("leaking promise") — reproducerat på macOS-CI.
+    // Löst genom att close() STÄNGER INPASSERINGEN (isClosed) ATOMÄRT innan
+    // den dränerar räknaren, och att beginChildOp() kastar om sessionen
+    // redan är stängd — garanterar att inga nya operationer kan börja efter
+    // att close() börjat dränera, så att dränering faktiskt innebär "inga
+    // fler operationer kommer någonsin".
+    private let inFlightChildOps = NIOLockedValueBox<Int>(0)
+    private let drainLock = NIOLock()
+    private var isClosed = false
+    private var onDrainedCallbacks: [() -> Void] = []
+
+    private func beginChildOp() throws {
+        try drainLock.withLock {
+            guard !isClosed else {
+                throw SSHError.channelFailed("stängd")
+            }
+            inFlightChildOps.withLockedValue { $0 += 1 }
+        }
+    }
+
+    /// Anropas när ETT specifikt childPromise-resultat (oavsett lyckat/
+    /// misslyckat) blivit klart — ren observation via `.whenComplete`,
+    /// rör ALDRIG promisens eget resultat (det gör bara NIOSSH:s interna
+    /// createChannel-logik, för att undvika en "dubbelt fullbordad
+    /// promise"-krasch av samma familj som det vi fixar här).
+    private func endChildOp() {
+        let remaining: Int = inFlightChildOps.withLockedValue { count in
+            count -= 1
+            return count
+        }
+        guard remaining == 0 else { return }
+        let callbacks = drainLock.withLock {
+            let result = onDrainedCallbacks
+            onDrainedCallbacks = []
+            return result
+        }
+        for callback in callbacks {
+            callback()
+        }
+    }
+
+    /// Väntar tills `inFlightChildOps` når noll. Använder OSTRUKTURERADE
+    /// `Task`er (inte en `TaskGroup`) för timeouten — en TaskGroup väntar
+    /// in ALLA barn-tasks innan den returnerar även efter `cancelAll()` om
+    /// en av dem hänger i en `withCheckedContinuation` som aldrig resumeras
+    /// av cancellation (samma TaskGroup-fallgrop som dokumenterats i
+    /// Tests/SSHCoreTests/TerminalTeardownRaceTests.swift i `withTimeout`).
+    /// Timeout (15s) som sista utväg om ett childPromise aldrig löses (t.ex.
+    /// nätverksavbrott utan NIOSSH-timeout) — men teardown tillåts ENDAST om
+    /// räknaren faktiskt når noll, även efter timeouten, för att bevara
+    /// säkerhetsinvarianten.
+    private func waitForChildOpsToDrain() async {
+        if drainLock.withLock({ isClosed && inFlightChildOps.withLockedValue({ $0 == 0 }) }) {
+            return
+        }
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            var didResume = false
+            let resumeLock = NIOLock()
+            func resumeOnce() {
+                let shouldRun: Bool = resumeLock.withLock {
+                    if didResume { return false }
+                    didResume = true
+                    return true
+                }
+                if shouldRun { cont.resume() }
+            }
+
+            let alreadyDrained: Bool = drainLock.withLock {
+                if inFlightChildOps.withLockedValue({ $0 == 0 }) { return true }
+                onDrainedCallbacks.append(resumeOnce)
+                return false
+            }
+            if alreadyDrained { resumeOnce(); return }
+
+            Task {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                let remaining = drainLock.withLock {
+                    inFlightChildOps.withLockedValue { $0 }
+                }
+                guard remaining > 0 else {
+                    resumeOnce()
+                    return
+                }
+                // Inte längre den kända NIOSSH-host-key-rejection-buggen
+                // (den stänger redan kanalen omedelbart via signalFatal()) —
+                // men skydda ändå mot en GENUINT långsam createChannel-
+                // operation (t.ex. ett riktigt, förlustfyllt nätverk, till
+                // skillnad från loopback-testerna) genom att aktivt PRÖVA
+                // den bevisade åtgärden i stället för att bara ge upp:
+                // stänga kanalen igen (idempotent om redan stängd) — det
+                // är precis det som får NIOSSH att fela en föräldralös
+                // promise i stället för att aldrig röra den (se
+                // signalFatal()). En kort nådatid ger `endChildOp()` en
+                // chans att faktiskt köra innan vi (cubic P1 på PR #183:
+                // annars kringgår detta dräneringsinvarianten och kan
+                // riva event loop-gruppen med en promise fortfarande olöst).
+                channel?.close(promise: nil)
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                let stillRemaining = drainLock.withLock {
+                    inFlightChildOps.withLockedValue { $0 }
+                }
+                // `assertionFailure` no-opar i release-bygge — att returnera
+                // HÄR utan att köra `resumeOnce()` hade då hängt `close()`
+                // FÖR ALLTID i produktion om den extra kanalstängningen ändå
+                // inte hjälpte, i stället för att krascha som i debug.
+                // `resumeOnce()` körs därför OVILLKORLIGT som sista utväg —
+                // assertionen är bara ett debug-larm, ingen spärr.
+                if stillRemaining > 0 {
+                    assertionFailure("waitForChildOpsToDrain: timeout med \(stillRemaining) kvarvarande ops efter aktiv kanalstängning — potentiell hängning")
+                }
+                resumeOnce()
+            }
+        }
+    }
 
     /// Öppnar TCP + SSH-handshake + autentisering.
     public func connect() async throws {
@@ -164,31 +304,74 @@ public final class SSHSession {
     /// Kastar `SSHError.remoteExit` om exitkoden är != 0.
     public func execute(_ command: String) -> AsyncThrowingStream<SSHChunk, Error> {
         AsyncThrowingStream { continuation in
+            do {
+                try self.beginChildOp()
+            } catch {
+                continuation.finish(throwing: error)
+                return
+            }
             guard let channel = self.channel else {
+                self.endChildOp()
                 continuation.finish(throwing: SSHError.channelFailed("inte ansluten"))
                 return
             }
-            // Om hela anslutningen stängs (t.ex. misslyckad autentisering sker
-            // asynkront efter TCP-connect) avslutas strömmen med fel i stället
-            // för att hänga. finish() är idempotent — en normalt avslutad ström
-            // påverkas inte när vi själva stänger senare.
-            channel.closeFuture.whenComplete { _ in
-                continuation.finish(throwing: SSHError.channelFailed("anslutningen stängdes"))
+
+            // Samma "vinnaren avgör"-mönster som openShell() (se
+            // resolveOnce där) — en gemensam, lås-skyddad flagga garanterar
+            // att createChannel() för exec-kanalen ALDRIG anropas om
+            // anslutningen redan dött (fatal/closeFuture vann racet) INNAN
+            // pipeline-uppslagningen hann svara. Utan detta kunde en tyst
+            // handskakningsdöd (t.ex. en avvisad värdnyckel, som gör att
+            // NIOSSH aldrig etablerar någon multiplexer) ändå låta
+            // pipeline-uppslagningen lyckas och anropa createChannel() i
+            // alla fall — den promisen löses då ALDRIG (ingen fungerande
+            // mux att öppna en kanal genom), och endChildOp() (bunden till
+            // just den promisen) skulle aldrig köra. Det hänger close() i
+            // 15s tills timeout-assertionen kraschar — bevisat 100 %
+            // reproducerbart på riktig macOS-hårdvara 2026-07-20 via
+            // KnownHostsTests.testChangedHostKeyRejected (samma
+            // sårbarhetsklass som en cubic-autofix på PR #183 råkade
+            // återinföra genom att flytta endChildOp() till just den
+            // opskyddade promisen).
+            let resolveLock = NIOLock()
+            var resolved = false
+            func resolveOnce(_ body: () -> Void) {
+                let shouldRun: Bool = resolveLock.withLock {
+                    if resolved { return false }
+                    resolved = true
+                    return true
+                }
+                if shouldRun { body() }
             }
-            // Tyst handshake-fel (auth eller avvisad värdnyckel): avsluta med felet.
-            self.fatal.futureResult.whenSuccess { continuation.finish(throwing: $0) }
+
+            channel.closeFuture.whenComplete { _ in
+                resolveOnce {
+                    self.endChildOp()
+                    continuation.finish(throwing: SSHError.channelFailed("anslutningen stängdes"))
+                }
+            }
+            self.fatal.futureResult.whenSuccess { error in
+                resolveOnce {
+                    self.endChildOp()
+                    continuation.finish(throwing: error)
+                }
+            }
             channel.pipeline.handler(type: NIOSSHHandler.self).whenComplete { result in
-                switch result {
-                case .failure(let e):
-                    continuation.finish(throwing: SSHError.channelFailed(String(describing: e)))
-                case .success(let sshHandler):
-                    let promise = channel.eventLoop.makePromise(of: Channel.self)
-                    sshHandler.createChannel(promise, channelType: .session) { child, _ in
-                        child.pipeline.addHandler(
-                            ExecHandler(command: command, continuation: continuation))
-                    }
-                    promise.futureResult.whenFailure { e in
+                resolveOnce {
+                    switch result {
+                    case .failure(let e):
+                        self.endChildOp()
                         continuation.finish(throwing: SSHError.channelFailed(String(describing: e)))
+                    case .success(let sshHandler):
+                        let promise = channel.eventLoop.makePromise(of: Channel.self)
+                        promise.futureResult.whenComplete { _ in self.endChildOp() }
+                        sshHandler.createChannel(promise, channelType: .session) { child, _ in
+                            child.pipeline.addHandler(
+                                ExecHandler(command: command, continuation: continuation))
+                        }
+                        promise.futureResult.whenFailure { e in
+                            continuation.finish(throwing: SSHError.channelFailed(String(describing: e)))
+                        }
                     }
                 }
             }
@@ -204,6 +387,7 @@ public final class SSHSession {
         guard let channel = self.channel, !isClosingOrClosed else {
             throw SSHError.channelFailed("inte ansluten")
         }
+        try beginChildOp()
 
         var cont: AsyncThrowingStream<SSHChunk, Error>.Continuation!
         let stream = AsyncThrowingStream<SSHChunk, Error> { cont = $0 }
@@ -223,6 +407,10 @@ public final class SSHSession {
         // för en naken `try await ...get()`, och låta EN gemensam,
         // låsskyddad flagga avgöra vem som får fullborda resultatet.
         let resultPromise = channel.eventLoop.makePromise(of: SSHShell.self)
+        // Motsvarande endChildOp() till beginChildOp() ovan — resultPromise
+        // fullbordas garanterat EXAKT en gång (resolveOnce nedan), oavsett
+        // vilken väg som vinner, så den här körs också exakt en gång.
+        resultPromise.futureResult.whenComplete { _ in self.endChildOp() }
         let resolveLock = NIOLock()
         var resolved = false
         func resolveOnce(_ body: () -> Void) {
@@ -280,6 +468,17 @@ public final class SSHSession {
 
     public func close() async {
         signalFatal(SSHError.channelFailed("stängd"))
+        // Stänger inpasseringen ATOMÄRT (isClosed = true) innan dränering
+        // börjar — garanterar att inga nya operationer kan börja efter denna
+        // punkt, så att dräneringen faktiskt innebär "inga fler operationer
+        // kommer någonsin" (P0-fixen från cubic ultrareview).
+        drainLock.withLock {
+            isClosed = true
+        }
+        // Väntar in eventuella pågående createChannel-anrop (openShell()s
+        // childPromise) INNAN kanalen/event loop-gruppen rivs — den faktiska
+        // fixen för CI-racet, se waitForChildOpsToDrain() ovan.
+        await waitForChildOpsToDrain()
         try? await channel?.close().get()
         try? await group.shutdownGracefully()
     }
