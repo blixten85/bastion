@@ -16,8 +16,17 @@ final class TailscaleDiscoveryModel: ObservableObject {
         case failed(String)
     }
     @Published var state: LoadState = .idle
+    // `fetch(...)` är actor-reentrant (flera `await`-punkter), och "Hämta"-
+    // knappen inaktiveras inte under `.loading` — ett andra tryck kan alltså
+    // starta en NY anslutning medan den första fortfarande väntar. Utan denna
+    // generationsräknare skulle en äldre, senare avslutad hämtning kunna
+    // skriva över `state` med sitt (inaktuella) resultat EFTER att en nyare
+    // redan slutfört och visat sitt (cubic P2 på PR #172).
+    private var generation = 0
 
     func fetch(source: Source, password: String?, store: HostStore?) async {
+        generation += 1
+        let myGeneration = generation
         state = .loading
         do {
             let suggestions: [(hostName: String, address: String)]
@@ -66,8 +75,10 @@ final class TailscaleDiscoveryModel: ObservableObject {
                 let status = try statusResult.get()
                 suggestions = status.suggestedHosts
             }
+            guard myGeneration == generation else { return }
             state = .loaded(suggestions)
         } catch {
+            guard myGeneration == generation else { return }
             state = .failed("\(error)")
         }
     }

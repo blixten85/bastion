@@ -86,7 +86,19 @@ final class SFTPBrowserModel: ObservableObject {
                 self.errorMessage = "\(error)"
                 return nil
             }
+            // Kollas HÄR, INNAN `connectingChain` sätts: om `disconnect()`
+            // redan hann köra FÄRDIGT medan vi väntade på `connect()` ovan
+            // (den såg då `connectingChain == nil`, för vi hade inte satt den
+            // än), skulle den aldrig få en ny chans att stänga `c` — den körs
+            // inte igen. Genom att stänga `c` direkt här i stället för att
+            // publicera den, undviker vi det race:t (cubic P1 på PR #172).
+            guard !Task.isCancelled else {
+                await c.close()
+                return nil
+            }
             // Synlig för disconnect() REDAN nu — se kommentaren vid fältet.
+            // Det här skyddar den ANDRA halvan: om disconnect() kör EFTER
+            // den här punkten men medan `SFTPClient.open` fortfarande väntar.
             self.connectingChain = c
             do {
                 let client = try await SFTPClient.open(on: c.target)

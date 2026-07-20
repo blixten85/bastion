@@ -73,6 +73,14 @@ final class DockerModel: ObservableObject {
         connectingTask = task
         let result = await task.value
         connectingTask = nil
+        // Samma race som förklarades ovan i tasken själv, men täcker fönstret
+        // MELLAN att tasken kollade `Task.isCancelled` och att `await
+        // task.value` returnerar här: `disconnect()` kan ha hunnit köra
+        // FÄRDIGT i det fönstret och redan nollat `chain`/satt `isTornDown`,
+        // utan att tasken själv märkte det. Utan omkontrollen skulle en
+        // uppringare som redan lämnat vyn ändå kunna få tillbaka en session
+        // och läcka den öppna kedjan (sentry HIGH på PR #172).
+        guard !isTornDown, let result, chain?.target === result else { return nil }
         return result
     }
 
@@ -84,9 +92,16 @@ final class DockerModel: ObservableObject {
     /// stänga och nolla `chain` här skulle `refresh()`/`act()` bara fortsätta
     /// återanvända samma döda session och den öppna jump-anslutningen läcka
     /// för alltid (cubic P2 på PR #172).
-    private func handleSessionFailure(_ error: Error) {
+    ///
+    /// `session` är den session ANROPET faktiskt kördes mot — om `act()`/
+    /// `refresh()` överlappar (t.ex. en gammal `act()` misslyckas EFTER att
+    /// en ny `ensureSession()` redan hunnit återansluta) ska ett sent fel
+    /// från den GAMLA sessionen inte stänga den NYA, redan uppkopplade
+    /// kedjan (cubic P2 på PR #172).
+    private func handleSessionFailure(_ error: Error, session: SSHSession) {
         errorMessage = "\(error)"
         guard case SSHError.remoteExit = error else {
+            guard chain?.target === session else { return }
             let c = chain
             chain = nil
             Task { await c?.close() }
@@ -102,7 +117,7 @@ final class DockerModel: ObservableObject {
             containers = try await DockerService.list(over: s)
             errorMessage = nil
         } catch {
-            handleSessionFailure(error)
+            handleSessionFailure(error, session: s)
         }
     }
 
@@ -118,7 +133,7 @@ final class DockerModel: ObservableObject {
             }
             await refresh()
         } catch {
-            handleSessionFailure(error)
+            handleSessionFailure(error, session: s)
         }
     }
 
@@ -126,7 +141,7 @@ final class DockerModel: ObservableObject {
         guard let s = await ensureSession() else { return "(ingen anslutning)" }
         do { return try await DockerService.logs(ref, tail: 200, over: s) }
         catch {
-            handleSessionFailure(error)
+            handleSessionFailure(error, session: s)
             return "Fel: \(error)"
         }
     }

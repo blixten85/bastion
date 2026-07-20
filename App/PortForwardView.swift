@@ -73,12 +73,16 @@ final class PortForwardModel: ObservableObject {
             // (cubic P2 på PR #172, samma race som förklaras nedan för den
             // task vi själva startar).
             guard !isTornDown, let result, chain?.target === result else {
-                // Sätts bara om vyn INTE lämnats — annars är den som skulle
-                // visa felet redan borta. Utan detta failade en snabb
-                // avbryt-och-försök-igen tyst (sentry-fynd på PR #172:
-                // ensureSession() kunde vänta in en redan avbruten task utan
-                // att sätta errorMessage).
-                if !isTornDown { errorMessage = "Anslutningen avbröts, försök igen." }
+                // Sätts bara om (1) vyn INTE lämnats — annars är den som
+                // skulle visa felet redan borta — OCH (2) tasken INTE redan
+                // satt ett SPECIFIKT felmeddelande i sitt eget catch-block
+                // (auth-fel, anslutningsfel) — annars skriver denna generiska
+                // fallback tyst över den faktiska, mer användbara orsaken
+                // (cubic P2 på PR #172). Utan fallback ALLS hade en snabb
+                // avbryt-och-försök-igen fortfarande failat tyst (sentry-fynd).
+                if !isTornDown && errorMessage == nil {
+                    errorMessage = "Anslutningen avbröts, försök igen."
+                }
                 return nil
             }
             return result
@@ -120,7 +124,11 @@ final class PortForwardModel: ObservableObject {
         // och öppna en tunnel genom en kedja som är på väg att stängas
         // (cubic P2 på PR #172, med föreslagen fix).
         guard !isTornDown, let result, chain?.target === result else {
-            if !isTornDown { errorMessage = "Anslutningen avbröts, försök igen." }
+            // Se kommentaren vid den delade vägen ovan: bara om vyn INTE
+            // lämnats OCH tasken inte redan satt ett specifikt fel (cubic P2).
+            if !isTornDown && errorMessage == nil {
+                errorMessage = "Anslutningen avbröts, försök igen."
+            }
             return nil
         }
         return result
