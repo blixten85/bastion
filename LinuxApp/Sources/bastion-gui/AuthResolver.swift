@@ -23,6 +23,16 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
         return nil
     case .certificateFile(let keyPath, let certPath):
         return try? OpenSSHPrivateKey.loadCertificate(keyPath: keyPath, certPath: certPath)
+    case .bitwardenItem(let itemID):
+        do {
+            return .password(try BitwardenClient.fetchPassword(itemID: itemID))
+        } catch {
+            // Loggas (inte bara tystad via `try?`) så orsaken (saknad `bw`,
+            // utgången BW_SESSION, fel item-id) syns i stället för ett
+            // generiskt anslutningsfel — cubic-fynd på PR #185.
+            FileHandle.standardError.write(Data("Bitwarden-hämtning för \"\(itemID)\" misslyckades: \(error)\n".utf8))
+            return nil
+        }
     }
 }
 

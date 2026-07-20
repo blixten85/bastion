@@ -11,6 +11,10 @@ public enum HostAuth: Codable, Sendable, Equatable {
     /// signerade certifikatets sökväg (typiskt `<nyckel>-cert.pub`,
     /// skrivet av `ssh-keygen -s`).
     case certificateFile(keyPath: String, certPath: String)
+    /// Lösenord hämtas vid varje anslutning ur en lokal Bitwarden CLI
+    /// (`bw get password <id>`) — se `BitwardenClient`. `String`et är
+    /// Bitwardens item-id eller unika namn, inte lösenordet självt.
+    case bitwardenItem(String)
 }
 
 /// En sparad värd i host-databasen. Ren metadata (inga hemligheter) så den kan
