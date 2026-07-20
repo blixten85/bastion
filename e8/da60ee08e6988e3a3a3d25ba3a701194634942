@@ -1,0 +1,22 @@
+Sources/SSHCore/SSHSession.swift
+  s_57e3d8f9ebd074::t_9f60365327aeca 48-66
+  s_57e3d8f9ebd074::t_8599a9e268a672 349
+  s_57e3d8f9ebd074::t_d840066dd7b593 166-175
+  s_57e3d8f9ebd074::t_d3be3ff304b5a5 300-328,330-333,335-336,338-345,347-348,350-356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e8da60ee08e6988e3a3a3d25ba3a701194634942",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
