@@ -1,0 +1,23 @@
+Sources/SSHCore/ProcessRunner.swift
+  s_57e3d8f9ebd074::t_7c69411625a723 3,10-13
+Sources/SSHCore/TailscaleStatus.swift
+  s_57e3d8f9ebd074::t_cfe9e2bd889127 83,89-92
+Sources/SSHCore/BitwardenClient.swift
+  s_57e3d8f9ebd074::t_a98e0a49760b6b 10-14,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f82094e4b6e73de23ce7595c402bedd3d7d7b091",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
