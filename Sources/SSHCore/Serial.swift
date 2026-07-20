@@ -62,7 +62,7 @@ public final class SerialSession {
     }
 
     public static func connect(config: SerialConfig) async throws -> SerialSession {
-        let fd = config.path.withCString { open($0, O_RDWR | O_NOCTTY) }
+        let fd = config.path.withCString { open($0, O_RDWR | O_NOCTTY | O_NONBLOCK) }
         guard fd >= 0 else {
             throw SerialError.openFailed(config.path)
         }
