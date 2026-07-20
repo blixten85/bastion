@@ -16,6 +16,16 @@ import SwiftCrossUI
     @State private var showS3 = false
     @State private var searchText = ""
     @State private var wakeMessages: [UUID: String] = [:]
+    @State private var showTelnetConnect = false
+    @State private var pendingTelnetTarget: TelnetTarget?
+    @State private var telnetTarget: TelnetTarget?
+    @State private var showTelnetSession = false
+    @State private var showQuickConnect = false
+    @State private var pendingQuickConnectHost: Host?
+    @State private var pendingQuickConnectPassword: String?
+    @State private var quickConnectHost: Host?
+    @State private var quickConnectPassword: String?
+    @State private var showQuickConnectSession = false
 
     private var filteredHosts: [Host] {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -84,6 +94,82 @@ import SwiftCrossUI
         .sheet(isPresented: $showS3) {
             S3ConnectionListView()
         }
+        // Sätter INTE showTelnetSession direkt i onConnect — den sheeten är
+        // fortfarande på väg att stängas då, och att öppna nästa sheet
+        // samtidigt är samma krock som App/HostListView.swift redan
+        // dokumenterar (CodeRabbit-fynd #115, cubic PR #173). Målet
+        // mellanlagras i pendingTelnetTarget och befordras i
+        // onChange(of: showTelnetConnect) istället för sheetens egen
+        // onDismiss — SwiftCrossUIs SheetModifier kör INTE onDismiss vid
+        // programmatisk isPresented=false (bara vid stängning via
+        // fönsterramen), men onChange fyrar oavsett stängningsorsak
+        // (cubic-fynd, denna PR).
+        .sheet(isPresented: $showTelnetConnect) {
+            TelnetConnectView(
+                onConnect: { target in
+                    pendingTelnetTarget = target
+                    showTelnetConnect = false
+                },
+                onCancel: { showTelnetConnect = false }
+            )
+        }
+        .onChange(of: showTelnetConnect) {
+            guard !showTelnetConnect, let pending = pendingTelnetTarget else { return }
+            pendingTelnetTarget = nil
+            telnetTarget = pending
+            showTelnetSession = true
+        }
+        // onDismiss OCH onClose nollar båda telnetTarget — onDismiss täcker
+        // stängning via fönsterramen (onClose körs då inte), onClose täcker
+        // "Klar"-knappen (onDismiss körs INTE vid det programmatiska
+        // isPresented=false, se ovan) — utan båda läckte fjärrvärden/
+        // lösenordet kvar i state beroende på stängningssätt (cubic-fynd).
+        .sheet(isPresented: $showTelnetSession, onDismiss: { telnetTarget = nil }) {
+            if let telnetTarget {
+                TelnetSessionView(target: telnetTarget, onClose: {
+                    showTelnetSession = false
+                    self.telnetTarget = nil
+                })
+            }
+        }
+        .sheet(isPresented: $showQuickConnect) {
+            QuickConnectView(
+                onConnect: { host, password in
+                    pendingQuickConnectHost = host
+                    pendingQuickConnectPassword = password
+                    showQuickConnect = false
+                },
+                onCancel: { showQuickConnect = false }
+            )
+        }
+        .onChange(of: showQuickConnect) {
+            guard !showQuickConnect, let pending = pendingQuickConnectHost else { return }
+            pendingQuickConnectHost = nil
+            quickConnectHost = pending
+            quickConnectPassword = pendingQuickConnectPassword
+            pendingQuickConnectPassword = nil
+            showQuickConnectSession = true
+        }
+        .sheet(isPresented: $showQuickConnectSession, onDismiss: {
+            quickConnectHost = nil
+            quickConnectPassword = nil
+        }) {
+            if let quickConnectHost {
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Snabbanslutning").font(.headline)
+                        Spacer()
+                        Button("Klar") {
+                            showQuickConnectSession = false
+                            self.quickConnectHost = nil
+                            self.quickConnectPassword = nil
+                        }
+                    }
+                    TerminalSessionView(host: quickConnectHost, password: quickConnectPassword)
+                }
+                .padding()
+            }
+        }
         .onChange(of: selectedHostID) {
             if let hostID = selectedHostID {
                 wakeMessages[hostID] = nil
@@ -102,6 +188,8 @@ import SwiftCrossUI
                 Button("WireGuard") { showWireGuard = true }
                 Button("Tailscale") { showTailscale = true }
                 Button("S3") { showS3 = true }
+                Button("Telnet") { showTelnetConnect = true }
+                Button("Snabbanslutning") { showQuickConnect = true }
                 Spacer()
             }
 

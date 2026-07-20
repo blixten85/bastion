@@ -14,6 +14,7 @@ struct HostEditView: View {
     @State private var certPath: String
     @State private var keyText: String
     @State private var showKeyImporter = false
+    @State private var bitwardenItemIDText: String
     /// Övriga sparade värdar, för jump-host-väljaren nedan. Utesluter alltid
     /// `draft.id` själv (kan inte vara sin egen jump-host) — djupare
     /// cykeldetektering (A→B→A) görs inte här, bara den mest uppenbara.
@@ -25,12 +26,30 @@ struct HostEditView: View {
         case password = "Fråga lösenord"
         case key = "Nyckelfil (sökväg)"
         case certificate = "OpenSSH-certifikat (nyckel + -cert.pub)"
+        case bitwarden = "Bitwarden (bw CLI — endast synkade värden, ej valbart här)"
         case keychainImport = "Importera nyckel"
         var id: String { rawValue }
     }
 
     /// Keychain-id för en importerad nyckel: stabilt per värd, oberoende av auth-läge.
     private static func keychainID(for host: Host) -> String { "host-key-\(host.id.uuidString)" }
+
+    /// Auth-lägen som faktiskt går att välja i App/ (iOS + macOS). Bitwarden
+    /// filtreras bort på BÅDA — iOS saknar `Foundation.Process` helt, och en
+    /// empirisk test på riktig macOS-hårdvara (2026-07-20) bekräftade att
+    /// `com.apple.security.app-sandbox: true` (satt i `App/project.yml` för
+    /// macOS-target) gör att kärnan skjuter ner processen med SIGTRAP
+    /// ("Trace/BPT trap") så fort `Process.run()` försöker starta en extern,
+    /// osignerad binär som `bw` — inte bara en åtkomstbegränsning, utan ett
+    /// omedelbart kraschande fel varje gång. Om värden REDAN har läget
+    /// (synkad från LinuxApp, där `bw` faktiskt fungerar eftersom den inte
+    /// är sandboxad) hålls det kvar i listan så Pickern kan visa det som
+    /// valt, i stället för att tyst nollställa det.
+    private var availableAuthKinds: [AuthKind] {
+        var kinds = AuthKind.allCases.filter { $0 != .bitwarden }
+        if authKind == .bitwarden { kinds.append(.bitwarden) }
+        return kinds
+    }
 
     /// Kandidater för jump host-väljaren: utesluter (1) `draft` själv, (2)
     /// `.askPassword`-värdar (går inte att autentisera automatiskt genom en
@@ -43,10 +62,23 @@ struct HostEditView: View {
     /// felaktigt utan varning). Detta gör cykler (A→B→A) strukturellt
     /// omöjliga också — en kandidat utan egen jump-host kan per definition
     /// inte peka tillbaka på något.
+    ///
+    /// `.bitwardenItem`-värdar (t.ex. synkade från LinuxApp, där `bw`
+    /// faktiskt fungerar) utesluts också för NYA val, på BÅDA
+    /// App/-plattformarna — se `availableAuthKinds` ovan om varför varken
+    /// iOS eller det sandboxade macOS-målet kan köra `bw` via
+    /// `BitwardenClient`. `resolveAuth` skulle alltid returnera `nil` för en
+    /// sådan jump-host — utan detta filter skulle valet vara möjligt men
+    /// alltid misslyckas med ett generiskt anslutningsfel. Precis som
+    /// `availableAuthKinds` ovan hålls dock draftens REDAN valda jump-host
+    /// kvar även om den är en bitwardenItem-värd (cubic-fynd på PR #185) —
+    /// annars visar Pickern ett tomt val trots att `save()` faktiskt
+    /// behåller den, tills användaren aktivt byter jump-host.
     private var jumpCandidates: [Host] {
         allHosts.filter { candidate in
             guard candidate.id != draft.id else { return false }
             if case .askPassword = candidate.auth { return false }
+            if case .bitwardenItem = candidate.auth, candidate.id != draft.jumpHostID { return false }
             return candidate.jumpHostID == nil
         }
     }
@@ -69,6 +101,11 @@ struct HostEditView: View {
         _tagsText = State(initialValue: host.tags.joined(separator: ", "))
         self.allHosts = allHosts
         self.onSave = onSave
+        if case .bitwardenItem(let itemID) = host.auth {
+            _bitwardenItemIDText = State(initialValue: itemID)
+        } else {
+            _bitwardenItemIDText = State(initialValue: "")
+        }
         switch host.auth {
         case .agentDefault:
             _authKind = State(initialValue: .agent); _keyPath = State(initialValue: "")
@@ -82,6 +119,9 @@ struct HostEditView: View {
         case .certificateFile(let keyPath, let certPath):
             _authKind = State(initialValue: .certificate); _keyPath = State(initialValue: keyPath)
             _certPath = State(initialValue: certPath); _keyText = State(initialValue: "")
+        case .bitwardenItem:
+            _authKind = State(initialValue: .bitwarden); _keyPath = State(initialValue: "")
+            _certPath = State(initialValue: ""); _keyText = State(initialValue: "")
         case .keychainKey(let id):
             _authKind = State(initialValue: .keychainImport); _keyPath = State(initialValue: "")
             _certPath = State(initialValue: "")
@@ -105,7 +145,17 @@ struct HostEditView: View {
                 // användare hittade aldrig lösenordsvalet (TestFlight-feedback).
                 Section("Autentisering") {
                     Picker("Metod", selection: $authKind) {
-                        ForEach(AuthKind.allCases) { Text($0.rawValue).tag($0) }
+                        // Bitwarden filtreras bort på BÅDA App/-plattformarna —
+                        // iOS saknar `Foundation.Process` helt, och macOS-målets
+                        // App Sandbox (`com.apple.security.app-sandbox: true`)
+                        // dödar processen med SIGTRAP så fort den försöker starta
+                        // en extern binär som `bw` (empiriskt verifierat, se
+                        // `availableAuthKinds`) — anslutning skulle deterministiskt
+                        // misslyckas för varje värd som väljer det läget här.
+                        // Redan sparade `.bitwardenItem`-värdar (synkade från
+                        // LinuxApp, där `bw` faktiskt fungerar) förblir dock
+                        // läsbara/oförändrade — bara VALET döljs.
+                        ForEach(availableAuthKinds) { Text($0.rawValue).tag($0) }
                     }
                     if authKind == .key {
                         TextField("Sökväg till privatnyckel", text: $keyPath)
@@ -116,6 +166,15 @@ struct HostEditView: View {
                             .noAutocap().autocorrectionDisabled()
                         TextField("Sökväg till certifikat (t.ex. nyckel-cert.pub)", text: $certPath)
                             .noAutocap().autocorrectionDisabled()
+                    }
+                    if authKind == .bitwarden {
+                        TextField("Bitwarden item-id eller namn", text: $bitwardenItemIDText)
+                            .noAutocap().autocorrectionDisabled()
+                        Text("Detta värde är synkat från en enhet där Bitwarden CLI faktiskt fungerar "
+                             + "(LinuxApp). Varken iOS eller det sandboxade macOS-bygget kan "
+                             + "köra `bw` här — anslutningen kommer att misslyckas på DEN HÄR enheten. "
+                             + "Ändra auth-metod om du vill ansluta från en Apple-enhet.")
+                            .font(.caption2).foregroundStyle(.secondary)
                     }
                     if authKind == .keychainImport {
                         Button {
@@ -212,6 +271,8 @@ struct HostEditView: View {
         case .certificate:
             return !keyPath.trimmingCharacters(in: .whitespaces).isEmpty
                 && !certPath.trimmingCharacters(in: .whitespaces).isEmpty
+        case .bitwarden:
+            return !bitwardenItemIDText.trimmingCharacters(in: .whitespaces).isEmpty
         case .agent, .password:
             return true
         }
@@ -264,6 +325,8 @@ struct HostEditView: View {
         case .password: host.auth = .askPassword
         case .key: host.auth = .keyFile(keyPath)
         case .certificate: host.auth = .certificateFile(keyPath: keyPath, certPath: certPath)
+        case .bitwarden:
+            host.auth = .bitwardenItem(bitwardenItemIDText.trimmingCharacters(in: .whitespaces))
         case .keychainImport:
             let id = Self.keychainID(for: host)
             Keychain.set(keyText, for: id)
