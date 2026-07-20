@@ -1,0 +1,30 @@
+Sources/SSHCore/BitwardenClient.swift
+  s_57e3d8f9ebd074::t_95aa4baed017b4 32-37
+App/HostEditView.swift
+  s_57e3d8f9ebd074::t_7d87373a9b06f1 132-138
+  s_57e3d8f9ebd074::t_1fda7ef16b990c 153-155
+  s_57e3d8f9ebd074::t_b7b9241c874666 37-50
+Sources/SSHCore/TailscaleStatus.swift
+  s_57e3d8f9ebd074::t_4319a17aef0fff 102-104
+LinuxApp/Sources/bastion-gui/HostEditView.swift
+  s_57e3d8f9ebd074::t_81237d2ddaec13 233,235-237
+  s_57e3d8f9ebd074::t_02ec954e526d56 106-110,117-118,121-122
+  s_57e3d8f9ebd074::t_cf42893c2b0a61 144
+  s_57e3d8f9ebd074::t_d24eddbf2920c0 193-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "46cfabc7402f26567e22955974ebe7da21d0295d",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
