@@ -735,20 +735,10 @@ Inget nytt att bygga, bara verifiera/lansera:
   anslut+autentisera+kör-kommando+läs-utdata-runda, plus ett negativt
   test (fel lösenord avvisas). Ingen UI, ingen host-lagring, ingen
   nyckelbaserad auth eller jump host än — bara den minsta beviskärnan.
-- **Mosh-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
-  påbörjat. Inte ett SSH-tillägg — Mosh startar via SSH men växlar sedan
-  till ett helt eget protokoll (SSP) över UDP med lokal predikering av
-  tangenttryckningar. Kräver `mosh-server` körande på fjärrsystemet
-  (startas via den initiala SSH-anslutningen) och en egen
-  `mosh-client`-motsvarighet i Bastion — större scope än något annat
-  nätverksprotokoll i den här listan, ren protokollimplementation från
-  grunden (ingen swift-nio-ssh-återanvändning möjlig, helt annat
-  protokoll).
 - **Telnet-stöd** (nytt, 2026-07-07, ägarfråga, se VISION.md) — inte
   påbörjat. Helt separat från SSH (RFC 854, okrypterat, egen
   option-negotiation) — en egen `TelnetSession`, inte en utökning av
-  `SSHSession`. Mindre arbete än Mosh, men fortfarande en egen
-  protokollimplementation från grunden.
+  `SSHSession`. En egen protokollimplementation från grunden.
 - **Paketering + BSD-täckning** (nytt, 2026-07-07, se VISION.md
   "Plattforms- och paketeringsmål, fullständigt") — inte påbörjat:
   `.deb`-paket (Debian/Ubuntu), `.rpm`-paket (RHEL/Fedora), FreeBSD-bygge
