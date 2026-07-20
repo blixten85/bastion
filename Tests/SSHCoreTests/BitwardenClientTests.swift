@@ -42,6 +42,18 @@ final class BitwardenClientTests: XCTestCase {
         XCTAssertEqual(password, "tok123")
     }
 
+    /// Regressionsskydd för `--nointeraction`: utan flaggan hade `bw` kunnat
+    /// hänga och vänta på ett interaktivt huvudlösenords-prompt (Bastion har
+    /// ingen terminal att fråga i) i stället för att faila direkt — se
+    /// cubic-fyndet på PR #185 om att detta saknade testtäckning.
+    func testFetchPasswordPassesNointeractionFlag() async throws {
+        let script = try makeScript("#!/bin/sh\necho \"$@\"\n")
+        let output = try await withTimeout(seconds: 10) {
+            try BitwardenClient.fetchPassword(itemID: "my-item", session: nil, executableURL: script, binaryName: "")
+        }
+        XCTAssertTrue(output.contains("--nointeraction"), "argv saknade --nointeraction: \(output)")
+    }
+
     func testFetchPasswordThrowsOnNonZeroExit() async throws {
         let script = try makeScript("#!/bin/sh\necho 'Vault is locked.' >&2\nexit 1\n")
         do {

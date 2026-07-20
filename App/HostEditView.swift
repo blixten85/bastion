@@ -26,7 +26,7 @@ struct HostEditView: View {
         case password = "Fråga lösenord"
         case key = "Nyckelfil (sökväg)"
         case certificate = "OpenSSH-certifikat (nyckel + -cert.pub)"
-        case bitwarden = "Bitwarden (bw CLI, endast macOS)"
+        case bitwarden = "Bitwarden (bw CLI — endast synkade värden, ej valbart här)"
         case keychainImport = "Importera nyckel"
         var id: String { rawValue }
     }
@@ -34,18 +34,21 @@ struct HostEditView: View {
     /// Keychain-id för en importerad nyckel: stabilt per värd, oberoende av auth-läge.
     private static func keychainID(for host: Host) -> String { "host-key-\(host.id.uuidString)" }
 
-    /// Auth-lägen som faktiskt går att välja på DEN HÄR plattformen. Bitwarden
-    /// filtreras bort på iOS (se Picker-kommentaren i `body`) men om värden
-    /// REDAN har det läget (synkad från macOS) hålls det kvar i listan så att
-    /// Pickern kan visa det som valt, i stället för att tyst nollställa det.
+    /// Auth-lägen som faktiskt går att välja i App/ (iOS + macOS). Bitwarden
+    /// filtreras bort på BÅDA — iOS saknar `Foundation.Process` helt, och en
+    /// empirisk test på riktig macOS-hårdvara (2026-07-20) bekräftade att
+    /// `com.apple.security.app-sandbox: true` (satt i `App/project.yml` för
+    /// macOS-target) gör att kärnan skjuter ner processen med SIGTRAP
+    /// ("Trace/BPT trap") så fort `Process.run()` försöker starta en extern,
+    /// osignerad binär som `bw` — inte bara en åtkomstbegränsning, utan ett
+    /// omedelbart kraschande fel varje gång. Om värden REDAN har läget
+    /// (synkad från LinuxApp/Windows, där `bw` faktiskt fungerar eftersom de
+    /// inte är sandboxade) hålls det kvar i listan så Pickern kan visa det
+    /// som valt, i stället för att tyst nollställa det.
     private var availableAuthKinds: [AuthKind] {
-        #if os(iOS)
         var kinds = AuthKind.allCases.filter { $0 != .bitwarden }
         if authKind == .bitwarden { kinds.append(.bitwarden) }
         return kinds
-        #else
-        return AuthKind.allCases
-        #endif
     }
 
     /// Kandidater för jump host-väljaren: utesluter (1) `draft` själv, (2)
@@ -59,10 +62,19 @@ struct HostEditView: View {
     /// felaktigt utan varning). Detta gör cykler (A→B→A) strukturellt
     /// omöjliga också — en kandidat utan egen jump-host kan per definition
     /// inte peka tillbaka på något.
+    ///
+    /// `.bitwardenItem`-värdar (t.ex. synkade från LinuxApp/Windows, där
+    /// `bw` faktiskt fungerar) utesluts också, på BÅDA App/-plattformarna —
+    /// se `availableAuthKinds` ovan om varför varken iOS eller det
+    /// sandboxade macOS-målet kan köra `bw` via `BitwardenClient`.
+    /// `resolveAuth` skulle alltid returnera `nil` för en sådan jump-host —
+    /// utan detta filter skulle valet vara möjligt men alltid misslyckas
+    /// med ett generiskt anslutningsfel.
     private var jumpCandidates: [Host] {
         allHosts.filter { candidate in
             guard candidate.id != draft.id else { return false }
             if case .askPassword = candidate.auth { return false }
+            if case .bitwardenItem = candidate.auth { return false }
             return candidate.jumpHostID == nil
         }
     }
@@ -129,12 +141,16 @@ struct HostEditView: View {
                 // användare hittade aldrig lösenordsvalet (TestFlight-feedback).
                 Section("Autentisering") {
                     Picker("Metod", selection: $authKind) {
-                        // Bitwarden filtreras bort på iOS — `Foundation.Process`
-                        // finns inte där (samma sandbox-begränsning som
-                        // `BitwardenClient`), så anslutning skulle deterministiskt
-                        // misslyckas för varje värd som väljer det läget (cubic-fynd).
-                        // Redan sparade `.bitwardenItem`-värdar (synkade från macOS)
-                        // förblir dock läsbara/oförändrade — bara VALET döljs.
+                        // Bitwarden filtreras bort på BÅDA App/-plattformarna —
+                        // iOS saknar `Foundation.Process` helt, och macOS-målets
+                        // App Sandbox (`com.apple.security.app-sandbox: true`)
+                        // dödar processen med SIGTRAP så fort den försöker starta
+                        // en extern binär som `bw` (empiriskt verifierat, se
+                        // `availableAuthKinds`) — anslutning skulle deterministiskt
+                        // misslyckas för varje värd som väljer det läget här.
+                        // Redan sparade `.bitwardenItem`-värdar (synkade från
+                        // LinuxApp/Windows, där `bw` faktiskt fungerar) förblir
+                        // dock läsbara/oförändrade — bara VALET döljs.
                         ForEach(availableAuthKinds) { Text($0.rawValue).tag($0) }
                     }
                     if authKind == .key {
@@ -150,9 +166,10 @@ struct HostEditView: View {
                     if authKind == .bitwarden {
                         TextField("Bitwarden item-id eller namn", text: $bitwardenItemIDText)
                             .noAutocap().autocorrectionDisabled()
-                        Text("Kräver en giltig BW_SESSION i Bastion-processens EGEN miljö — att låsa "
-                             + "upp valvet i en separat Terminal överför inte sessionen till appen. "
-                             + "Fungerar bara på macOS — iOS saknar stöd för lokala processer.")
+                        Text("Detta värde är synkat från en enhet där Bitwarden CLI faktiskt fungerar "
+                             + "(LinuxApp/Windows). Varken iOS eller det sandboxade macOS-bygget kan "
+                             + "köra `bw` här — anslutningen kommer att misslyckas på DEN HÄR enheten. "
+                             + "Ändra auth-metod om du vill ansluta från en Apple-enhet.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     if authKind == .keychainImport {
