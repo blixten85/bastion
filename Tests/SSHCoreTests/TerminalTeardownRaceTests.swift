@@ -269,4 +269,50 @@ final class TerminalTeardownRaceTests: XCTestCase {
             }
         }
     }
+
+    /// Samma race, men mot `SFTPClient.open(on:)` — den gick tidigare via en
+    /// fristående funktion UTANFÖR `SSHSession` och fick aldrig samma
+    /// beginChildOp()/endChildOp()-registrering som execute()/openShell()
+    /// (cubic P1 på PR #186: `close()` kunde riva event loop-gruppen medan
+    /// `SFTPClient.open`s egen `createChannel`-promise fortfarande var
+    /// olöst). Verifierar att öppningen nu räknas in i sessionens
+    /// dräneringsräknare precis som de andra två kanaltyperna.
+    func testConcurrentSFTPOpenAndCloseNeverCrashes() async throws {
+        try await withTimeout(seconds: 60) {
+            try await Self.runConcurrentSFTPOpenAndCloseIterations()
+        }
+    }
+
+    private static func runConcurrentSFTPOpenAndCloseIterations() async throws {
+        for _ in 0..<200 {
+            let server = try LoopbackServer.start(password: "hunter2")
+            defer { server.shutdown() }
+
+            let session = SSHSession(
+                target: SSHTarget(host: "127.0.0.1", port: server.port, username: "tester"),
+                auth: .password("hunter2"), knownHosts: KnownHosts(path: nil))
+            try await session.connect()
+
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    do {
+                        let client = try await SFTPClient.open(on: session)
+                        await client.close()
+                    } catch let error as SSHError {
+                        guard case .channelFailed = error else {
+                            XCTFail("förväntade SSHError.channelFailed, fick \(error)")
+                            return
+                        }
+                        // Förväntat: open() racade mot close() och förlorade rent.
+                    } catch {
+                        XCTFail("oväntad feltyp: \(error)")
+                    }
+                }
+                group.addTask {
+                    await session.close()
+                }
+                await group.waitForAll()
+            }
+        }
+    }
 }

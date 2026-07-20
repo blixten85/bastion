@@ -63,7 +63,7 @@ final class PortForwardModel: ObservableObject {
             onFailure: { [weak self] in self?.errorMessage = $0 },
             onInterrupted: { [weak self] in
                 // Bara om inget mer specifikt fel redan visas — annars kunde
-                // den här generiska fallbacken skriva över ett meddelande en
+                // den här generiska fallbacken skriva över ett meddelande som en
                 // NYARE, samtidig anslutning redan hunnit sätta (cubic P2 på
                 // PR #186).
                 guard let self, self.errorMessage == nil else { return }

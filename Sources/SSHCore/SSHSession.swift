@@ -20,6 +20,11 @@ public final class SSHSession {
     private var fatalResolved = false
     var channel: Channel?
 
+    // internal (inte private) — `SFTPClient.open(on:)` racear sitt eget
+    // child-kanalskapande mot samma `fatal`-signal som `execute()`/
+    // `openShell()` redan gör, se kommentaren vid `SFTPClient.open`.
+    var fatalFuture: EventLoopFuture<Error> { fatal.futureResult }
+
     // Fjärr-portvidarebefordran (ssh -R): servern öppnar en "forwarded-tcpip"-
     // kanal MOT klienten när någon ansluter till den fjärrport som begärts.
     // inboundChildChannelInitializer sätts en gång vid connect() (innan någon

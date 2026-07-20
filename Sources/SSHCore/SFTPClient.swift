@@ -1,3 +1,4 @@
+import NIOConcurrencyHelpers
 import NIOCore
 import NIOSSH
 
@@ -80,31 +81,83 @@ public actor SFTPClient {
         }
     }
 
+    /// Hämtar barn-kanalen (subsystem-kanalen, innan SFTP-handskakningen).
+    ///
+    /// **Kritiskt, empiriskt fynd (PR #186):** en naken `try await
+    /// childPromise.futureResult.get()` här HÄNGER pålitligt (reproducerat
+    /// 100 % av gångerna, inte flaky) om `session.close()` racear mot den
+    /// här öppningen — till skillnad från `execute()`/`openShell()` (som
+    /// löser exakt samma race pålitligt, se deras kommentarer om
+    /// `signalFatal()`s kanalstädning). Skillnaden är TIMING: `execute()`/
+    /// `openShell()` anropar `createChannel(...)` från en callback EFTER en
+    /// egen `.whenComplete`-baserad pipeline-uppslagning, vilket ger
+    /// `signalFatal()`s `channel?.close(...)` en extra schemaläggnings-
+    /// omgång att hinna köra klart INNAN `createChannel` når NIOSSHs
+    /// multiplexer. Den här funktionens tidigare, mer synkrona
+    /// `try await ...get()`-kedja kunde nå `createChannel` EFTER att
+    /// stängningen redan påbörjats men INNAN multiplexern hunnit gå in i
+    /// sitt "avvisa nya kanaler"-läge — då registreras `childPromise` mot en
+    /// mux som aldrig kommer tillbaka och fela den, och `waitForChildOpsToDrain()`s
+    /// 15s-timeout + 3s aktiva-stängning-nådatid räcker inte heller (samma
+    /// kanal stängs ju redan, om och om igen, utan effekt).
+    ///
+    /// Lösningen: racea child-kanalskapandet mot `session`s `closeFuture`/
+    /// `fatalFuture` EXPLICIT (samma `resolveOnce`-mönster som `execute()`),
+    /// i stället för att lita på att NIOSSH garanterat felar en promise som
+    /// registrerades EFTER att stängningen redan startat.
     private static func openChildChannel(on session: SSHSession) async throws -> SFTPClient {
         guard let channel = session.channel else {
             throw SSHError.channelFailed("inte ansluten")
-        }
-        let sshHandler: NIOSSHHandler
-        do {
-            sshHandler = try await channel.pipeline.handler(type: NIOSSHHandler.self).get()
-        } catch {
-            throw SSHError.channelFailed(String(describing: error))
         }
 
         var streamContinuation: AsyncStream<ByteBuffer>.Continuation!
         let stream = AsyncStream<ByteBuffer> { streamContinuation = $0 }
         let bridgeContinuation = streamContinuation!
 
-        let childPromise = channel.eventLoop.makePromise(of: Channel.self)
-        sshHandler.createChannel(childPromise, channelType: .session) { child, _ in
-            child.eventLoop.makeCompletedFuture {
-                try child.pipeline.syncOperations.addHandler(DirectTCPIPWrapperHandler())
-                try child.pipeline.syncOperations.addHandler(SFTPBridgeHandler(continuation: bridgeContinuation))
+        let resultPromise = channel.eventLoop.makePromise(of: Channel.self)
+        let resolveLock = NIOLock()
+        var resolved = false
+        func resolveOnce(_ body: () -> Void) {
+            let shouldRun: Bool = resolveLock.withLock {
+                if resolved { return false }
+                resolved = true
+                return true
+            }
+            if shouldRun { body() }
+        }
+
+        channel.closeFuture.whenComplete { _ in
+            resolveOnce { resultPromise.fail(SSHError.channelFailed("anslutningen stängdes")) }
+        }
+        session.fatalFuture.whenSuccess { error in
+            resolveOnce { resultPromise.fail(error) }
+        }
+        channel.pipeline.handler(type: NIOSSHHandler.self).whenComplete { result in
+            resolveOnce {
+                switch result {
+                case .failure(let e):
+                    resultPromise.fail(SSHError.channelFailed(String(describing: e)))
+                case .success(let sshHandler):
+                    let childPromise = channel.eventLoop.makePromise(of: Channel.self)
+                    sshHandler.createChannel(childPromise, channelType: .session) { child, _ in
+                        child.eventLoop.makeCompletedFuture {
+                            try child.pipeline.syncOperations.addHandler(DirectTCPIPWrapperHandler())
+                            try child.pipeline.syncOperations.addHandler(SFTPBridgeHandler(continuation: bridgeContinuation))
+                        }
+                    }
+                    childPromise.futureResult.whenFailure { e in
+                        resultPromise.fail(SSHError.channelFailed(String(describing: e)))
+                    }
+                    childPromise.futureResult.whenSuccess { child in
+                        resultPromise.succeed(child)
+                    }
+                }
             }
         }
+
         let child: Channel
         do {
-            child = try await childPromise.futureResult.get()
+            child = try await resultPromise.futureResult.get()
         } catch {
             throw SSHError.channelFailed(String(describing: error))
         }
