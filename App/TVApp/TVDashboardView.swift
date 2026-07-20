@@ -30,7 +30,7 @@ struct TVDashboardView: View {
                     List(hosts) { host in
                         HStack {
                             VStack(alignment: .leading) {
-                                Text(host.alias).font(.headline)
+                                Text(host.alias.isEmpty ? host.hostName : host.alias).font(.headline)
                                 Text("\(host.user)@\(host.hostName):\(host.port)")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
@@ -65,6 +65,7 @@ struct TVDashboardView: View {
         }
     }
 
+    @MainActor
     private func wake(host: Host, mac: String) {
         wakingID = host.id
         Task {

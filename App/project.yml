@@ -213,6 +213,11 @@ targets:
       path: Info-tvOS.plist
       properties:
         CFBundleDisplayName: Bastion
+        # Samma resonemang som iOS-targeten ovan — måste sättas HÄR under
+        # `properties`, annars saknas nyckeln i det byggda paketet och
+        # App Store Connect-uppladdningen avvisas med MISSING_EXPORT_
+        # COMPLIANCE (cubic-fynd, PR #191).
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: se.denied.bastion.tv
