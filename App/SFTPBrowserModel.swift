@@ -64,7 +64,7 @@ final class SFTPBrowserModel: ObservableObject {
                     target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
             },
             open: { chain in try await SFTPClient.open(on: chain.target) },
-            onError: { [weak self] in self?.errorMessage = $0 }
+            onFailure: { [weak self] in self?.errorMessage = $0 }
         )
     }
 

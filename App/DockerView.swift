@@ -36,7 +36,7 @@ final class DockerModel: ObservableObject {
                     target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
             },
             open: { $0.target },
-            onError: { [weak self] in self?.errorMessage = $0 }
+            onFailure: { [weak self] in self?.errorMessage = $0 }
         )
     }
 

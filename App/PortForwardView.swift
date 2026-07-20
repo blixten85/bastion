@@ -60,7 +60,15 @@ final class PortForwardModel: ObservableObject {
                     target: request.host.target, targetAuth: plan.auth, jump: plan.jump)
             },
             open: { $0.target },
-            onError: { [weak self] in self?.errorMessage = $0 }
+            onFailure: { [weak self] in self?.errorMessage = $0 },
+            onInterrupted: { [weak self] in
+                // Bara om inget mer specifikt fel redan visas — annars kunde
+                // den här generiska fallbacken skriva över ett meddelande en
+                // NYARE, samtidig anslutning redan hunnit sätta (cubic P2 på
+                // PR #186).
+                guard let self, self.errorMessage == nil else { return }
+                self.errorMessage = "Anslutningen avbröts, försök igen."
+            }
         )
     }
 

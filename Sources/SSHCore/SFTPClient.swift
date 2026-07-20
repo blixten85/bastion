@@ -57,7 +57,30 @@ public actor SFTPClient {
         self.channel = channel
     }
 
+    /// Registrerar öppningen som en "barn-operation" på sessionen (samma
+    /// mekanism som `execute()`/`openShell()` redan använder internt) —
+    /// annars kan `session.close()` hinna köra `group.shutdownGracefully()`
+    /// medan `createChannel`-promisen nedan fortfarande är olöst, vilket
+    /// kraschar processen (NIOs "leaking promise"-detektor, samma
+    /// sårbarhetsklass som grundorsaksfixades för execute()/openShell() i
+    /// PR #183 — `SFTPClient.open` gick via en fristående funktion utanför
+    /// `SSHSession` och fick aldrig samma skydd). `beginChildOp()` kastar
+    /// direkt om sessionen redan håller på att stängas, och `close()`s
+    /// `waitForChildOpsToDrain()` väntar nu automatiskt in den här öppningen
+    /// innan den river event loop-gruppen.
     public static func open(on session: SSHSession) async throws -> SFTPClient {
+        try session.beginChildOp()
+        do {
+            let client = try await openChildChannel(on: session)
+            session.endChildOp()
+            return client
+        } catch {
+            session.endChildOp()
+            throw error
+        }
+    }
+
+    private static func openChildChannel(on session: SSHSession) async throws -> SFTPClient {
         guard let channel = session.channel else {
             throw SSHError.channelFailed("inte ansluten")
         }

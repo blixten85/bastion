@@ -95,7 +95,10 @@ public final class SSHSession {
     private var isClosed = false
     private var onDrainedCallbacks: [() -> Void] = []
 
-    private func beginChildOp() throws {
+    // internal (inte private) — `SFTPClient.open(on:)` i samma modul
+    // registrerar sin egen kanalöppning som en barn-operation här, se
+    // kommentaren vid `SFTPClient.open`.
+    func beginChildOp() throws {
         try drainLock.withLock {
             guard !isClosed else {
                 throw SSHError.channelFailed("stängd")
@@ -109,7 +112,7 @@ public final class SSHSession {
     /// rör ALDRIG promisens eget resultat (det gör bara NIOSSH:s interna
     /// createChannel-logik, för att undvika en "dubbelt fullbordad
     /// promise"-krasch av samma familj som det vi fixar här).
-    private func endChildOp() {
+    func endChildOp() {
         let remaining: Int = inFlightChildOps.withLockedValue { count in
             count -= 1
             return count
