@@ -1,0 +1,30 @@
+App/AuthResolver.swift
+  s_57e3d8f9ebd074::t_64aa37c73a0632 23-31
+LinuxApp/Sources/bastion-gui/AuthResolver.swift
+  s_57e3d8f9ebd074::t_f8390528bf9dbb 27-35
+App/HostEditView.swift
+  s_57e3d8f9ebd074::t_ea85679d650dea 66-72
+  s_57e3d8f9ebd074::t_9e0ac8d5f1649e 37-47
+  s_57e3d8f9ebd074::t_add5699f406cd3 29
+  s_57e3d8f9ebd074::t_1f0ebf97aa8d7a 65,77
+  s_57e3d8f9ebd074::t_95e78663e70397 144-153
+  s_57e3d8f9ebd074::t_515203bd5f5325 169-172
+Tests/SSHCoreTests/BitwardenClientTests.swift
+  s_57e3d8f9ebd074::t_22954836dd22e2 45-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "92a7980570b90fc331db6817642609093db23be5",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
