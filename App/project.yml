@@ -170,13 +170,16 @@ targets:
         Release:
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "Bastion macOS App Store"
-    # App Sandbox + utgående nätverk (SSH kräver klient-nätverk). XcodeGen
-    # genererar entitlements-filen ur detta.
+    # App Sandbox + utgående nätverk (SSH kräver klient-nätverk) + seriella
+    # enheter (App/SerialConnectView.swift — utan device.serial nekar
+    # sandboxen open() på /dev/cu.*/tty.* i signerade byggen, cubic P1 på
+    # PR #187). XcodeGen genererar entitlements-filen ur detta.
     entitlements:
       path: Bastion-macOS.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
+        com.apple.security.device.serial: true
     dependencies:
       - package: SwiftTerm
       - package: Bastion

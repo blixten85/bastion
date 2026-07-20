@@ -28,7 +28,7 @@ struct SerialConnectView: View {
     let onConnect: (SerialConfig) -> Void
 
     private var effectivePath: String {
-        selectedPath ?? customPath.trimmingCharacters(in: .whitespaces)
+        selectedPath ?? customPath.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var isValid: Bool { !effectivePath.isEmpty }
@@ -63,6 +63,15 @@ struct SerialConnectView: View {
                 Section {
                     Button {
                         availablePaths = SerialPortLister.availablePaths()
+                        // Om den tidigare valda enheten inte längre finns
+                        // (t.ex. urdragen) ska den INTE förbli det effektiva
+                        // valet i tysthet — annars kan UI:t visa "inga
+                        // enheter hittades" samtidigt som ett anslutnings-
+                        // försök ändå görs mot en enhet som inte längre
+                        // finns (cubic P2 på PR #187).
+                        if let selectedPath, !availablePaths.contains(selectedPath) {
+                            self.selectedPath = nil
+                        }
                     } label: {
                         Label("Sök igen", systemImage: "arrow.clockwise")
                     }
