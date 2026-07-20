@@ -313,18 +313,6 @@ public final class SSHSession {
         guard let channel = self.channel, !isClosingOrClosed else {
             throw SSHError.channelFailed("inte ansluten")
         }
-
-        // Ramar in HELA anropet (inte bara createChannel-delen längre ner)
-        // — se close()/waitForChildOpsToDrain(). isClosingOrClosed-kollen
-        // ovan stänger bara ute NYA anrop som startar EFTER att close()s
-        // signalFatal() redan körts (synkront). Ett anrop som redan passerat
-        // den kollen men ännu inte hunnit fram till pipeline-uppslagningen
-        // nedan när close() kör vidare måste ÄNDÅ hindra close() från att
-        // riva event loop-gruppen för tidigt — annars kraschar/hänger det
-        // exakt som den bevisade CI-racen (beginChildOp() enbart runt
-        // createChannel-anropet var för sent, verifierat empiriskt: gav
-        // "Cannot schedule tasks on an EventLoop that has already shut
-        // down" följt av en hängning istället för en krasch).
         try beginChildOp()
 
         var cont: AsyncThrowingStream<SSHChunk, Error>.Continuation!
