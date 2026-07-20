@@ -1,0 +1,44 @@
+App/SFTPBrowserModel.swift
+  s_57e3d8f9ebd074::t_47e53d731aee71 383-390,396
+  s_57e3d8f9ebd074::t_691e3ea09abbc3 38-47
+  s_57e3d8f9ebd074::t_f7dd344cf410f1 89-90,93,116
+LinuxApp/Sources/bastion-gui/AuthResolver.swift
+  s_57e3d8f9ebd074::t_02506955e8fc3b 40-45
+App/PortForwardView.swift
+  s_57e3d8f9ebd074::t_598ca7e416c25d 122-125
+  s_57e3d8f9ebd074::t_836f9e4f564188 52-57,65,67-74,84-85,114-121
+  s_57e3d8f9ebd074::t_2fae3ad57d30f8 75-83
+  s_57e3d8f9ebd074::t_ef5f6a866b7f9a 165
+Tests/SSHCoreTests/ConnectionPlanningTests.swift
+  s_57e3d8f9ebd074::t_4edbb011d2b7a1 39,72,79
+  s_57e3d8f9ebd074::t_9c7496a0793ea8 55,65
+  s_57e3d8f9ebd074::t_4dae57a8769351 10-11
+  s_57e3d8f9ebd074::t_70a760fb4e445e 1-9,12-13,29-38,40-54,56-64,66-71,73-78,80-81
+  s_57e3d8f9ebd074::t_b1553cb75a9e7d 14-28
+App/DockerView.swift
+  s_57e3d8f9ebd074::t_917e988c5f76f3 27-34,42
+  s_57e3d8f9ebd074::t_f4e161a70a470d 79-96,105,121,128-131
+  s_57e3d8f9ebd074::t_460f0e8851b314 135-139
+Sources/SSHCore/ConnectionPlanning.swift
+  s_57e3d8f9ebd074::t_ccb74cc95ecf5b 1-43
+App/TailscaleDiscoveryView.swift
+  s_57e3d8f9ebd074::t_b3b5554e05e028 52-66
+App/AuthResolver.swift
+  s_57e3d8f9ebd074::t_a4d6da93044ea3 35-42,46-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "22a2e401bfa2e956cbd8a0dba210302dade597ac",
+  "prompts": {},
+  "sessions": {
+    "s_57e3d8f9ebd074": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c796c77-27e7-4818-8d2a-c7289b4f9fb0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
