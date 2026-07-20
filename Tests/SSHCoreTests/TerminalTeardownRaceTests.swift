@@ -225,4 +225,48 @@ final class TerminalTeardownRaceTests: XCTestCase {
             }
         }
     }
+
+    /// Samma race som ovan, men mot `execute()` istället för `openShell()` —
+    /// `execute()` hade INTE ens det gamla (ofullständiga) #169-skyddet
+    /// (ingen `resolveOnce`/`isClosingOrClosed`-koll), samma sårbarhetsklass
+    /// men mer exponerad. Verifierar att den delade beginChildOp()/
+    /// endChildOp()/waitForChildOpsToDrain()-mekanismen i SSHSession.swift
+    /// även skyddar denna kodväg, inte bara openShell().
+    func testConcurrentExecuteAndCloseNeverCrashes() async throws {
+        try await withTimeout(seconds: 60) {
+            try await Self.runConcurrentExecuteAndCloseIterations()
+        }
+    }
+
+    private static func runConcurrentExecuteAndCloseIterations() async throws {
+        for _ in 0..<200 {
+            let server = try LoopbackServer.start(password: "hunter2")
+            defer { server.shutdown() }
+
+            let session = SSHSession(
+                target: SSHTarget(host: "127.0.0.1", port: server.port, username: "tester"),
+                auth: .password("hunter2"), knownHosts: KnownHosts(path: nil))
+            try await session.connect()
+
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    do {
+                        for try await _ in session.execute("echo hej") {}
+                    } catch let error as SSHError {
+                        guard case .channelFailed = error else {
+                            XCTFail("förväntade SSHError.channelFailed, fick \(error)")
+                            return
+                        }
+                        // Förväntat: execute() racade mot close() och förlorade rent.
+                    } catch {
+                        XCTFail("oväntad feltyp: \(error)")
+                    }
+                }
+                group.addTask {
+                    await session.close()
+                }
+                await group.waitForAll()
+            }
+        }
+    }
 }
