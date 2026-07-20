@@ -102,6 +102,14 @@ final class SFTPBrowserModel: ObservableObject {
             self.connectingChain = c
             do {
                 let client = try await SFTPClient.open(on: c.target)
+                // "Claimar" kedjan (kollar OCH nollar `connectingChain` i
+                // samma MainActor-tur, ingen `await` emellan) innan den
+                // ev. stängs nedan — om disconnect() redan hunnit nolla
+                // fältet och stänga `c` själv, ska VI inte stänga den igen
+                // (sentry MEDIUM på PR #172: dubbelstängning av samma
+                // SSHConnectionChain, `group.shutdownGracefully()` två
+                // gånger på samma event loop-grupp är inte garanterat säkert).
+                let stillOwnedByUs = self.connectingChain != nil
                 self.connectingChain = nil
                 // disconnect() kan ha körts (vyn stängd) medan vi väntade på
                 // connect()/open — utan den här kollen skulle vi återuppliva
@@ -110,7 +118,7 @@ final class SFTPBrowserModel: ObservableObject {
                 // fynd, PR #48).
                 guard !Task.isCancelled else {
                     await client.close()
-                    await c.close()
+                    if stillOwnedByUs { await c.close() }
                     return nil
                 }
                 // self.sftp sätts HÄR, tillsammans med self.chain, inte av
@@ -125,13 +133,17 @@ final class SFTPBrowserModel: ObservableObject {
                 self.sftp = client
                 return client
             } catch {
+                // Samma "claima innan stängning"-mönster som ovan — disconnect()
+                // kan redan ha nollat connectingChain och stängt c själv
+                // (sentry MEDIUM på PR #172).
+                let stillOwnedByUs = self.connectingChain != nil
                 self.connectingChain = nil
                 // Om connect() lyckades men SFTPClient.open(on:) kastade
                 // (t.ex. subsystemet avvisat) sattes self.chain aldrig —
                 // stäng den öppna anslutningen explicit, annars läcker den
                 // tyst vid varje misslyckat SFTP-öppningsförsök (CodeRabbit-
                 // fynd, PR #172).
-                await c.close()
+                if stillOwnedByUs { await c.close() }
                 self.errorMessage = "\(error)"
                 return nil
             }

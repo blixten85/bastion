@@ -41,7 +41,16 @@ final class DockerModel: ObservableObject {
     private func ensureSession() async -> SSHSession? {
         guard !isTornDown else { return nil }
         if let chain { return chain.target }
-        if let connectingTask { return await connectingTask.value }
+        if let connectingTask {
+            let result = await connectingTask.value
+            // Samma omkontroll som efter EGEN task nedan — utan den kunde en
+            // samtidig anropare som väntar in NÅGON ANNANS connectingTask få
+            // tillbaka en session trots att disconnect() redan hunnit
+            // stänga den under tiden (sentry HIGH + CodeRabbit + cubic P2
+            // på PR #172, samma mönster som PortForwardModel redan hade).
+            guard !isTornDown, let result, chain?.target === result else { return nil }
+            return result
+        }
 
         // Skapad inifrån en @MainActor-metod (inte .detached), så den ärver
         // MainActor-isoleringen — säkert att sätta errorMessage direkt här.
@@ -99,14 +108,19 @@ final class DockerModel: ObservableObject {
     /// från den GAMLA sessionen inte stänga den NYA, redan uppkopplade
     /// kedjan (cubic P2 på PR #172).
     private func handleSessionFailure(_ error: Error, session: SSHSession) {
-        errorMessage = "\(error)"
         guard case SSHError.remoteExit = error else {
+            // Identitetskontrollen görs FÖRE errorMessage sätts — annars
+            // skriver ett sent fel från en GAMMAL, redan utbytt session
+            // över felmeddelandet för en redan lyckad, ny anslutning
+            // (cubic P2 på PR #172).
             guard chain?.target === session else { return }
+            errorMessage = "\(error)"
             let c = chain
             chain = nil
             Task { await c?.close() }
             return
         }
+        errorMessage = "\(error)"
     }
 
     func refresh() async {
