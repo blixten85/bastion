@@ -18,6 +18,14 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
         return try? OpenSSHPrivateKey.parse(pem)
     case .certificateFile(let keyPath, let certPath):
         return try? OpenSSHPrivateKey.loadCertificate(keyPath: keyPath, certPath: certPath)
+    case .bitwardenItem(let itemID):
+        #if !os(iOS)
+        return (try? BitwardenClient.fetchPassword(itemID: itemID)).map { SSHAuth.password($0) }
+        #else
+        // iOS saknar `Foundation.Process` — kräver native AutoFill/
+        // `ASCredentialProviderExtension` istället, inte byggt här.
+        return nil
+        #endif
     }
 }
 #endif

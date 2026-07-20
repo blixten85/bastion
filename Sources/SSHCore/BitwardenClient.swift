@@ -1,0 +1,53 @@
+import Foundation
+
+/// Hämtar ett värdlösenord ur en LOKALT installerad Bitwarden CLI (`bw`) —
+/// gratis kärnfunktion, inget betalt tillägg krävs (till skillnad från
+/// 1Password/LastPass CLI-motsvarigheter). Bastion loggar aldrig in/låser
+/// upp valvet självt; förutsätter att användaren redan kört `bw login` och
+/// har en giltig sessionsnyckel (miljövariabeln `BW_SESSION`, precis som
+/// `bw` själv förväntar sig utanför interaktiv `bw unlock`).
+///
+/// Finns INTE på iOS — samma sandbox-begränsning som `TailscaleStatus.
+/// fetchLocal` (`Foundation.Process` otillgängligt). iOS behöver native
+/// AutoFill/`ASCredentialProviderExtension` istället, ett separat,
+/// Xcode/device-only arbete som inte kan byggas eller verifieras här.
+public enum BitwardenClientError: Error, Sendable, Equatable {
+    case commandFailed(exitCode: Int32, stderr: String)
+    case emptyPassword
+}
+
+#if !os(iOS)
+public enum BitwardenClient {
+    /// `itemID` kan vara ett Bitwarden-item-id (UUID) eller ett unikt namn —
+    /// `bw get password` accepterar båda. `session` skickas som `--session`
+    /// om satt, annars faller `bw` tillbaka på egen sessionscache/miljö.
+    public static func fetchPassword(
+        itemID: String,
+        session: String? = ProcessInfo.processInfo.environment["BW_SESSION"],
+        executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
+        binaryName: String = "bw"
+    ) throws -> String {
+        var arguments = binaryName.isEmpty ? [] : [binaryName]
+        arguments += ["get", "password", itemID]
+        if let session, !session.isEmpty {
+            arguments += ["--session", session]
+        }
+        let result = try ProcessRunner.run(executableURL: executableURL, arguments: arguments)
+        guard result.exitCode == 0 else {
+            throw BitwardenClientError.commandFailed(
+                exitCode: result.exitCode,
+                stderr: String(data: result.stderr, encoding: .utf8) ?? "")
+        }
+        // INTE trimmat rakt av — bara den avslutande radbrytningen som `bw`
+        // själv lägger till på stdout, aldrig inre whitespace (samma
+        // lärdom som PR #173: att trimma ett riktigt lösenord korrumperar
+        // det om det avsiktligt innehåller ledande/efterföljande blanksteg).
+        var password = String(data: result.stdout, encoding: .utf8) ?? ""
+        while password.hasSuffix("\n") || password.hasSuffix("\r") {
+            password.removeLast()
+        }
+        guard !password.isEmpty else { throw BitwardenClientError.emptyPassword }
+        return password
+    }
+}
+#endif

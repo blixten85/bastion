@@ -98,69 +98,16 @@ extension TailscaleStatus {
         executableURL: URL = URL(fileURLWithPath: "/usr/bin/env"),
         arguments: [String] = ["tailscale", "status", "--json"]
     ) throws -> TailscaleStatus {
-        let process = Process()
-        process.executableURL = executableURL
-        process.arguments = arguments
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-        try process.run()
-        // stdout och stderr MÅSTE läsas konkurrent, inte sekventiellt: om
-        // barnprocessen skriver tillräckligt till stderr för att fylla OS-
-        // pipebufferten medan vi fortfarande blockerar i den sekventiella
-        // readDataToEndOfFile() på stdout, blockerar barnet i sin tur på
-        // write() till stderr — ett klassiskt Process/Pipe-dödläge (ingen
-        // sida kan göra framsteg). `tailscale status --json` skriver
-        // normalt inget till stderr, men felfallet (t.ex. "not logged in")
-        // gör, så den tysta 64KB-gränsen är en verklig risk, inte teoretisk.
-        let stdoutHandle = stdout.fileHandleForReading
-        let stderrHandle = stderr.fileHandleForReading
-        let stdoutThread = ResultThread { stdoutHandle.readDataToEndOfFile() }
-        let stderrThread = ResultThread { stderrHandle.readDataToEndOfFile() }
-        stdoutThread.start()
-        stderrThread.start()
-        let data = stdoutThread.join()
-        let errData = stderrThread.join()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
+        // `tailscale status --json` skriver normalt inget till stderr, men
+        // felfallet (t.ex. "not logged in") gör, så den konkurrenta läsningen
+        // i `ProcessRunner.run` är en verklig risk att undvika, inte teoretisk.
+        let result = try ProcessRunner.run(executableURL: executableURL, arguments: arguments)
+        guard result.exitCode == 0 else {
             throw TailscaleStatusError.localCommandFailed(
-                exitCode: process.terminationStatus,
-                stderr: String(data: errData, encoding: .utf8) ?? "")
+                exitCode: result.exitCode,
+                stderr: String(data: result.stderr, encoding: .utf8) ?? "")
         }
-        return try parse(jsonData: data)
+        return try parse(jsonData: result.stdout)
     }
     #endif
 }
-
-#if !os(iOS)
-// Samma plattformsvillkor som `fetchLocal(executableURL:arguments:)` ovan
-// (INTE `canImport(Darwin) || canImport(Glibc)`, som uteslöt Windows och
-// gav "cannot find 'ResultThread' in scope" i windowsapp-build — `Thread`/
-// `DispatchSemaphore` finns även i swift-corelibs-foundation på Windows).
-/// Kör en synkron closure på en egen `Thread` och blockerar tills den är
-/// klar — precis vad som krävs för att läsa `stdout`/`stderr` konkurrent
-/// i `fetchLocal(executableURL:arguments:)` utan att dela en `var` mellan
-/// closures (vilket Swift 6:s strikta datakapplöpningskontroll avvisar).
-private final class ResultThread<T>: @unchecked Sendable {
-    private let work: () -> T
-    private var result: T?
-    private let semaphore = DispatchSemaphore(value: 0)
-
-    init(_ work: @escaping () -> T) {
-        self.work = work
-    }
-
-    func start() {
-        Thread { [self] in
-            result = work()
-            semaphore.signal()
-        }.start()
-    }
-
-    func join() -> T {
-        semaphore.wait()
-        return result!
-    }
-}
-#endif

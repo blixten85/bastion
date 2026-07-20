@@ -23,6 +23,8 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
         return nil
     case .certificateFile(let keyPath, let certPath):
         return try? OpenSSHPrivateKey.loadCertificate(keyPath: keyPath, certPath: certPath)
+    case .bitwardenItem(let itemID):
+        return (try? BitwardenClient.fetchPassword(itemID: itemID)).map { SSHAuth.password($0) }
     }
 }
 
