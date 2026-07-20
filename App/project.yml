@@ -33,6 +33,16 @@ targets:
           - "project.yml"
           - "*.md"
           - "*.entitlements"
+          # Egen tv-target (Bastion-tvOS, sources: TVApp/) — utan denna
+          # exkludering plockade `path: .` upp App/TVApp/*.swift i BÅDE
+          # iOS- och macOS-targeten också (rekursiv sources-sökväg), vilket
+          # gav en andra @main-App-struct (TVBastionApp) i samma modul och
+          # bröt paketupplösningen av Sentry helt ("Unable to resolve
+          # module dependency: 'Sentry'", PR #191 — verifierat genom att
+          # isolera orsaken lokalt: felet kvarstod även med Bastion-tvOS-
+          # targeten helt borttagen, men försvann inte förrän TVApp/
+          # exkluderades från de andra targetens sources).
+          - "TVApp/*"
           # macOS-målets Info.plist saknades här (macOS-målet exkluderar
           # omvänt redan iOS "Info.plist" nedan) — utan den här bäddades
           # den in RÅ (ingen $(VARIABEL)-substitution, ingen
@@ -142,6 +152,7 @@ targets:
           - "*.md"
           - "Info.plist"
           - "*.entitlements"
+          - "TVApp/*"
     info:
       path: Info-macOS.plist
       properties:
