@@ -227,7 +227,11 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "5.9"
         ENABLE_USER_SCRIPT_SANDBOXING: YES
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # tvOS vill ha en "App Icon & Top Shelf Image"-brandassets-katalog,
+        # inte en enkel .appiconset (actool-varning "None of the input
+        # catalogs contained a matching App Icon & Top Shelf Image brand
+        # assets collection" annars — verifierat mot Xcode 26.6/tvOS 26.5).
+        ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
         CODE_SIGN_STYLE: Automatic
     dependencies:
       - package: Bastion
