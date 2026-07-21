@@ -1,0 +1,30 @@
+App/TVApp/OneDriveSyncProvider.swift
+  s_1c2bc845e6a689::t_8055b8ce45ab68 18-24
+App/TVApp/TVDockerView.swift
+  s_1c2bc845e6a689::t_3daad7d4d54c6d 28-37
+App/TVApp/TVSyncSettingsView.swift
+  s_1c2bc845e6a689::t_9605f2a54720da 59-62,72-75,88-100
+  s_1c2bc845e6a689::t_2b1ca12f28dd85 126-129,134,138
+  s_1c2bc845e6a689::t_9dc4f014bbb5b3 22-23
+  s_1c2bc845e6a689::t_90b06bea30ba41 159-171
+App/TVApp/TVDeviceFlowOAuthManager.swift
+  s_1c2bc845e6a689::t_585aa08a0e0ecc 36-41
+App/TVApp/TVDashboardView.swift
+  s_1c2bc845e6a689::t_fbfcad0756cdef 133-149,151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3ba08d8147feeb5c107e07096f1df99714572150",
+  "prompts": {},
+  "sessions": {
+    "s_1c2bc845e6a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7e5aa75-f353-4ff6-9e2a-8562f4261e66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
