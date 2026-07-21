@@ -37,6 +37,14 @@ on:
         options: [ios, tvos]
         default: ios
 
+# Serialisera körningar per plattform — två samtidiga `tvos beta` (eller två
+# `ios beta`) skulle annars kunna hämta SAMMA nästa lediga TestFlight-byggnummer
+# och kollidera vid uppladdning. Olika plattformar (ios vs tvos) har egna
+# byggnummer-sekvenser och blockerar därför inte varandra.
+concurrency:
+  group: testflight-${{ inputs.platform }}
+  cancel-in-progress: false
+
 jobs:
   testflight:
     runs-on: macos-26
@@ -75,7 +83,7 @@ jobs:
           chmod 600 ~/.ssh/match_deploy_key
           ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: fastlane beta
+      - name: fastlane ${{ inputs.platform }} beta
         working-directory: App
         env:
           APP_STORE_CONNECT_TEAM_ID: ${{ secrets.APP_STORE_CONNECT_TEAM_ID }}
