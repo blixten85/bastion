@@ -14,6 +14,13 @@ struct TVDashboardView: View {
     @State private var hosts: [Host] = []
     @State private var wakingID: UUID?
     @State private var errorMessage: String?
+    // Docker-vyn kräver en riktig SSH-session — `.askPassword`-värdar
+    // behöver lösenordet frågat FÖRST (samma mönster som HostListViews
+    // motsvarande alert i App/), övriga auth-typer löser sig själva i
+    // `TVAuthResolver.resolveAuth`.
+    @State private var passwordFor: Host?
+    @State private var passwordInput = ""
+    @State private var dockerTarget: DockerTarget?
 
     private let store = HostStore()
 
@@ -29,12 +36,17 @@ struct TVDashboardView: View {
                 } else {
                     List(hosts) { host in
                         HStack {
-                            VStack(alignment: .leading) {
-                                Text(host.alias.isEmpty ? host.hostName : host.alias).font(.headline)
-                                Text("\(host.user)@\(host.hostName):\(host.port)")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                            Button {
+                                openDocker(host)
+                            } label: {
+                                VStack(alignment: .leading) {
+                                    Text(host.alias.isEmpty ? host.hostName : host.alias).font(.headline)
+                                    Text("\(host.user)@\(host.hostName):\(host.port)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
+                            .buttonStyle(.plain)
                             Spacer()
                             if let mac = host.macAddress, !mac.isEmpty {
                                 Button {
@@ -46,6 +58,7 @@ struct TVDashboardView: View {
                                         Label("Väck", systemImage: "power")
                                     }
                                 }
+                                .buttonStyle(.plain)
                                 .disabled(wakingID != nil)
                             }
                         }
@@ -62,6 +75,27 @@ struct TVDashboardView: View {
             }, message: {
                 Text(errorMessage ?? "")
             })
+            .alert("Lösenord", isPresented: .constant(passwordFor != nil)) {
+                SecureField("Lösenord", text: $passwordInput)
+                Button("Anslut") {
+                    if let h = passwordFor {
+                        dockerTarget = DockerTarget(host: h, password: passwordInput)
+                    }
+                    passwordFor = nil; passwordInput = ""
+                }
+                Button("Avbryt", role: .cancel) { passwordFor = nil; passwordInput = "" }
+            }
+            .navigationDestination(item: $dockerTarget) { target in
+                TVDockerView(host: target.host, password: target.password)
+            }
+        }
+    }
+
+    private func openDocker(_ host: Host) {
+        if case .askPassword = host.auth {
+            passwordFor = host
+        } else {
+            dockerTarget = DockerTarget(host: host, password: nil)
         }
     }
 
@@ -77,5 +111,21 @@ struct TVDashboardView: View {
             wakingID = nil
         }
     }
+}
+
+/// `navigationDestination(item:)` kräver `Identifiable` — `id` behöver
+/// inte vara stabil över flera öppningar av SAMMA värd, bara unik per
+/// navigeringstillfälle (en ny struct skapas varje gång `openDocker`
+/// körs).
+private struct DockerTarget: Identifiable, Hashable {
+    let id = UUID()
+    let host: Host
+    let password: String?
+
+    // Manuell konformans — `Host` är `Equatable` men inte `Hashable`, så
+    // auto-syntes fungerar inte. `id` är redan unik per navigeringstillfälle
+    // (se kommentaren ovan), räcker som identitet här.
+    static func == (lhs: DockerTarget, rhs: DockerTarget) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 #endif
