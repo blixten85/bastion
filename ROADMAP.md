@@ -704,8 +704,9 @@ Inget nytt att bygga, bara verifiera/lansera:
   Wake-on-LAN, inte en fullt interaktiv terminal (fjärrkontroll-
   tangentbord är ohanterbart för riktig SSH-inmatning) — Docker-vyn är
   INTE med än. Körtestad i tvOS-simulator på riktig hårdvara, byggs i CI.
-  Kvar: värdlistan kräver att en sync-leverantör redan är konfigurerad
-  någon annanstans — ingen sync-UI byggd för tvOS (opraktiskt med Siri
+  Krav: värdlistan läser bara tv-enhetens lokala `hosts.json`; ingen
+  sync är inkopplad, så konfiguration på en annan enhet fyller inte listan.
+  Ingen sync-UI byggd för tvOS (opraktiskt med Siri
   Remote-textinmatning), Docker-vyn, riktig tvOS-appikon, App Store-
   arkivering/distribution.
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
