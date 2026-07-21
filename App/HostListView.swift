@@ -116,6 +116,7 @@ struct HostListView: View {
     @State private var showSessions = false
     @State private var passwordFor: Host?
     @State private var passwordInput = ""
+    @State private var autofillUsername = ""
     @State private var showSettings = false
     @State private var showImport = false
     @State private var showAppLock = false
@@ -293,6 +294,18 @@ struct HostListView: View {
                 if isEmpty { showSessions = false }
             }
             .alert("Lösenord", isPresented: .constant(passwordFor != nil)) {
+                // Ett förifyllt användarnamnsfält parat med lösenordsfältet
+                // nedan — utan det kan inte AutoFill matcha rätt sparade
+                // konto (visas annars som en ospecificerad lista, inte
+                // "Lösenord för <user>" som i Termius). MÅSTE vara redigerbart
+                // — ett `.disabled`-fält kan inte bli first responder och
+                // exkluderas därför helt ur AutoFill-sammanhanget (verifierat
+                // resonemang, inte antaget). Anslutningen använder alltid
+                // `passwordFor.user`, aldrig detta fälts värde, så en
+                // eventuell redigering här är ofarlig — den påverkar bara
+                // vilket AutoFill-förslag som visas.
+                TextField("Användare", text: $autofillUsername)
+                    .autofillUsername()
                 SecureField("Lösenord", text: $passwordInput)
                     .autofillPassword()
                 Button("Anslut") {
@@ -374,6 +387,7 @@ struct HostListView: View {
 
     private func start(_ host: Host) {
         if case .askPassword = host.auth {
+            autofillUsername = host.user
             passwordFor = host
         } else {
             sessionManager.open(ConnectRequest(host: host, password: nil, initialCommand: host.startupCommand))
