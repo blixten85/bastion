@@ -129,13 +129,18 @@ struct TVDashboardView: View {
         default:
             return "Den valda synktransporten är inte tillgänglig på tvOS — välj Google Drive eller OneDrive i Sync-inställningar."
         }
-        do {
-            try store.sync(with: provider)
-            hosts = store.all()
-            return "Synkat."
-        } catch {
-            return "Sync misslyckades: \(error.localizedDescription)"
-        }
+
+        let status = await Task.detached {
+            do {
+                try store.sync(with: provider)
+                return "Synkat."
+            } catch {
+                return "Sync misslyckades: \(error.localizedDescription)"
+            }
+        }.value
+
+        hosts = store.all()
+        return status
     }
 
     private func openDocker(_ host: Host) {
