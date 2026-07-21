@@ -4,7 +4,8 @@ name: TestFlight-uppladdning
 # byggnummer hos Apple och laddar upp en riktig build till TestFlight.
 # Välj "ios" eller "tvos" i dropdownen — separata App Store Connect-
 # app-record (se.denied.bastion / se.denied.bastion.tv), separata
-# byggnummer-sekvenser.
+# byggnummer-sekvenser. Körningar serialiseras per plattform (se
+# `concurrency` nedan) så två samtidiga uppladdningar inte krockar.
 #
 # tvOS-lanen KRÄVER (ingetdera görbart härifrån, se App/fastlane/Fastfile):
 #   1. Ett App Store Connect-app-record för se.denied.bastion.tv.
