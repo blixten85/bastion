@@ -116,6 +116,7 @@ struct HostListView: View {
     @State private var showSessions = false
     @State private var passwordFor: Host?
     @State private var passwordInput = ""
+    @State private var autofillUsername = ""
     @State private var showSettings = false
     @State private var showImport = false
     @State private var showAppLock = false
@@ -303,7 +304,7 @@ struct HostListView: View {
                 // `passwordFor.user`, aldrig detta fälts värde, så en
                 // eventuell redigering här är ofarlig — den påverkar bara
                 // vilket AutoFill-förslag som visas.
-                TextField("Användare", text: .constant(passwordFor?.user ?? ""))
+                TextField("Användare", text: $autofillUsername)
                     .autofillUsername()
                 SecureField("Lösenord", text: $passwordInput)
                     .autofillPassword()
@@ -386,6 +387,7 @@ struct HostListView: View {
 
     private func start(_ host: Host) {
         if case .askPassword = host.auth {
+            autofillUsername = host.user
             passwordFor = host
         } else {
             sessionManager.open(ConnectRequest(host: host, password: nil, initialCommand: host.startupCommand))
