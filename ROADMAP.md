@@ -698,12 +698,16 @@ Inget nytt att bygga, bara verifiera/lansera:
   generellt (t.ex. en delad "hämta+verifiera en extern binär"-hjälpare)
   är det värt att bygga den ÅTERANVÄNDBAR för både WireGuard och
   Tailscale, snarare än en engångslösning för det ena.
-- **tvOS** (nytt, 2026-07-06) — inte påbörjat. Nytt target i `project.yml`,
-  samma SwiftUI-kod som iOS/macOS. Scopas som dashboard-/Docker-vy, inte
-  en fullt interaktiv terminal (fjärrkontroll-tangentbord är ohanterbart
-  för riktig SSH-inmatning). Billigare/snabbare att lägga till än Android
-  (se nedan i Fas D) — därför före i kön, inte för att Android är
-  mindre viktigt.
+- **tvOS** (nytt, 2026-07-06) — 🟡 grundspike klar (PR #191, 2026-07-20).
+  Eget `Bastion-tvOS`-target i `project.yml` (App/TVApp/, EGEN app, inte
+  samma target som iOS/macOS). Scopat som dashboard: värdlista +
+  Wake-on-LAN, inte en fullt interaktiv terminal (fjärrkontroll-
+  tangentbord är ohanterbart för riktig SSH-inmatning) — Docker-vyn är
+  INTE med än. Körtestad i tvOS-simulator på riktig hårdvara, byggs i CI.
+  Kvar: värdlistan kräver att en sync-leverantör redan är konfigurerad
+  någon annanstans — ingen sync-UI byggd för tvOS (opraktiskt med Siri
+  Remote-textinmatning), Docker-vyn, riktig tvOS-appikon, App Store-
+  arkivering/distribution.
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
