@@ -11,9 +11,18 @@ enum Keychain {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
         ]
-        SecItemDelete(base as CFDictionary)
+        // Uppdatera på plats om posten redan finns istället för
+        // delete-så-add — den gamla ordningen kunde permanent radera en
+        // fungerande hemlighet (t.ex. synk-lösenfrasen) om `SecItemAdd`
+        // misslyckades EFTER att `SecItemDelete` redan tagit bort den gamla
+        // posten (cubic P2). `SecItemUpdate` byter aldrig ut posten förrän
+        // den nya datan är skriven.
+        let data = Data(value.utf8)
+        let updateStatus = SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if updateStatus == errSecSuccess { return true }
+        guard updateStatus == errSecItemNotFound else { return false }
         var add = base
-        add[kSecValueData as String] = Data(value.utf8)
+        add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
     }

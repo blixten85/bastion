@@ -23,9 +23,24 @@ struct TVDashboardView: View {
 
     private let store = HostStore()
 
+    /// `nil` för de rutinmässiga lägena (avstängd sync, lyckad synk) —
+    /// bara faktiska problem ska stjäla uppmärksamhet på en skärm utan
+    /// någon "tryck för att stänga"-notis.
+    private var syncFailureBanner: String? {
+        guard let syncStatus, syncStatus != "Synkat.", syncStatus != "Sync är avstängd." else { return nil }
+        return syncStatus
+    }
+
     var body: some View {
         NavigationStack {
             Group {
+                // Den automatiska synken vid start skrev bara till
+                // `syncStatus` utan att den nånsin lästes — ett
+                // misslyckande (fel lösenfras, utgången inloggning, ...)
+                // var alltså osynligt för användaren (cubic P2).
+                if let failure = syncFailureBanner {
+                    Text(failure).font(.footnote).foregroundStyle(.red).padding(.bottom, 4)
+                }
                 if hosts.isEmpty {
                     ContentUnavailableView(
                         "Inga värdar",

@@ -55,22 +55,39 @@ final class TVDockerModel: ObservableObject {
         errorMessage = "\(error)"
     }
 
+    // Bumpas vid varje `refresh()`-anrop — en överlappande, ÄLDRE refresh
+    // (t.ex. den automatiska `.task`-körningen och ett manuellt
+    // uppdaterings-tryck som råkar överlappa) ska inte få skriva över
+    // resultatet från en NYARE, redan slutförd refresh (cubic P2).
+    private var refreshGeneration = 0
+
     func refresh() async {
+        refreshGeneration += 1
+        let generation = refreshGeneration
         loading = true
-        defer { loading = false }
+        defer { if generation == refreshGeneration { loading = false } }
         guard let s = await ensureSession() else { return }
         do {
-            containers = try await DockerService.list(over: s)
+            let list = try await DockerService.list(over: s)
+            guard generation == refreshGeneration else { return }
+            containers = list
             errorMessage = nil
         } catch {
+            guard generation == refreshGeneration else { return }
             handleSessionFailure(error, session: s)
         }
     }
 
     func act(_ kind: DockerAction, on ref: String) async {
-        guard let s = await ensureSession() else { return }
+        // Reservera INNAN `ensureSession()`-väntan, inte efter — annars kan
+        // två snabba tryck på samma container båda hinna förbi kollen
+        // (i App/DockerView.swift markeras raden bara upptagen EFTER en
+        // redan uppkopplad session, samma race finns där också — fixat
+        // här, cubic P2).
+        guard !busyRefs.contains(ref) else { return }
         busyRefs.insert(ref)
         defer { busyRefs.remove(ref) }
+        guard let s = await ensureSession() else { return }
         do {
             switch kind {
             case .start: try await DockerService.start(ref, over: s)

@@ -43,9 +43,17 @@ struct GoogleDriveSyncProvider: SyncProvider {
         guard var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files") else {
             throw OAuthError.invalidCallback
         }
+        // Drives frågespråk kräver `\`/`'` bakåtstreckade i strängliteraler
+        // — ett filnamn med en apostrof (osannolikt men möjligt om det
+        // någonsin blir konfigurerbart) hade annars gjort frågan ogiltig
+        // eller tolkats fel (cubic P2). `trashed = false` utesluter en
+        // borttagen-men-inte-tömd fil från att felaktigt väljas som
+        // synkobjektet.
+        let escapedFilename = filename.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
         components.queryItems = [
             URLQueryItem(name: "spaces", value: "appDataFolder"),
-            URLQueryItem(name: "q", value: "name = '\(filename)'"),
+            URLQueryItem(name: "q", value: "name = '\(escapedFilename)' and trashed = false"),
             URLQueryItem(name: "fields", value: "files(id)"),
         ]
         var request = URLRequest(url: components.url!)

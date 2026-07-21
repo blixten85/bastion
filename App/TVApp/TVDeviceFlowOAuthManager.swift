@@ -112,7 +112,13 @@ enum TVDeviceFlowOAuthManager {
         )
         let pending = PendingDeviceCode(
             provider: provider, deviceCode: decoded.device_code,
-            interval: decoded.interval ?? 5, expiresAt: session.expiresAt
+            // Klämmer fast intervallet till ett rimligt intervall — en
+            // felaktig/skadlig respons med `interval <= 0` hade annars
+            // krascht `Task.sleep` (negativt värde blir ett enormt `UInt64`
+            // efter overflow) eller startat en pollningsloop utan paus
+            // (cubic P2).
+            interval: min(max(decoded.interval ?? 5, 1), 60),
+            expiresAt: session.expiresAt
         )
         return (session, pending)
     }
@@ -132,8 +138,19 @@ enum TVDeviceFlowOAuthManager {
                 "client_id": pending.provider.clientID,
                 "device_code": pending.deviceCode,
             ])
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { throw OAuthError.requestFailed("inget svar") }
+            let data: Data
+            let response: URLResponse
+            do {
+                (data, response) = try await URLSession.shared.data(for: request)
+            } catch {
+                // Ett övergående nätverksfel (timeout, tillfälligt tapp)
+                // ska inte avbryta HELA inloggningen — koden/deviceCode är
+                // fortfarande giltig tills `expiresAt`, bara den här
+                // pollningsomgången misslyckades. Fortsätt loopen, samma
+                // enkla mönster som `authorization_pending` nedan (cubic P2).
+                continue
+            }
+            guard let http = response as? HTTPURLResponse else { continue }
             if (200..<300).contains(http.statusCode) {
                 let decoded = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
                 try TVOAuthTokenStore.save(StoredOAuthToken(response: decoded), for: pending.provider.id)

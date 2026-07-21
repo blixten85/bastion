@@ -13,6 +13,16 @@ enum OAuthError: Error {
     case expired
 }
 
+private struct OAuthErrorBody: Decodable {
+    let error: String
+    let error_description: String?
+}
+
+private struct OAuthTokenRefreshError: Error {
+    let message: String
+    let isPermanent: Bool
+}
+
 /// tvOS-motsvarighet till `App/OAuthTokenStore.swift` — nyckeln är
 /// leverantörens `id`-sträng direkt istället för hela `OAuthProviderConfig`
 /// (den PKCE-baserade konfigurationstypen finns inte här, se
@@ -46,15 +56,39 @@ enum TVOAuthTokenStore {
     /// Hämtar en giltig access token, förnyar tyst via `refresh_token` om
     /// den gått ut. Blockerande — matchar `SyncProvider`s synkrona gränssnitt.
     static func validAccessToken(for providerID: String, tokenEndpoint: URL, clientID: String) throws -> String {
-        guard var token = load(for: providerID) else { throw OAuthError.notLoggedIn }
-        if token.isExpired, let refreshToken = token.refreshToken {
-            token = try refresh(refreshToken, tokenEndpoint: tokenEndpoint, clientID: clientID)
-            try save(token, for: providerID)
+        guard let token = load(for: providerID) else { throw OAuthError.notLoggedIn }
+        guard token.isExpired else { return token.accessToken }
+        // En utgången token UTAN refresh-token är oanvändbar — returnera den
+        // ALDRIG som "giltig" (cubic P2, skulle annars skicka en känt
+        // utgången bearer-token istället för att kräva ny inloggning).
+        guard let refreshToken = token.refreshToken else {
+            logout(providerID)
+            throw OAuthError.notLoggedIn
         }
-        return token.accessToken
+        do {
+            let refreshed = try refresh(refreshToken, tokenEndpoint: tokenEndpoint, clientID: clientID)
+            try save(refreshed, for: providerID)
+            return refreshed.accessToken
+        } catch let error as OAuthTokenRefreshError where error.isPermanent {
+            // `invalid_grant` m.fl. betyder att refresh-token är permanent
+            // ogiltig (återkallad/utgången) — utan detta skulle varje
+            // framtida synk upprepa samma misslyckade förnyelse i all
+            // oändlighet istället för att be användaren logga in igen
+            // (cubic P2).
+            logout(providerID)
+            throw OAuthError.notLoggedIn
+        }
     }
 
     private static func refresh(_ refreshToken: String, tokenEndpoint: URL, clientID: String) throws -> StoredOAuthToken {
+        // Ett skickat `refresh_token` är en långlivad hemlighet — vägra
+        // skicka den till en icke-HTTPS-endpoint (cubic, säkerhetsfynd).
+        // Nuvarande anropare använder alltid hårdkodade HTTPS-endpoints,
+        // men funktionen är generell nog att en framtida felkonfiguration
+        // annars skulle skicka den i klartext.
+        guard tokenEndpoint.scheme == "https" else {
+            throw OAuthError.requestFailed("token-endpointen måste använda HTTPS")
+        }
         var request = URLRequest(url: tokenEndpoint)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -64,14 +98,27 @@ enum TVOAuthTokenStore {
             "client_id": clientID,
         ])
         let (data, response) = try synchronousRequest(request)
-        try checkHTTPStatus(response, data: data)
+        guard let http = response as? HTTPURLResponse else { throw OAuthError.requestFailed("inget svar") }
+        if !(200..<300).contains(http.statusCode) {
+            let body = try? JSONDecoder().decode(OAuthErrorBody.self, from: data)
+            let permanent = body?.error == "invalid_grant" || body?.error == "invalid_client"
+            throw OAuthTokenRefreshError(message: String(decoding: data, as: UTF8.self), isPermanent: permanent)
+        }
         let decoded = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
         return StoredOAuthToken(response: decoded, previousRefreshToken: refreshToken)
     }
 
+    /// `application/x-www-form-urlencoded` kräver striktare kodning än
+    /// `.urlQueryAllowed` — den senare lämnar `&`/`+` okodade, vilket får en
+    /// token/refresh-token som råkar innehålla dem tolkad som extra fält
+    /// eller mellanslag (cubic P2). `formURLEncoded` är samma
+    /// karaktärsuppsättning RFC 3986 "unreserved" tillåter, minus `+`
+    /// (kodas alltid, aldrig tolkat som mellanslag av mottagaren).
     static func formBody(_ fields: [String: String]) -> Data {
-        fields.map { key, value in
-            "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return fields.map { key, value in
+            "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")"
         }.joined(separator: "&").data(using: .utf8)!
     }
 
