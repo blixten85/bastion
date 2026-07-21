@@ -16,11 +16,15 @@ struct OneDriveSyncProvider: SyncProvider {
 
     private var contentURL: URL {
         // Procentkoda filnamnet innan det klistras in i sökvägen — annars
-        // tolkar Graph-URL:en ett filnamn med "/" eller andra reserverade
-        // tecken som en del av sökvägsstrukturen istället för ETT filnamn
-        // (cubic P2). `urlPathAllowed` behåller vanliga tecken men kodar
-        // bort "/"/":" m.fl.
-        let encoded = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? filename
+        // tolkar Graph-URL:en ett filnamn med "/" eller ":" som en del av
+        // sökvägsstrukturen istället för ETT filnamn. `.urlPathAllowed`
+        // räcker INTE — den tillåter faktiskt både "/" och ":" (cubic P2,
+        // andra granskningsrundan hittade att första fixet var ofullständigt).
+        // Bygger en egen tillåten uppsättning istället: alfanumeriskt +
+        // några ofarliga specialtecken, allt annat kodas.
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        let encoded = filename.addingPercentEncoding(withAllowedCharacters: allowed) ?? filename
         return URL(string: "https://graph.microsoft.com/v1.0/me/drive/special/approot:/\(encoded):/content")!
     }
 

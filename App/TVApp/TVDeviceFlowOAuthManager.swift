@@ -112,12 +112,13 @@ enum TVDeviceFlowOAuthManager {
         )
         let pending = PendingDeviceCode(
             provider: provider, deviceCode: decoded.device_code,
-            // Klämmer fast intervallet till ett rimligt intervall — en
-            // felaktig/skadlig respons med `interval <= 0` hade annars
-            // krascht `Task.sleep` (negativt värde blir ett enormt `UInt64`
-            // efter overflow) eller startat en pollningsloop utan paus
-            // (cubic P2).
-            interval: min(max(decoded.interval ?? 5, 1), 60),
+            // Bara ett golv, inget tak — ett interval <= 0 i ett felaktigt
+            // svar hade annars kraschat `Task.sleep` (negativa `Int` TRAPPAR
+            // `UInt64(...)`, inte "blir ett enormt värde efter overflow" som
+            // en tidigare kommentar här påstod — rättat, cubic P3). Ett tak
+            // på 60 var FEL i förra rundan: RFC 8628 kräver att vi respekterar
+            // ett SERVER-angivet interval även om det är längre (cubic P2).
+            interval: max(decoded.interval ?? 5, 1),
             expiresAt: session.expiresAt
         )
         return (session, pending)
@@ -128,8 +129,15 @@ enum TVDeviceFlowOAuthManager {
     /// koden från `begin` visas på skärmen.
     static func waitForLogin(_ pending: PendingDeviceCode) async throws {
         var interval = pending.interval
-        while Date() < pending.expiresAt {
-            try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
+        while true {
+            let remaining = pending.expiresAt.timeIntervalSinceNow
+            guard remaining > 0 else { throw OAuthError.expired }
+            try await Task.sleep(nanoseconds: UInt64(min(Double(interval), remaining) * 1_000_000_000))
+            // Kollar utgången IGEN direkt efter uppvaknandet — annars kunde
+            // en pollning som somnade precis innan utgången ändå skicka en
+            // sista, meningslös förfrågan (cubic P3).
+            guard Date() < pending.expiresAt else { throw OAuthError.expired }
+
             var request = URLRequest(url: pending.provider.tokenEndpoint)
             request.httpMethod = "POST"
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -142,17 +150,29 @@ enum TVDeviceFlowOAuthManager {
             let response: URLResponse
             do {
                 (data, response) = try await URLSession.shared.data(for: request)
-            } catch {
-                // Ett övergående nätverksfel (timeout, tillfälligt tapp)
-                // ska inte avbryta HELA inloggningen — koden/deviceCode är
-                // fortfarande giltig tills `expiresAt`, bara den här
-                // pollningsomgången misslyckades. Fortsätt loopen, samma
-                // enkla mönster som `authorization_pending` nedan (cubic P2).
+            } catch is CancellationError {
+                // Avbrott (t.ex. sync-vyn stängdes) ska propagera, ALDRIG
+                // tolkas som "övergående nätverksfel att försöka igen" —
+                // annars snurrar pollningen vidare för alltid efter att
+                // anroparen redan gett upp (verklig bugg i förra rundans
+                // "fortsätt vid alla fel"-fix).
+                throw CancellationError()
+            } catch let urlError as URLError where Self.isTransient(urlError) {
+                // Bara RIKTIGT övergående nätverksfel (timeout, tapp
+                // anslutning, ...) ska backa av och försöka igen — RFC 8628
+                // ber uttryckligen om backoff här, inte samma takt som
+                // `authorization_pending` (cubic P2).
+                interval += 5
                 continue
             }
             guard let http = response as? HTTPURLResponse else { continue }
             if (200..<300).contains(http.statusCode) {
                 let decoded = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
+                // Kolla avbrott EN SISTA gång innan token sparas — annars
+                // kan en inloggning som redan avbröts (sheeten stängd,
+                // `Task.cancel()` anropad) ändå hinna spara en token som
+                // ingen bad om (cubic P2).
+                guard !Task.isCancelled else { throw CancellationError() }
                 try TVOAuthTokenStore.save(StoredOAuthToken(response: decoded), for: pending.provider.id)
                 return
             }
@@ -171,7 +191,16 @@ enum TVDeviceFlowOAuthManager {
                 throw OAuthError.requestFailed(errorBody?.error_description ?? String(decoding: data, as: UTF8.self))
             }
         }
-        throw OAuthError.expired
+    }
+
+    private static func isTransient(_ error: URLError) -> Bool {
+        switch error.code {
+        case .timedOut, .networkConnectionLost, .notConnectedToInternet,
+             .dnsLookupFailed, .cannotConnectToHost, .cannotFindHost:
+            return true
+        default:
+            return false
+        }
     }
 }
 

@@ -2,15 +2,31 @@
 import Foundation
 import SSHCore
 
-enum OAuthError: Error {
+// `OAuthError.cancelled` togs bort (cubic P3) — inget här kastar den, riktigt
+// avbrott representeras redan av Swifts egen `CancellationError`.
+enum OAuthError: Error, LocalizedError {
     case notConfigured
     case notLoggedIn
-    case cancelled
     case invalidCallback
     case requestFailed(String)
     case keychainWriteFailed
     case accessDenied
     case expired
+
+    // Utan detta visade UI:t bara ett generiskt "operationen kunde inte
+    // slutföras" — även `requestFailed`s faktiska detaljer föll bort
+    // (cubic P3).
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured: return "Inte konfigurerad — se README \"Kontointegration\"."
+        case .notLoggedIn: return "Inte inloggad."
+        case .invalidCallback: return "Ogiltigt svar från inloggningen."
+        case .requestFailed(let detail): return detail
+        case .keychainWriteFailed: return "Kunde inte spara i nyckelringen."
+        case .accessDenied: return "Inloggningen nekades."
+        case .expired: return "Koden hann gå ut innan inloggningen slutfördes."
+        }
+    }
 }
 
 private struct OAuthErrorBody: Decodable {
@@ -20,7 +36,7 @@ private struct OAuthErrorBody: Decodable {
 
 private struct OAuthTokenRefreshError: Error {
     let message: String
-    let isPermanent: Bool
+    let isInvalidGrant: Bool
 }
 
 /// tvOS-motsvarighet till `App/OAuthTokenStore.swift` — nyckeln är
@@ -69,12 +85,14 @@ enum TVOAuthTokenStore {
             let refreshed = try refresh(refreshToken, tokenEndpoint: tokenEndpoint, clientID: clientID)
             try save(refreshed, for: providerID)
             return refreshed.accessToken
-        } catch let error as OAuthTokenRefreshError where error.isPermanent {
-            // `invalid_grant` m.fl. betyder att refresh-token är permanent
-            // ogiltig (återkallad/utgången) — utan detta skulle varje
-            // framtida synk upprepa samma misslyckade förnyelse i all
-            // oändlighet istället för att be användaren logga in igen
-            // (cubic P2).
+        } catch let error as OAuthTokenRefreshError where error.isInvalidGrant {
+            // Bara `invalid_grant` betyder att REFRESH-TOKEN är permanent
+            // ogiltig (återkallad/utgången av användaren) — logga ut och
+            // kräv ny inloggning. `invalid_client` (fel/roterat client-ID)
+            // är ett KONFIGURATIONSFEL, inte något en omlogging löser — att
+            // radera token där bara döljer det riktiga problemet bakom en
+            // missvisande "logga in igen"-uppmaning (cubic P2, andra
+            // granskningsrundan: mitt första utkast slog ihop de två felen).
             logout(providerID)
             throw OAuthError.notLoggedIn
         }
@@ -101,8 +119,9 @@ enum TVOAuthTokenStore {
         guard let http = response as? HTTPURLResponse else { throw OAuthError.requestFailed("inget svar") }
         if !(200..<300).contains(http.statusCode) {
             let body = try? JSONDecoder().decode(OAuthErrorBody.self, from: data)
-            let permanent = body?.error == "invalid_grant" || body?.error == "invalid_client"
-            throw OAuthTokenRefreshError(message: String(decoding: data, as: UTF8.self), isPermanent: permanent)
+            throw OAuthTokenRefreshError(
+                message: String(decoding: data, as: UTF8.self),
+                isInvalidGrant: body?.error == "invalid_grant")
         }
         let decoded = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
         return StoredOAuthToken(response: decoded, previousRefreshToken: refreshToken)

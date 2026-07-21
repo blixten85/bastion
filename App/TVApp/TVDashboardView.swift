@@ -150,10 +150,17 @@ struct TVDashboardView: View {
         // `DispatchSemaphore`, se den filen). `Task.detached` räcker INTE
         // för det — det kör fortfarande på Swifts kooperativa tråd-pool,
         // och en blockerad tråd där kan svälta ut andra samtidiga tasks
-        // (sentry+cubic, flera oberoende fynd om samma sak). En riktig,
-        // dedikerad bakgrundskö isolerar blockeringen helt.
+        // (sentry+cubic, flera oberoende fynd om samma sak).
+        //
+        // `Self.syncQueue` är en SERIELL kö, inte `.global()` (som är
+        // konkurrent) — annars kan den automatiska synken vid appstart och
+        // ett manuellt "Synka nu"-tryck köra SAMTIDIGT och race:a om samma
+        // `HostStore`/fjärrfil (push/pull-omgångar kan interfoliera och
+        // temporärt skriva över varandras resultat, cubic P2, andra
+        // granskningsrundan — min kommentar förra rundan påstod felaktigt
+        // att detta redan var löst).
         let status = await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            Self.syncQueue.async {
                 let result: String
                 do {
                     try store.sync(with: provider)
@@ -168,6 +175,11 @@ struct TVDashboardView: View {
         hosts = store.all()
         return status
     }
+
+    // `static let` — delad över ALLA instanser av vyn (bara en i praktiken,
+    // men skyddar ändå mot att två separata `TVDashboardView`-instanser
+    // någonsin skulle race:a om samma lokala hosts.json).
+    private static let syncQueue = DispatchQueue(label: "se.denied.bastion.tv.sync")
 
     private func openDocker(_ host: Host) {
         if case .askPassword = host.auth {

@@ -58,8 +58,12 @@ struct TVSyncSettingsView: View {
                         Button("Synka nu") {
                             // Spara lösenfrasen FÖRST — annars synkar `syncNow`
                             // mot vad som senast sparades i Keychain, inte det
-                            // användaren precis skrev in (cubic P1).
-                            save()
+                            // användaren precis skrev in (cubic P1). Kör bara
+                            // synken om sparandet FAKTISKT lyckades — annars
+                            // hade en misslyckad sparning tyst synkat mot den
+                            // GAMLA lösenfrasen istället (cubic P1, andra
+                            // granskningsrundan).
+                            guard save() else { return }
                             Task { status = await syncNow() }
                         }
                         if let status { Text(status).font(.footnote).foregroundStyle(.secondary) }
@@ -70,8 +74,7 @@ struct TVSyncSettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Klar") {
-                        save()
-                        if saveError == nil { dismiss() }
+                        if save() { dismiss() }
                     }
                 }
             }
@@ -155,20 +158,26 @@ struct TVSyncSettingsView: View {
         .padding(60)
     }
 
-    private func save() {
+    /// Returnerar `true` om lösenfrasen faktiskt sparades/raderades —
+    /// anropare ska bara gå vidare (stänga vyn, köra en synk) vid `true`
+    /// (cubic P1, andra granskningsrundan: en tyst misslyckad radering fick
+    /// tidigare framstå som lyckad).
+    @discardableResult
+    private func save() -> Bool {
         if passphrase.isEmpty {
-            Keychain.delete(SyncKeys.passphraseKey)
-            return
+            guard Keychain.delete(SyncKeys.passphraseKey) else {
+                saveError = "Lösenfrasen kunde inte raderas ur nyckelringen. Försök igen."
+                return false
+            }
+            return true
         }
         // Ytligt fel (t.ex. Keychain otillgänglig) ska INTE stänga vyn tyst
-        // med en förlorad lösenfras — `Keychain.set` raderar den gamla
-        // posten innan den skriver den nya, så ett misslyckat `SecItemAdd`
-        // kan annars radera en tidigare fungerande lösenfras utan varning
-        // (cubic P1).
+        // med en förlorad lösenfras (cubic P1).
         guard Keychain.set(passphrase, for: SyncKeys.passphraseKey) else {
             saveError = "Lösenfrasen kunde inte sparas i nyckelringen. Försök igen."
-            return
+            return false
         }
+        return true
     }
 }
 

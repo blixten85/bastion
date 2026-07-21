@@ -45,14 +45,17 @@ final class TVDockerModel: ObservableObject {
         )
     }
 
-    private func handleSessionFailure(_ error: Error, session: SSHSession) {
+    /// Ogiltigförklarar en trasig cachad session — GÖRS ALLTID, oavsett om
+    /// felmeddelandet visas eller inte (se `refresh()`). Att bara undertrycka
+    /// visningen för en föråldrad generation men LÅTA den trasiga sessionen
+    /// vara kvar cachad hade läckt den vidare till nästa, redan pågående
+    /// refresh (cubic P2, andra granskningsrundan).
+    private func invalidateSessionIfNeeded(_ error: Error, session: SSHSession) {
         guard case SSHError.remoteExit = error else {
             guard connector.target === session else { return }
-            errorMessage = "\(error)"
             connector.invalidateIfCurrent(session)
             return
         }
-        errorMessage = "\(error)"
     }
 
     // Bumpas vid varje `refresh()`-anrop — en överlappande, ÄLDRE refresh
@@ -73,8 +76,9 @@ final class TVDockerModel: ObservableObject {
             containers = list
             errorMessage = nil
         } catch {
+            invalidateSessionIfNeeded(error, session: s)
             guard generation == refreshGeneration else { return }
-            handleSessionFailure(error, session: s)
+            errorMessage = "\(error)"
         }
     }
 
@@ -96,7 +100,8 @@ final class TVDockerModel: ObservableObject {
             }
             await refresh()
         } catch {
-            handleSessionFailure(error, session: s)
+            invalidateSessionIfNeeded(error, session: s)
+            errorMessage = "\(error)"
         }
     }
 

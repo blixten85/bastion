@@ -46,7 +46,12 @@ enum Keychain {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
         ]
-        return SecItemDelete(query as CFDictionary) == errSecSuccess
+        // "Fanns redan inte" räknas som lyckat — anroparen ville att posten
+        // inte längre finns, och det stämmer redan (cubic P1: en anropare
+        // som särskiljer misslyckande här måste kunna skilja en RIKTIG
+        // Keychain-läsfel från "inget att radera").
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }
 #endif
