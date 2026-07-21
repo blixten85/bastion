@@ -130,14 +130,25 @@ struct TVDashboardView: View {
             return "Den valda synktransporten är inte tillgänglig på tvOS — välj Google Drive eller OneDrive i Sync-inställningar."
         }
 
-        let status = await Task.detached {
-            do {
-                try store.sync(with: provider)
-                return "Synkat."
-            } catch {
-                return "Sync misslyckades: \(error.localizedDescription)"
+        // `store.sync(with:)` gör blockerande, synkrona HTTP-anrop
+        // (`TVOAuthTokenStore.synchronousRequest` använder en
+        // `DispatchSemaphore`, se den filen). `Task.detached` räcker INTE
+        // för det — det kör fortfarande på Swifts kooperativa tråd-pool,
+        // och en blockerad tråd där kan svälta ut andra samtidiga tasks
+        // (sentry+cubic, flera oberoende fynd om samma sak). En riktig,
+        // dedikerad bakgrundskö isolerar blockeringen helt.
+        let status = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result: String
+                do {
+                    try store.sync(with: provider)
+                    result = "Synkat."
+                } catch {
+                    result = "Sync misslyckades: \(error.localizedDescription)"
+                }
+                continuation.resume(returning: result)
             }
-        }.value
+        }
 
         hosts = store.all()
         return status

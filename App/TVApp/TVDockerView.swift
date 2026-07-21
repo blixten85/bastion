@@ -25,6 +25,16 @@ final class TVDockerModel: ObservableObject {
     private func ensureSession() async -> SSHSession? {
         await connector.ensure(
             connect: { [host, password] in
+                // En jump-host ska ALDRIG hoppas över tyst (samma princip
+                // som `App/AuthResolver.swift`s `resolveConnectionPlan`
+                // dokumenterar) — utan jump-uppslagning här (se filkommentaren
+                // ovan) skulle en värd synkad från iPhone/Mac med en
+                // konfigurerad jump-host annars tyst anslutas DIREKT till
+                // target, vilket kan exponera en server användaren
+                // medvetet bara ville nå via en bastion (cubic P1).
+                guard host.jumpHostID == nil else {
+                    throw PlainMessageError(message: "Den här värden har en jump-host konfigurerad — det stöds inte i tvOS-Docker-vyn än.")
+                }
                 guard let auth = resolveAuth(for: host, password: password) else {
                     throw PlainMessageError(message: "Kan inte autentisera värden.")
                 }

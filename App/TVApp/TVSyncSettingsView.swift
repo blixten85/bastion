@@ -19,6 +19,8 @@ struct TVSyncSettingsView: View {
     )
     @State private var activeSession: DeviceFlowSession?
     @State private var loginError: String?
+    @State private var loginTask: Task<Void, Never>?
+    @State private var saveError: String?
 
     let syncNow: () async -> String
 
@@ -54,6 +56,10 @@ struct TVSyncSettingsView: View {
                 if enabled {
                     Section {
                         Button("Synka nu") {
+                            // Spara lösenfrasen FÖRST — annars synkar `syncNow`
+                            // mot vad som senast sparades i Keychain, inte det
+                            // användaren precis skrev in (cubic P1).
+                            save()
                             Task { status = await syncNow() }
                         }
                         if let status { Text(status).font(.footnote).foregroundStyle(.secondary) }
@@ -63,7 +69,10 @@ struct TVSyncSettingsView: View {
             .navigationTitle("Sync")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Klar") { save(); dismiss() }
+                    Button("Klar") {
+                        save()
+                        if saveError == nil { dismiss() }
+                    }
                 }
             }
             .sheet(item: $activeSession) { session in
@@ -76,6 +85,19 @@ struct TVSyncSettingsView: View {
             } message: {
                 Text(loginError ?? "")
             }
+            .alert("Kunde inte spara lösenfrasen", isPresented: Binding(
+                get: { saveError != nil }, set: { if !$0 { saveError = nil } }
+            )) {
+                Button("OK") { saveError = nil }
+            } message: {
+                Text(saveError ?? "")
+            }
+            // Om vyn stängs (Klar, eller att användaren navigerar bort) medan
+            // en inloggning pollar: avbryt den — annars kan en redan avbruten
+            // inloggning ändå slutföras och spara en token i bakgrunden,
+            // eller en ny inloggning krocka med en gammal pollning som
+            // fortfarande lever (cubic P2).
+            .onDisappear { loginTask?.cancel() }
         }
     }
 
@@ -101,14 +123,19 @@ struct TVSyncSettingsView: View {
     }
 
     private func startLogin(_ provider: DeviceFlowProviderConfig) {
-        Task {
+        // Avbryt en ev. tidigare, fortfarande pollande inloggning innan en ny
+        // startas — annars kan två samtidiga pollningar krocka (cubic P2).
+        loginTask?.cancel()
+        loginTask = Task {
             do {
                 let (session, pending) = try await TVDeviceFlowOAuthManager.begin(provider)
                 activeSession = session
                 try await TVDeviceFlowOAuthManager.waitForLogin(pending)
+                guard !Task.isCancelled else { return }
                 loggedIn[provider.id] = true
                 activeSession = nil
             } catch {
+                guard !Task.isCancelled else { return }
                 activeSession = nil
                 loginError = "\(error)"
             }
@@ -129,8 +156,19 @@ struct TVSyncSettingsView: View {
     }
 
     private func save() {
-        if passphrase.isEmpty { Keychain.delete(SyncKeys.passphraseKey) }
-        else { Keychain.set(passphrase, for: SyncKeys.passphraseKey) }
+        if passphrase.isEmpty {
+            Keychain.delete(SyncKeys.passphraseKey)
+            return
+        }
+        // Ytligt fel (t.ex. Keychain otillgänglig) ska INTE stänga vyn tyst
+        // med en förlorad lösenfras — `Keychain.set` raderar den gamla
+        // posten innan den skriver den nya, så ett misslyckat `SecItemAdd`
+        // kan annars radera en tidigare fungerande lösenfras utan varning
+        // (cubic P1).
+        guard Keychain.set(passphrase, for: SyncKeys.passphraseKey) else {
+            saveError = "Lösenfrasen kunde inte sparas i nyckelringen. Försök igen."
+            return
+        }
     }
 }
 

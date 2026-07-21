@@ -15,7 +15,13 @@ struct OneDriveSyncProvider: SyncProvider {
     }
 
     private var contentURL: URL {
-        URL(string: "https://graph.microsoft.com/v1.0/me/drive/special/approot:/\(filename):/content")!
+        // Procentkoda filnamnet innan det klistras in i sökvägen — annars
+        // tolkar Graph-URL:en ett filnamn med "/" eller andra reserverade
+        // tecken som en del av sökvägsstrukturen istället för ETT filnamn
+        // (cubic P2). `urlPathAllowed` behåller vanliga tecken men kodar
+        // bort "/"/":" m.fl.
+        let encoded = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? filename
+        return URL(string: "https://graph.microsoft.com/v1.0/me/drive/special/approot:/\(encoded):/content")!
     }
 
     func pull() throws -> SyncState? {

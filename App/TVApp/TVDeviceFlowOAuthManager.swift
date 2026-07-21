@@ -33,6 +33,12 @@ enum TVOAuthProviders {
         displayName: "Google Drive",
         deviceCodeEndpoint: URL(string: "https://oauth2.googleapis.com/device/code")!,
         tokenEndpoint: URL(string: "https://oauth2.googleapis.com/token")!,
+        // Google har inget separat "offline_access"-scope som Microsoft —
+        // deras egen dokumenterade exempelrespons för device-flow innehåller
+        // redan `refresh_token` utan extra scope/parametrar (verifierat mot
+        // developers.google.com/identity/protocols/oauth2/limited-input-device,
+        // 2026-07-21), till skillnad från web-server-flödet som kräver
+        // `access_type=offline`.
         scope: "https://www.googleapis.com/auth/drive.appdata",
         clientID: ""
     )
