@@ -1,0 +1,57 @@
+App/project.yml
+  s_1c2bc845e6a689::t_d2a9fb800101f7 230-234
+App/TVApp/Assets.xcassets/Contents.json
+  s_1c2bc845e6a689::t_37ffdd9370dbe3 1-6
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/Contents.json"
+  s_1c2bc845e6a689::t_022a46dc47bb8b 3-6
+  s_1c2bc845e6a689::t_a921c80b1b5baf 1-2
+  s_1c2bc845e6a689::t_7b8ddda3becf33 7-9
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon - App Store.imagestack/Back.imagestacklayer/Content.imageset/Contents.json"
+  s_1c2bc845e6a689::t_91e5a97cee4f74 1-7
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon - App Store.imagestack/Back.imagestacklayer/Contents.json"
+  s_1c2bc845e6a689::t_576a921397fb22 1
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon - App Store.imagestack/Contents.json"
+  s_1c2bc845e6a689::t_40f0701bf85a84 1-8
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon - App Store.imagestack/Front.imagestacklayer/Content.imageset/Contents.json"
+  s_1c2bc845e6a689::t_7324b5eeb1a5fd 1-7
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon - App Store.imagestack/Front.imagestacklayer/Contents.json"
+  s_1c2bc845e6a689::t_c2784e30f99d70 1
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon - App Store.imagestack/Middle.imagestacklayer/Content.imageset/Contents.json"
+  s_1c2bc845e6a689::t_83f4279b74fe51 1-7
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon - App Store.imagestack/Middle.imagestacklayer/Contents.json"
+  s_1c2bc845e6a689::t_e6b5a18fcaeb18 1
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon.imagestack/Back.imagestacklayer/Content.imageset/Contents.json"
+  s_1c2bc845e6a689::t_139f807b7778cd 1-7
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon.imagestack/Back.imagestacklayer/Contents.json"
+  s_1c2bc845e6a689::t_cc456a522a1983 1
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon.imagestack/Contents.json"
+  s_1c2bc845e6a689::t_357242413da42a 1-8
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon.imagestack/Front.imagestacklayer/Content.imageset/Contents.json"
+  s_1c2bc845e6a689::t_fa1da9fa4eb0e7 1-7
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon.imagestack/Front.imagestacklayer/Contents.json"
+  s_1c2bc845e6a689::t_3f1e1d0d199fb7 1
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon.imagestack/Middle.imagestacklayer/Content.imageset/Contents.json"
+  s_1c2bc845e6a689::t_90dc7c41424a50 1-7
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/App Icon.imagestack/Middle.imagestacklayer/Contents.json"
+  s_1c2bc845e6a689::t_7e0c2e90edcabb 1
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/Top Shelf Image Wide.imageset/Contents.json"
+  s_1c2bc845e6a689::t_e241cf6cfc775b 1-7
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/Top Shelf Image.imageset/Contents.json"
+  s_1c2bc845e6a689::t_3567d679107c59 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "82db2ee8a3aa4d0225f8ef4a88cc4db3d2958c71",
+  "prompts": {},
+  "sessions": {
+    "s_1c2bc845e6a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7e5aa75-f353-4ff6-9e2a-8562f4261e66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
