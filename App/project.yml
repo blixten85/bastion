@@ -248,9 +248,15 @@ targets:
       # lägger till ett tidsstämpel-suffix (som hände iOS-profilen vid en
       # namnkrock) MÅSTE den här raden uppdateras till det verkliga namnet.
       configs:
+        # Debug pekar INTE på en uttrycklig profil: någon "Bastion tvOS
+        # Development"-profil finns inte än och ingår inte i den dokumenterade
+        # bootstrap-processen (till skillnad från iOS-targetens redan skapade
+        # dev-profil). Bara Apple Development-identiteten — lokal utveckling
+        # väljer profil automatiskt, och CI bygger osignerat (CODE_SIGNING_
+        # ALLOWED=NO i xcode.yml). Release nedan är den enda som behöver den
+        # manuellt bootstrappade match-profilen.
         Debug:
           CODE_SIGN_IDENTITY: "Apple Development"
-          PROVISIONING_PROFILE_SPECIFIER: "Bastion tvOS Development"
         Release:
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "match AppStore se.denied.bastion.tv"
