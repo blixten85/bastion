@@ -2,14 +2,11 @@
 import SwiftUI
 import SSHCore
 
-/// Läser tv-enhetens EGEN lokala `~/.bastion/hosts.json` — tv-appen skriver
-/// aldrig till den, bara läser + skickar Wake-on-LAN. Ingen automatisk synk:
-/// `HostStore.sync(with:)` kräver en explicit vald leverantör (Dropbox/
-/// Google Drive/OneDrive/krypterad mapp) + OAuth-inloggning/lösenfras, en
-/// UI-flöde som inte byggts här (opraktiskt med Siri Remote-textinmatning,
-/// se PR-beskrivning för scope-beslutet). Tills det finns är listan tom
-/// tills en användare synkar från tv-appen själv — visas ärligt som ett
-/// tomt-state nedan, inte dolt/tyst.
+/// Läser tv-enhetens EGEN lokala `~/.bastion/hosts.json`. Synk finns nu
+/// (`TVSyncSettingsView.swift`) — Google Drive/OneDrive via OAuth device-
+/// flow (Dropbox saknar stöd för det, se `TVDeviceFlowOAuthManager.swift`),
+/// ingen mappsynk (tvOS saknar en Filer-app). Se
+/// [[project-bastion-tvos-watchos-mandate]].
 struct TVDashboardView: View {
     @State private var hosts: [Host] = []
     @State private var wakingID: UUID?
@@ -21,6 +18,8 @@ struct TVDashboardView: View {
     @State private var passwordFor: Host?
     @State private var passwordInput = ""
     @State private var dockerTarget: DockerTarget?
+    @State private var showSyncSettings = false
+    @State private var syncStatus: String?
 
     private let store = HostStore()
 
@@ -31,7 +30,7 @@ struct TVDashboardView: View {
                     ContentUnavailableView(
                         "Inga värdar",
                         systemImage: "server.rack",
-                        description: Text("Synk mot tv-appen är inte byggt än — lägg till/synka värdar i iPhone- eller Mac-appen. Se ROADMAP.md.")
+                        description: Text("Slå på Sync (uppe till vänster) med Google Drive eller OneDrive, eller lägg till/synka värdar i iPhone- eller Mac-appen.")
                     )
                 } else {
                     List(hosts) { host in
@@ -67,6 +66,19 @@ struct TVDashboardView: View {
             }
             .navigationTitle("Bastion")
             .onAppear { hosts = store.all() }
+            .task { syncStatus = await syncNow() }
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        showSyncSettings = true
+                    } label: {
+                        Label("Sync-inställningar", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+            }
+            .sheet(isPresented: $showSyncSettings) {
+                TVSyncSettingsView(syncNow: syncNow)
+            }
             .alert("Kunde inte väcka värden", isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { isPresented in if !isPresented { errorMessage = nil } }
@@ -88,6 +100,41 @@ struct TVDashboardView: View {
             .navigationDestination(item: $dockerTarget) { target in
                 TVDockerView(host: target.host, password: target.password)
             }
+        }
+    }
+
+    /// Trimmad motsvarighet till `App/HostListView.swift`s `HostListModel.
+    /// syncNow()` — bara Google Drive/OneDrive (device-flow), ingen
+    /// `folder`/`dropbox`-transport (se filkommentaren ovan för varför).
+    @MainActor
+    private func syncNow() async -> String {
+        guard UserDefaults.standard.bool(forKey: SyncKeys.enabled) else { return "Sync är avstängd." }
+        guard let pass = Keychain.get(SyncKeys.passphraseKey), !pass.isEmpty else {
+            return "Ingen lösenfras angiven."
+        }
+        let transport = UserDefaults.standard.string(forKey: SyncKeys.transport) ?? "googledrive"
+
+        func requireLogin(_ config: DeviceFlowProviderConfig) -> String? {
+            TVDeviceFlowOAuthManager.isLoggedIn(config) ? nil : "Inte inloggad på \(config.displayName)."
+        }
+
+        let provider: SyncProvider
+        switch transport {
+        case "googledrive":
+            if let err = requireLogin(TVOAuthProviders.googleDrive) { return err }
+            provider = GoogleDriveSyncProvider(passphrase: pass)
+        case "onedrive":
+            if let err = requireLogin(TVOAuthProviders.oneDrive) { return err }
+            provider = OneDriveSyncProvider(passphrase: pass)
+        default:
+            return "Den valda synktransporten är inte tillgänglig på tvOS — välj Google Drive eller OneDrive i Sync-inställningar."
+        }
+        do {
+            try store.sync(with: provider)
+            hosts = store.all()
+            return "Synkat."
+        } catch {
+            return "Sync misslyckades: \(error.localizedDescription)"
         }
     }
 
