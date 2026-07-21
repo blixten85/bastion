@@ -2,6 +2,15 @@ name: TestFlight-uppladdning
 
 # Manuell knapp, INTE på varje push/PR — varje körning konsumerar ett
 # byggnummer hos Apple och laddar upp en riktig build till TestFlight.
+# Välj "ios" eller "tvos" i dropdownen — separata App Store Connect-
+# app-record (se.denied.bastion / se.denied.bastion.tv), separata
+# byggnummer-sekvenser.
+#
+# tvOS-lanen KRÄVER (ingetdera görbart härifrån, se App/fastlane/Fastfile):
+#   1. Ett App Store Connect-app-record för se.denied.bastion.tv.
+#   2. Ett tvOS "Apple Distribution"-certifikat + en
+#      "match AppStore se.denied.bastion.tv"-profil i bastion-certificates
+#      (bootstrappas EN gång med `readonly: false` på en riktig Mac).
 #
 # Signering via `fastlane match` (readonly) — certifikat/profil skapades
 # EN gång manuellt (2026-07-08, kräver en riktig Mac med inloggad GUI-
@@ -21,6 +30,12 @@ name: TestFlight-uppladdning
 #   SENTRY_AUTH_TOKEN               Auth token för Sentry debug files upload
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: "Vilken app ska laddas upp?"
+        type: choice
+        options: [ios, tvos]
+        default: ios
 
 jobs:
   testflight:
@@ -70,4 +85,7 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/match_deploy_key -o IdentitiesOnly=yes"
-        run: bundle exec fastlane beta
+        # `fastlane ios beta`/`fastlane tvos beta` — INTE bara `fastlane beta`
+        # (som alltid kör default_platform, :ios) — annars hade tvOS-valet i
+        # dropdownen tyst laddat upp iOS-appen istället.
+        run: bundle exec fastlane ${{ inputs.platform }} beta

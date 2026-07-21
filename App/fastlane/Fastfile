@@ -75,3 +75,81 @@ platform :ios do
     )
   end
 end
+
+# tvOS-motsvarigheten till :ios-lanen ovan — samma mönster (match readonly,
+# nästa lediga byggnummer, upload_to_testflight), bara riktat mot
+# Bastion-tvOS-targeten och dess EGNA bundle-ID (se.denied.bastion.tv, ett
+# separat App Store Connect-app-record från iOS-appen).
+#
+# OBS, INTE verifierat mot en riktig körning än (samma försiktighet som
+# resten av App/ — Xcode-only, kräver riktiga secrets). Två saker som med
+# STOR sannolikhet krävs INNAN denna lane kan lyckas, ingetdera görbart
+# härifrån:
+#   1. Ett App Store Connect-app-record för se.denied.bastion.tv måste
+#      finnas (skapas i App Store Connect-webbportalen eller via `produce`,
+#      kräver ett beslut om SKU/primärt språk — samma manuella steg som
+#      iOS-appen redan gick igenom, se ROADMAP.md/historiken i den här
+#      filens :ios-lane).
+#   2. Ett tvOS-specifikt "Apple Distribution"-certifikat + en
+#      "match AppStore se.denied.bastion.tv"-provisioneringsprofil måste
+#      finnas i blixten85/bastion-certificates — `match` med `readonly: true`
+#      SKAPAR ALDRIG nya, bara hämtar befintliga (samma regel som iOS).
+#      Kräver alltså EN bootstrap-körning med `readonly: false` på en
+#      riktig Mac med inloggad GUI-session (samma procedur som iOS-
+#      certifikatet skapades med, 2026-07-08).
+platform :tvos do
+  desc "Bygg och ladda upp tvOS-appen till TestFlight"
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+      key_content: ENV.fetch("APP_STORE_CONNECT_KEY_CONTENT"),
+      is_key_content_base64: true,
+      in_house: false,
+    )
+
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: "se.denied.bastion.tv",
+      initial_build_number: 0,
+    )
+    # `target:` skopar ändringen till BARA tvOS-targeten — annars hade
+    # detta av misstag bumpat iOS/macOS-targetens byggnummer också
+    # (samma `.xcodeproj`, tre targets, se project.yml).
+    increment_build_number(
+      build_number: latest + 1,
+      xcodeproj: "Bastion.xcodeproj",
+      target: "Bastion-tvOS",
+    )
+
+    setup_ci if ENV["CI"]
+
+    match(
+      api_key: api_key,
+      type: "appstore",
+      platform: "tvos",
+      app_identifier: "se.denied.bastion.tv",
+      team_id: ENV.fetch("APP_STORE_CONNECT_TEAM_ID"),
+      git_url: "git@github.com:blixten85/bastion-certificates.git",
+      readonly: true,
+    )
+
+    build_app(
+      project: "Bastion.xcodeproj",
+      scheme: "Bastion-tvOS",
+      export_method: "app-store",
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: "se.denied.bastion.tv",
+      skip_waiting_for_build_processing: true,
+    )
+
+    sentry_debug_files_upload(
+      org_slug: 'anders-gh',
+      project_slug: 'bastion',
+      include_sources: true
+    )
+  end
+end

@@ -708,10 +708,16 @@ Inget nytt att bygga, bara verifiera/lansera:
   flödet som fungerar på tvOS, `ASWebAuthenticationSession` är
   `API_UNAVAILABLE` där). Dropbox stödjer INTE device-flow (bekräftat
   uppströms, "wontfix") och erbjuds därför inte som synktransport på tvOS.
-  **Kvar:** Google/Microsoft-kontoverifiering och device-flow-konfiguration
-  med riktiga klient-ID:n, App Store-distribution (`testflight.yml` behöver
-  en tvOS-gren), verifiering på riktig Apple TV-hårdvara (bara simulator
-  hittills).
+  App Store-distribution: `testflight.yml`/`Fastfile` har nu en `tvos beta`-
+  gren (samma mönster som iOS — `match` readonly + `latest_testflight_
+  build_number` + `upload_to_testflight`, egen bundle-ID `se.denied.
+  bastion.tv`). **Kvar:** Google/Microsoft-kontoverifiering och device-flow-
+  konfiguration med riktiga klient-ID:n; tvOS-distributionen kräver ETT
+  App Store Connect-app-record för `se.denied.bastion.tv` + ett bootstrappat
+  tvOS-distributionscertifikat i bastion-certificates (ingetdera görbart
+  utan en inloggad Apple Developer-session, se Fastfile-kommentaren) innan
+  en riktig `workflow_dispatch`-körning kan lyckas; verifiering på riktig
+  Apple TV-hårdvara (bara simulator hittills).
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
