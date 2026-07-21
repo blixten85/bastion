@@ -1,0 +1,31 @@
+App/TVApp/TVDockerView.swift
+  s_1c2bc845e6a689::t_13b364f1b75859 58-63,65-66,68,71-73,76,82-87,90
+App/TVApp/TVDeviceFlowOAuthManager.swift
+  s_1c2bc845e6a689::t_a25e56e8426761 115-121,141-153
+App/TVApp/TVDashboardView.swift
+  s_1c2bc845e6a689::t_b8f8237efa0fbb 26-33
+  s_1c2bc845e6a689::t_28b230c6511130 37-43
+App/TVApp/Keychain.swift
+  s_1c2bc845e6a689::t_d8d7b30df07df1 14-23,25
+App/TVApp/GoogleDriveSyncProvider.swift
+  s_1c2bc845e6a689::t_4dc8b744e0ab36 46-53,56
+App/TVApp/TVOAuthTokenStore.swift
+  s_1c2bc845e6a689::t_a5448f4fcbb574 59-79,84-91,101-106,111-116,118-121
+  s_1c2bc845e6a689::t_d509852e24fd92 16-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b5d5442dd17b1fc4ddd37d43e744a3de82a22e68",
+  "prompts": {},
+  "sessions": {
+    "s_1c2bc845e6a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7e5aa75-f353-4ff6-9e2a-8562f4261e66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
