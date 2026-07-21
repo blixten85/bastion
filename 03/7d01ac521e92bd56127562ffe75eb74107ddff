@@ -1,0 +1,25 @@
+ROADMAP.md
+  s_1c2bc845e6a689::t_4c8915cf102761 711-720
+App/fastlane/Fastfile
+  s_1c2bc845e6a689::t_599fd6f17ad4a8 78-155
+.github/workflows/testflight.yml
+  s_1c2bc845e6a689::t_f8dcc9af2934e8 5-13
+  s_1c2bc845e6a689::t_1d651a05714e1b 88-91
+  s_1c2bc845e6a689::t_73afc643b13920 33-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "037d01ac521e92bd56127562ffe75eb74107ddff",
+  "prompts": {},
+  "sessions": {
+    "s_1c2bc845e6a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7e5aa75-f353-4ff6-9e2a-8562f4261e66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
