@@ -108,18 +108,25 @@ platform :tvos do
       in_house: false,
     )
 
+    # `platform: "appletvos"` MÅSTE med — se.denied.bastion.tv är ett separat,
+    # tvOS-app-record, och latest_testflight_build_number defaultar platform
+    # till "ios". Utan detta frågar den efter iOS-builds på ett tvOS-record
+    # (alltid tomt), faller tillbaka på initial_build_number: 0, och varje
+    # körning väljer samma nummer 1 → duplikat-avvisat av Apple.
     latest = latest_testflight_build_number(
       api_key: api_key,
       app_identifier: "se.denied.bastion.tv",
+      platform: "appletvos",
       initial_build_number: 0,
     )
-    # `target:` skopar ändringen till BARA tvOS-targeten — annars hade
-    # detta av misstag bumpat iOS/macOS-targetens byggnummer också
-    # (samma `.xcodeproj`, tre targets, se project.yml).
+    # Stock increment_build_number (agvtool) stöder inte `target:` och är
+    # projekt-brett — samma mönster som :ios-lanen ovan. Det spelar ingen roll
+    # att detta rör iOS/macOS-targetens byggnummer i samma .xcodeproj: värdet
+    # är efemärt på CI-runnern (checkas aldrig in) och varje lane hämtar sitt
+    # EGNA nästa TestFlight-nummer per plattform innan bygget.
     increment_build_number(
       build_number: latest + 1,
       xcodeproj: "Bastion.xcodeproj",
-      target: "Bastion-tvOS",
     )
 
     setup_ci if ENV["CI"]
@@ -143,6 +150,7 @@ platform :tvos do
     upload_to_testflight(
       api_key: api_key,
       app_identifier: "se.denied.bastion.tv",
+      app_platform: "appletvos",
       skip_waiting_for_build_processing: true,
     )
 
