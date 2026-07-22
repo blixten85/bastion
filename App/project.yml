@@ -98,6 +98,18 @@ targets:
         # sättas HÄR, exakt samma mönster som orienteringarna/export-
         # compliance ovan.
         NSFaceIDUsageDescription: "Lås upp Bastion med Face ID i stället för att skriva ett lösenord varje gång."
+        # Samma tystnads-bugg en FJÄRDE gång (Devin-fynd på PR #200):
+        # CFBundleURLTypes (OAuth-redirect-schemat, se OAuthProviders.swift)
+        # fanns i RÅA Info.plist men saknades HÄR — till skillnad från
+        # macOS-targeten som redan deklarerar den (se Bastion-macOS nedan).
+        # Om samma mönster gäller är iOS OAuth-inloggning (Google Drive/
+        # OneDrive-synk) sannolikt trasig i skarpt byggda paket — inte
+        # verifierat med en riktig OAuth-inloggning på enhet än, men
+        # rimligt att fixa nu givet exakt samma rotorsak som de tre
+        # tidigare fixarna i den här filen.
+        CFBundleURLTypes:
+          - CFBundleURLName: se.denied.bastion.oauth
+            CFBundleURLSchemes: [se.denied.bastion]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: se.denied.bastion
