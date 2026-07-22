@@ -90,7 +90,8 @@ enum TVDeviceFlowOAuthManager {
         TVOAuthTokenStore.isLoggedIn(provider.id)
     }
 
-    static func logout(_ provider: DeviceFlowProviderConfig) {
+    @discardableResult
+    static func logout(_ provider: DeviceFlowProviderConfig) -> Bool {
         TVOAuthTokenStore.logout(provider.id)
     }
 
@@ -105,6 +106,11 @@ enum TVDeviceFlowOAuthManager {
         let (data, response) = try await URLSession.shared.data(for: request)
         try TVOAuthTokenStore.checkHTTPStatus(response, data: data)
         let decoded = try JSONDecoder().decode(DeviceCodeResponse.self, from: data)
+        // Ett lyckat men ofullständigt svar (varken verification_uri eller
+        // verification_url) hade annars gett en inloggningsruta med blank
+        // destination som pollar tyst till den går ut (cubic P3) — fail
+        // fort med ett tydligt fel istället.
+        guard !decoded.verificationURL.isEmpty else { throw OAuthError.invalidCallback }
         let session = DeviceFlowSession(
             userCode: decoded.user_code,
             verificationURL: decoded.verificationURL,
@@ -188,7 +194,14 @@ enum TVDeviceFlowOAuthManager {
             case "expired_token":
                 throw OAuthError.expired
             default:
-                throw OAuthError.requestFailed(errorBody?.error_description ?? String(decoding: data, as: UTF8.self))
+                // Fall INTE tillbaka på den råa svarskroppen (cubic P2,
+                // säkerhetsfynd) — ett oväntat svar (t.ex. en proxy-
+                // felsida med interna detaljer) kunde annars visas rakt
+                // upp i användargränssnittet. En generisk diagnos med bara
+                // statuskoden räcker för felsökning utan att riskera läckage.
+                throw OAuthError.requestFailed(
+                    errorBody?.error_description ?? "Servern svarade med status \(http.statusCode)."
+                )
             }
         }
     }

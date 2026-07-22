@@ -64,7 +64,17 @@ struct TVSyncSettingsView: View {
                             // GAMLA lösenfrasen istället (cubic P1, andra
                             // granskningsrundan).
                             guard save() else { return }
-                            Task { status = await syncNow() }
+                            Task {
+                                status = await syncNow()
+                                // Om synken upptäckte ett återkallat/utgånget
+                                // token kan syncNow() ha loggat ut i tysthet
+                                // (cubic P2) — läs om det så raden erbjuder
+                                // omautentisering istället för att tyst
+                                // fortsätta visa "Inloggad".
+                                loggedIn = Dictionary(
+                                    uniqueKeysWithValues: TVOAuthProviders.all.map { ($0.id, TVDeviceFlowOAuthManager.isLoggedIn($0)) }
+                                )
+                            }
                         }
                         if let status { Text(status).font(.footnote).foregroundStyle(.secondary) }
                     }
@@ -78,7 +88,12 @@ struct TVSyncSettingsView: View {
                     }
                 }
             }
-            .sheet(item: $activeSession) { session in
+            .sheet(item: $activeSession, onDismiss: {
+                // Utan denna fortsätter en pågående device-flow-inloggning
+                // att polla och kan spara ett token EFTER att användaren
+                // stängt sheeten och trodde de avbrutit (cubic P2).
+                loginTask?.cancel()
+            }) { session in
                 deviceCodeSheet(session)
             }
             .alert("Inloggning misslyckades", isPresented: Binding(
@@ -114,8 +129,14 @@ struct TVSyncSettingsView: View {
                 Text("Inloggad på \(provider.displayName)")
                 Spacer()
                 Button("Logga ut") {
-                    TVDeviceFlowOAuthManager.logout(provider)
-                    loggedIn[provider.id] = false
+                    // Visa bara utloggat om Keychain-raderingen faktiskt
+                    // lyckades — annars kan "Logga ut" rapportera lyckat
+                    // medan credentialet blir kvar (cubic P2).
+                    if TVDeviceFlowOAuthManager.logout(provider) {
+                        loggedIn[provider.id] = false
+                    } else {
+                        loginError = "Kunde inte logga ut \(provider.displayName) — försök igen."
+                    }
                 }
             }
         } else {

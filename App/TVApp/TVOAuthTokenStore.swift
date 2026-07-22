@@ -34,9 +34,16 @@ private struct OAuthErrorBody: Decodable {
     let error_description: String?
 }
 
-private struct OAuthTokenRefreshError: Error {
+private struct OAuthTokenRefreshError: Error, LocalizedError {
     let message: String
     let isInvalidGrant: Bool
+
+    // Utan denna tappas serverns diagnostik och alla icke-invalid_grant-fel
+    // (nätverksfel, ratelimiting, femhundrafel osv.) visas bara som ett
+    // generiskt "något gick fel" (cubic P2).
+    var errorDescription: String? {
+        message.isEmpty ? "Tokenförnyelsen misslyckades." : message
+    }
 }
 
 /// tvOS-motsvarighet till `App/OAuthTokenStore.swift` — nyckeln är
@@ -53,7 +60,11 @@ enum TVOAuthTokenStore {
         Keychain.get(keychainKey(providerID)) != nil
     }
 
-    static func logout(_ providerID: String) {
+    // Returvärdet propageras hela vägen till UI:t (cubic P2) — annars kan
+    // "Logga ut" rapportera lyckat medan credentialet faktiskt blir kvar i
+    // Keychain om raderingen misslyckas.
+    @discardableResult
+    static func logout(_ providerID: String) -> Bool {
         Keychain.delete(keychainKey(providerID))
     }
 

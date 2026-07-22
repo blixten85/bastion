@@ -5,10 +5,17 @@ import Security
 /// Minimal Keychain-wrapper för hemligheter (sync-lösenfras, ev. värdlösenord).
 /// Värden lagras krypterade av systemet och lämnar aldrig enheten i klartext.
 enum Keychain {
+    // Utan en stabil kSecAttrService kan en generic-password-post med samma
+    // "account"-sträng krocka med en post från en annan tjänst i samma app-
+    // access-group och skriva över/radera fel post (cubic P2). Namnrymdar
+    // alla tvOS-nycklar under den här appens eget bundle-ID.
+    private static let service = "se.denied.bastion.tv.keychain"
+
     @discardableResult
     static func set(_ value: String, for key: String) -> Bool {
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: key,
         ]
         // Uppdatera på plats om posten redan finns istället för
@@ -24,12 +31,21 @@ enum Keychain {
         var add = base
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+        let addStatus = SecItemAdd(add as CFDictionary, nil)
+        if addStatus == errSecSuccess { return true }
+        // En konkurrerande `set`-anrop kan ha lagt till posten mellan vårt
+        // `errSecItemNotFound`-svar ovan och det här `SecItemAdd` — det
+        // syns här som `errSecDuplicateItem`, inte ett riktigt fel (cubic
+        // P2). Uppdatera på plats istället för att rapportera falskt
+        // misslyckande.
+        guard addStatus == errSecDuplicateItem else { return false }
+        return SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecSuccess
     }
 
     static func get(_ key: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: key,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
@@ -44,6 +60,7 @@ enum Keychain {
     static func delete(_ key: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: key,
         ]
         // "Fanns redan inte" räknas som lyckat — anroparen ville att posten
