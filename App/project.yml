@@ -121,22 +121,22 @@ targets:
         CODE_SIGN_STYLE: Manual
       # Manual signering kräver en UTTRYCKLIG PROVISIONING_PROFILE_
       # SPECIFIER. Namnet nedan är det VERKLIGA namnet match faktiskt
-      # skapade och sparade i blixten85/bastion-certificates (2026-07-08)
-      # — match lägger till ett unikt tidsstämpel-suffix när ett namn
-      # utan suffix redan är upptaget (en föräldralös profil från en
-      # tidigare manuell felsökningskörning låg redan på det "rena"
-      # namnet). Statiskt namn är fastlanes egna rekommenderade mönster
-      # (inte en miljövariabel som `$(sigh_..._profile-name)`, trots att
-      # den också skulle fungera) — se docs.fastlane.tools/codesigning/
-      # xcode-project. Om profilen någonsin regenereras (ny `match`-
-      # bootstrap) måste den här raden uppdateras till det nya namnet.
+      # skapade och sparade i blixten85/bastion-certificates (omgenererat
+      # 2026-07-22 efter att alla certifikat/profiler raderades i Apple
+      # Developer-portalen) — match lägger till ett unikt tidsstämpel-
+      # suffix när ett namn utan suffix redan är upptaget. Statiskt namn
+      # är fastlanes egna rekommenderade mönster (inte en miljövariabel
+      # som `$(sigh_..._profile-name)`, trots att den också skulle
+      # fungera) — se docs.fastlane.tools/codesigning/xcode-project. Om
+      # profilen någonsin regenereras (ny `match`-bootstrap) måste den
+      # här raden uppdateras till det nya namnet.
       configs:
         Debug:
           CODE_SIGN_IDENTITY: "Apple Development"
           PROVISIONING_PROFILE_SPECIFIER: "Bastion Development"
         Release:
           CODE_SIGN_IDENTITY: "Apple Distribution"
-          PROVISIONING_PROFILE_SPECIFIER: "match AppStore se.denied.bastion 1783541247"
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore se.denied.bastion 1784708595"
     dependencies:
       - package: SwiftTerm
       - package: Bastion
