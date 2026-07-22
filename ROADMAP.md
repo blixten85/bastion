@@ -712,10 +712,22 @@ Inget nytt att bygga, bara verifiera/lansera:
   flödet som fungerar på tvOS, `ASWebAuthenticationSession` är
   `API_UNAVAILABLE` där). Dropbox stödjer INTE device-flow (bekräftat
   uppströms, "wontfix") och erbjuds därför inte som synktransport på tvOS.
-  **Kvar:** Google/Microsoft-kontoverifiering och device-flow-konfiguration
-  med riktiga klient-ID:n, App Store-distribution (`testflight.yml` behöver
-  en tvOS-gren), verifiering på riktig Apple TV-hårdvara (bara simulator
-  hittills).
+  tvOS-distributionscertifikat + `match AppStore se.denied.bastion.tv`-
+  profil är bootstrappade i bastion-certificates (2026-07-22, samma dag
+  som iOS-certifikatet omgenererades efter att alla certifikat raderades
+  manuellt i Apple Developer-portalen) — se PR #196 för `testflight.yml`s
+  `tvos beta`-gren (ännu inte mergad). **Kvar:** ett App Store Connect-app-
+  record för `se.denied.bastion.tv` (kräver en Admin-roll-API-nyckel för
+  att skapas via API — den befintliga Team-nyckeln har bara App Manager-
+  roll, som INTE tillåter `POST /v1/apps`; annars manuellt i webb-UI:t),
+  Google/Microsoft-kontoverifiering och device-flow-konfiguration med
+  riktiga klient-ID:n, verifiering på riktig Apple TV-hårdvara (bara
+  simulator hittills).
+- **visionOS** (nytt, 2026-07-22) — löst idé, inte påbörjat, ingen
+  prioritet satt än. Många iPad/iOS-appar körs oförändrat i "Compatible"-
+  läge på Apple Vision Pro utan kodändring; en riktig spatial UI (flytande
+  fönster osv.) skulle kräva skräddarsytt SwiftUI-arbete likt tvOS-targeten.
+  Se VISION.md "Plattforms- och paketeringsmål, fullständigt".
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier

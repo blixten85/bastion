@@ -341,7 +341,11 @@ Slutmålet — uttryckt explicit av användaren — är genuin cross-platform-t�
 med synk mellan ALLA enheter, inte bara Apple-ekosystemet:
 
 - **Apple**: iPhone, MacBook (macOS), Apple TV (tvOS) — redan i Fas 1/2/
-  "Plattformar (tillägg, 2026-07-06)" ovan.
+  "Plattformar (tillägg, 2026-07-06)" ovan. **Apple Vision Pro (visionOS,
+  tillägg 2026-07-22)** — löst idé, inte påbörjat. Många iPad/iOS-appar
+  körs oförändrat i "Compatible"-läge på Vision Pro utan kodändring; en
+  riktig spatial UI (flytande fönster osv.) skulle kräva skräddarsytt
+  SwiftUI-arbete likt tvOS-targeten.
 - **Windows** — redan Fas 4 i originalvisionen, `WindowsApp/` påbörjat
   (blockerat av uppströms swift-nio-buggar just nu, se ROADMAP).
 - **Linux** — redan Fas 3, men paketeringsmålet är BREDARE än "bygger på
