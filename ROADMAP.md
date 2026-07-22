@@ -728,6 +728,32 @@ Inget nytt att bygga, bara verifiera/lansera:
   läge på Apple Vision Pro utan kodändring; en riktig spatial UI (flytande
   fönster osv.) skulle kräva skräddarsytt SwiftUI-arbete likt tvOS-targeten.
   Se VISION.md "Plattforms- och paketeringsmål, fullständigt".
+- **Djup plattformsintegration** (nytt, 2026-07-22) — löst idé, inte
+  påbörjat, ingen prioritet satt än. Uttryckt mål: Bastion ska kännas lika
+  "hemma" på varje plattform som möjligt, inte bara en portad app. Konkreta
+  förslag, ingen prioritetsordning fastställd:
+  - **Widgets** (iOS/macOS hemskärm + Vidgets-panel).
+  - **Tillgänglighet** — respektera systemets Inställningar → Tillgänglighet
+    (VoiceOver, Dynamic Type, Reduce Motion m.fl.), inte bara egna
+    in-app-inställningar.
+  - **Lokalisering baserad på systemspråk** — åtminstone som tillval utöver
+    engelska (standard), inte hela översättningsomfånget bestämt än.
+  - **Spotlight-sökning** (iOS/macOS) — sök fram en host direkt från
+    systemsökningen.
+  - **Siri Shortcuts / App Intents** — t.ex. "Anslut till [host]" som
+    röstkommando eller Lås-skärm-widget.
+  - **Live Activities/Dynamic Island** — visa pågående filöverföring eller
+    långkörande kommando utan att ha appen öppen.
+  - **Handoff** — starta en session på en enhet, fortsätt sömlöst på en
+    annan.
+  - **Windows Jump Lists/taskbar-progress**, **macOS meny-rad-extra**,
+    **Linux `.desktop`-integration + systemnotiser** — plattformsspecifika
+    motsvarigheter till samma idé.
+
+  Huvudavvägning: varje integration multiplicerar underhållsbördan per
+  plattform (redan 7+ plattformar i visionen) — värt att prioritera de som
+  ger mest "känns hemma"-känsla per plattform snarare än att jaga alla
+  samtidigt.
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
