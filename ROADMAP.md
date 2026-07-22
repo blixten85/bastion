@@ -754,6 +754,22 @@ Inget nytt att bygga, bara verifiera/lansera:
   plattform (redan 7+ plattformar i visionen) — värt att prioritera de som
   ger mest "känns hemma"-känsla per plattform snarare än att jaga alla
   samtidigt.
+- **Anpassningsbara teman + skärm-/batterianpassning** (nytt, 2026-07-22)
+  — löst idé, inte påbörjat, ingen prioritet satt än.
+  - **Automatiskt mörkt/ljust tema** — följ systemets tema, inte en egen
+    in-app-växel som kan hamna i otakt med OS-inställningen.
+  - **Skärmanpassning** — Dynamic Type, säkra ytor (safe area), fungera
+    bra i delad skärm/Stage Manager/olika fönsterstorlekar på desktop,
+    inte bara en fast layout tänkt för en skärmstorlek.
+  - **Batterimedvetenhet** — respektera systemets strömsparläge (t.ex.
+    iOS Low Power Mode) genom att dra ner bakgrundssynk/pollingfrekvens,
+    inte bara ett UI-tema-val.
+  - **Skräddarsytt eget tema utan pixelputs** — arkitektera färgsättningen
+    som en liten uppsättning semantiska "sektioner"/roller (bakgrund,
+    accent, terminalfärger, m.fl.) som en användare kan nyansera i stort
+    (byta några baskörger) istället för att behöva styla varje enskild
+    UI-komponent för sig — en design-token-arkitektur, inte hårdkodade
+    färger per vy.
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
