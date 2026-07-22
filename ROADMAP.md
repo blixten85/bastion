@@ -717,22 +717,30 @@ Inget nytt att bygga, bara verifiera/lansera:
   som iOS-certifikatet omgenererades efter att alla certifikat raderades
   manuellt i Apple Developer-portalen) — se PR #196 för `testflight.yml`s
   `tvos beta`-gren (ännu inte mergad). **Kvar:** ett App Store Connect-app-
-  record för `se.denied.bastion.tv` (kräver en Admin-roll-API-nyckel för
-  att skapas via API — den befintliga Team-nyckeln har bara App Manager-
-  roll, som INTE tillåter `POST /v1/apps`; annars manuellt i webb-UI:t),
+  record för `se.denied.bastion.tv` — verifierat (2026-07-22, 403 FORBIDDEN
+  mot `POST /v1/apps`) att App Store Connect-API:t INTE stödjer att skapa
+  app-record ALLS, oavsett nyckelroll (Admin/App Manager/Account Holder) —
+  detta är inte ett rollproblem, bara en API-begränsning. Måste skapas
+  manuellt i App Store Connect-webb-UI:t (Mina appar → + → Ny app).
   Google/Microsoft-kontoverifiering och device-flow-konfiguration med
   riktiga klient-ID:n, verifiering på riktig Apple TV-hårdvara (bara
   simulator hittills).
-- **visionOS** (nytt, 2026-07-22) — löst idé, inte påbörjat, ingen
-  prioritet satt än. Många iPad/iOS-appar körs oförändrat i "Compatible"-
-  läge på Apple Vision Pro utan kodändring; en riktig spatial UI (flytande
-  fönster osv.) skulle kräva skräddarsytt SwiftUI-arbete likt tvOS-targeten.
-  Se VISION.md "Plattforms- och paketeringsmål, fullständigt".
-- **Djup plattformsintegration** (nytt, 2026-07-22) — löst idé, inte
+- **visionOS** (nytt, 2026-07-22) — lös idé, inte påbörjat, ingen
+  prioritet satt än. Två separata effortnivåer, INTE jämförbart med
+  tvOS-targetets omfattning rakt av (cubic-fynd på PR #199, korrigerat):
+  ett vanligt fönsterläge kan i många fall fås "gratis" genom att bara
+  lägga till Apple Vision-destinationen på befintliga iOS/iPad-targeten
+  och kompilera om (enligt Apples egen dokumentation) — betydligt
+  billigare än tvOS-targetets egna, separata kodbas. Skräddarsytt
+  SwiftUI-arbete (likt tvOS-targeten) behövs bara för en RIKTIG spatial/
+  immersiv upplevelse (3D-innehåll, flytande paneler i rummet osv.), inte
+  för ett grundläggande fönster. Se VISION.md "Plattforms- och
+  paketeringsmål, fullständigt".
+- **Djup plattformsintegration** (nytt, 2026-07-22) — lös idé, inte
   påbörjat, ingen prioritet satt än. Uttryckt mål: Bastion ska kännas lika
   "hemma" på varje plattform som möjligt, inte bara en portad app. Konkreta
   förslag, ingen prioritetsordning fastställd:
-  - **Widgets** (iOS/macOS hemskärm + Vidgets-panel).
+  - **Widgets** (iOS/macOS hemskärm + Widgets-panel).
   - **Tillgänglighet** — respektera systemets Inställningar → Tillgänglighet
     (VoiceOver, Dynamic Type, Reduce Motion m.fl.), inte bara egna
     in-app-inställningar.
@@ -763,7 +771,7 @@ Inget nytt att bygga, bara verifiera/lansera:
   ger mest "känns hemma"-känsla per plattform snarare än att jaga alla
   samtidigt.
 - **Anpassningsbara teman + skärm-/batterianpassning** (nytt, 2026-07-22)
-  — löst idé, inte påbörjat, ingen prioritet satt än.
+  — lös idé, inte påbörjat, ingen prioritet satt än.
   - **Automatiskt mörkt/ljust tema** — följ systemets tema, inte en egen
     in-app-växel som kan hamna i otakt med OS-inställningen.
   - **Skärmanpassning** — Dynamic Type, säkra ytor (safe area), fungera
@@ -775,37 +783,58 @@ Inget nytt att bygga, bara verifiera/lansera:
   - **Skräddarsytt eget tema utan pixelputs** — arkitektera färgsättningen
     som en liten uppsättning semantiska "sektioner"/roller (bakgrund,
     accent, terminalfärger, m.fl.) som en användare kan nyansera i stort
-    (byta några baskörger) istället för att behöva styla varje enskild
+    (byta några basfärger) istället för att behöva styla varje enskild
     UI-komponent för sig — en design-token-arkitektur, inte hårdkodade
     färger per vy.
-- **Anslutnings-resiliens** (nytt, 2026-07-22) — löst idé, inte påbörjat,
+- **Anslutnings-resiliens** (nytt, 2026-07-22) — lös idé, inte påbörjat,
   ingen prioritet satt än. EN sammanhängande arkitekturfråga i SSHCore
   (delas av alla plattformar), inte tre separata funktioner. Verifierat
   (2026-07-22) att inget av detta finns i koden idag — varken keep-alive,
   nätverksbytesdetektering eller reconnect-logik.
-  - **Keep-alive** — NIOSSH skickar inga SSH-keepalive-förfrågningar
-    automatiskt; kräver en egen timer i SSHCore som skickar en global
-    request periodiskt. Konfigurerbart intervall (t.ex. 25-60s).
+  - **Keep-alive** — swift-nio-ssh 0.14.1 (den version SSHCore bygger på)
+    exponerar INTE godtyckliga globala SSH-förfrågningar publikt (cubic-
+    fynd på PR #199) — den enkla "skicka en global request periodiskt"-
+    planen går alltså inte att implementera som skriven idag. Kräver
+    antingen ett uppströmsbidrag/API-utökning i swift-nio-ssh, eller en
+    annan mekanism (t.ex. en no-op-kanalförfrågan om biblioteket
+    exponerar någon sådan) — måste utredas mot faktisk bibliotekskod
+    innan intervallet (25-60s, konfigurerbart) är mer än en idé.
   - **WiFi ↔ mobildata-byte** — TCP-anslutningen dör vid nätverksbyte
     (annat interface = ny anslutning krävs). Kräver `NWPathMonitor`
-    (Apple) eller motsvarande för att upptäcka bytet och trigga en
-    transparent återanslutning.
+    (Apple) eller motsvarande för att upptäcka bytet.
   - **Sömn/viloläge** — iOS stänger bakgrundssocklar oavsett (samma
     begränsning som Live Activities-punkten ovan); macOS/Linux-
     systemsömn bryter också anslutningen. Kräver detektering av "död
-    anslutning" vid uppvaknande + auto-reconnect.
-  - Alla tre delar samma underliggande behov: upptäcka att anslutningen
-    är död/kommer att dö, och återansluta transparent utan att användaren
-    behöver göra det manuellt.
-- **Bugg-rapportering direkt i appen** (nytt, 2026-07-22) — löst idé,
+    anslutning" vid uppvaknande.
+  - **Viktig begränsning (cubic-fynd på PR #199):** en ny transport-
+    anslutning kan INTE bara ersätta den gamla "transparent" — SSH-kanaler
+    och fjärrprocess-tillstånd (t.ex. en pågående interaktiv shell eller
+    filöverföring) förloras när transporten bryts, oavsett hur snabbt en
+    ny TCP-anslutning öppnas. Detta måste delas upp i två separata delar:
+    (1) automatisk TRANSPORT-återanslutning (bara TCP/SSH-handskakningen)
+    och (2) explicit ÅTERHÄMTNINGS-beteende per kanal/process (t.ex. varna
+    användaren att en pågående shell-session dog och måste startas om,
+    snarare än att låtsas den fortsätter sömlöst). Alla tre orsakerna
+    (keep-alive-timeout, nätverksbyte, sömn) delar samma underliggande
+    detekteringsbehov ("anslutningen är död"), men ÅTERHÄMTNINGEN skiljer
+    sig åt beroende på vad som faktiskt pågick i kanalen.
+- **Bugg-rapportering direkt i appen** (nytt, 2026-07-22) — lös idé,
   inte påbörjat, ingen prioritet satt än. Låt användaren skicka en
   buggrapport (med valfri skärmdump/loggutdrag) utan att lämna appen och
   utan att behöva ett GitHub-konto. Kräver ett beslut om backend/mottagare
   (t.ex. en enkel Cloudflare Worker-endpoint som skapar ett GitHub-issue å
   användarens vägnar) — inget sådant finns idag.
-  Integritetsavvägning: vilken diagnostik (loggar, enhetsinfo) som skickas
-  med måste vara tydligt för användaren och opt-in, inte automatiskt
-  insamlat.
+  **Säkerhet (cubic-fynd på PR #199):** en endpoint som håller GitHub-
+  credentials och tar emot anonyma inskick kan missbrukas för att spamma
+  repot eller tömma API-kvoter om den lämnas oskyddad — kräver autentisering
+  /attestering (t.ex. App Attest på Apple-plattformar), rate limiting och
+  missbruksskydd som en del av designen, inte en efterhandsfix.
+  **Integritet (cubic-fynd på PR #199):** opt-in för diagnostik räcker INTE
+  ensamt — inloggade credentials eller känsligt terminalinnehåll kan ändå
+  finnas inbäddat i loggar/skärmdumpar även om användaren aktivt valt att
+  skicka dem. Kräver en förhandsgranskning av innehållet FÖRE utskick plus
+  automatisk hemlighets-redigering (secret redaction) av loggutdrag, inte
+  bara en opt-in-kryssruta.
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
