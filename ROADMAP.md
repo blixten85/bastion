@@ -778,6 +778,34 @@ Inget nytt att bygga, bara verifiera/lansera:
     (byta några baskörger) istället för att behöva styla varje enskild
     UI-komponent för sig — en design-token-arkitektur, inte hårdkodade
     färger per vy.
+- **Anslutnings-resiliens** (nytt, 2026-07-22) — löst idé, inte påbörjat,
+  ingen prioritet satt än. EN sammanhängande arkitekturfråga i SSHCore
+  (delas av alla plattformar), inte tre separata funktioner. Verifierat
+  (2026-07-22) att inget av detta finns i koden idag — varken keep-alive,
+  nätverksbytesdetektering eller reconnect-logik.
+  - **Keep-alive** — NIOSSH skickar inga SSH-keepalive-förfrågningar
+    automatiskt; kräver en egen timer i SSHCore som skickar en global
+    request periodiskt. Konfigurerbart intervall (t.ex. 25-60s).
+  - **WiFi ↔ mobildata-byte** — TCP-anslutningen dör vid nätverksbyte
+    (annat interface = ny anslutning krävs). Kräver `NWPathMonitor`
+    (Apple) eller motsvarande för att upptäcka bytet och trigga en
+    transparent återanslutning.
+  - **Sömn/viloläge** — iOS stänger bakgrundssocklar oavsett (samma
+    begränsning som Live Activities-punkten ovan); macOS/Linux-
+    systemsömn bryter också anslutningen. Kräver detektering av "död
+    anslutning" vid uppvaknande + auto-reconnect.
+  - Alla tre delar samma underliggande behov: upptäcka att anslutningen
+    är död/kommer att dö, och återansluta transparent utan att användaren
+    behöver göra det manuellt.
+- **Bugg-rapportering direkt i appen** (nytt, 2026-07-22) — löst idé,
+  inte påbörjat, ingen prioritet satt än. Låt användaren skicka en
+  buggrapport (med valfri skärmdump/loggutdrag) utan att lämna appen och
+  utan att behöva ett GitHub-konto. Kräver ett beslut om backend/mottagare
+  (t.ex. en enkel Cloudflare Worker-endpoint som skapar ett GitHub-issue å
+  användarens vägnar) — inget sådant finns idag.
+  Integritetsavvägning: vilken diagnostik (loggar, enhetsinfo) som skickas
+  med måste vara tydligt för användaren och opt-in, inte automatiskt
+  insamlat.
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
