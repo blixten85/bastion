@@ -116,6 +116,11 @@ final class TVDockerModel: ObservableObject {
             }
             await refresh()
         } catch {
+            // Fånga om `s` fortfarande var den aktiva sessionen INNAN
+            // `invalidateSessionIfNeeded` nollar `connector.target` — annars
+            // kan guarden nedan aldrig bli sann och ett anslutningsnivå-fel
+            // för den aktuella sessionen skulle tyst svälja errorMessage.
+            let wasCurrent = connector.target === s
             invalidateSessionIfNeeded(error, session: s)
             // Ett anslutningsnivå-fel från en ÄLDRE `act()` (t.ex. den
             // gamla sessionen dog just som en NY reconnect redan lyckats)
@@ -125,7 +130,7 @@ final class TVDockerModel: ObservableObject {
             // rapporteras, oavsett om `s` fortfarande är den aktiva
             // sessionen (cubic P2).
             if case let sshError as SSHError = error, Self.isConnectionLevel(sshError) {
-                guard connector.target === s else { return }
+                guard wasCurrent else { return }
             }
             errorMessage = "\(error)"
         }

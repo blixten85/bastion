@@ -19,6 +19,7 @@ struct TVSyncSettingsView: View {
     )
     @State private var activeSession: DeviceFlowSession?
     @State private var loginError: String?
+    @State private var logoutError: String?
     @State private var loginTask: Task<Void, Never>?
     @State private var saveError: String?
 
@@ -103,6 +104,13 @@ struct TVSyncSettingsView: View {
             } message: {
                 Text(loginError ?? "")
             }
+            .alert("Utloggning misslyckades", isPresented: Binding(
+                get: { logoutError != nil }, set: { if !$0 { logoutError = nil } }
+            )) {
+                Button("OK") { logoutError = nil }
+            } message: {
+                Text(logoutError ?? "")
+            }
             .alert("Kunde inte spara lösenfrasen", isPresented: Binding(
                 get: { saveError != nil }, set: { if !$0 { saveError = nil } }
             )) {
@@ -135,7 +143,7 @@ struct TVSyncSettingsView: View {
                     if TVDeviceFlowOAuthManager.logout(provider) {
                         loggedIn[provider.id] = false
                     } else {
-                        loginError = "Kunde inte logga ut \(provider.displayName) — försök igen."
+                        logoutError = "Kunde inte logga ut \(provider.displayName) — försök igen."
                     }
                 }
             }
