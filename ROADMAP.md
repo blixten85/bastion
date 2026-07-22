@@ -109,7 +109,11 @@ delvis andra, av konkreta skäl:
    `PROVISIONING_PROFILE_SPECIFIER` bytt till `match AppStore
    se.denied.bastion` (matchs egen namngivningskonvention) från det
    påhittade "Bastion App Store" som `-allowProvisioningUpdates` aldrig
-   lyckades skapa.
+   lyckades skapa. (De faktiska namnen från de två bootstrap-körningarna
+   hade tidsstämpel-suffix — se nedan för 2026-07-22-omgenereringen,
+   som bytte suffixet från `1783541247` till
+   `1784708595` efter att certifikaten raderades manuellt i Apple
+   Developer-portalen.)
 
    Bootstrap-steget (`fastlane match ... readonly: false`, den ENDA
    gången ett nytt certifikat/profil behöver skapas) visade sig kräva en
