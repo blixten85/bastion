@@ -743,7 +743,15 @@ Inget nytt att bygga, bara verifiera/lansera:
   - **Siri Shortcuts / App Intents** — t.ex. "Anslut till [host]" som
     röstkommando eller Lås-skärm-widget.
   - **Live Activities/Dynamic Island** — visa pågående filöverföring eller
-    långkörande kommando utan att ha appen öppen.
+    långkörande kommando utan att ha appen öppen. Kräver egen utredning av
+    "keep-alive utan att döda batteriet": iOS suspenderar/stänger vanliga
+    nätverkssocklar i bakgrunden efter en kort tid oavsett — en hållen SSH-
+    session kan INTE bara lämnas öppen i bakgrunden. Live Activities
+    uppdateras via push (ActivityKit push-tokens) eller korta background-
+    tasks (`BGTaskScheduler`), inte genom att hålla anslutningen vaken
+    kontinuerligt — den arkitekturen (server-side-notis när kommandot är
+    klart, snarare än att appen pollar) måste utredas separat innan detta
+    är mer än en idé.
   - **Handoff** — starta en session på en enhet, fortsätt sömlöst på en
     annan.
   - **Windows Jump Lists/taskbar-progress**, **macOS meny-rad-extra**,
