@@ -341,7 +341,13 @@ Slutmålet — uttryckt explicit av användaren — är genuin cross-platform-t�
 med synk mellan ALLA enheter, inte bara Apple-ekosystemet:
 
 - **Apple**: iPhone, MacBook (macOS), Apple TV (tvOS) — redan i Fas 1/2/
-  "Plattformar (tillägg, 2026-07-06)" ovan.
+  "Plattformar (tillägg, 2026-07-06)" ovan. **Apple Vision Pro (visionOS,
+  tillägg 2026-07-22)** — lös idé, inte påbörjat. Ett vanligt fönsterläge
+  kan i många fall fås "gratis" genom att bara lägga till Apple Vision-
+  destinationen på befintliga iOS/iPad-targeten och kompilera om —
+  betydligt billigare än tvOS-targetets egna kodbas. Skräddarsytt SwiftUI-
+  arbete behövs bara för en riktig spatial/immersiv upplevelse (3D-
+  innehåll, flytande paneler i rummet osv.), se ROADMAP.md för detaljer.
 - **Windows** — redan Fas 4 i originalvisionen, `WindowsApp/` påbörjat
   (blockerat av uppströms swift-nio-buggar just nu, se ROADMAP).
 - **Linux** — redan Fas 3, men paketeringsmålet är BREDARE än "bygger på
