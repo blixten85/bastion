@@ -90,6 +90,10 @@ enum TVDeviceFlowOAuthManager {
         TVOAuthTokenStore.isLoggedIn(provider.id)
     }
 
+    static func isLoggedInAsync(_ provider: DeviceFlowProviderConfig) async -> Bool {
+        await TVOAuthTokenStore.isLoggedInAsync(provider.id)
+    }
+
     @discardableResult
     static func logout(_ provider: DeviceFlowProviderConfig) -> Bool {
         TVOAuthTokenStore.logout(provider.id)

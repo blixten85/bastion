@@ -29,6 +29,46 @@ enum Keychain {
         }
     }
 
+    /// Skiljer "posten finns inte" från "läsningen misslyckades" — `get`
+    /// ovan mappar båda till `nil`, vilket lät ett TRANSIENT Keychain-fel
+    /// se ut som "ingen sparad hemlighet" för anropare som behöver agera
+    /// annorlunda på faktiskt fel (t.ex. inte tolka det som "användaren
+    /// har ingen lösenfras" och radera en post som aldrig faktiskt lästes,
+    /// cubic P1).
+    enum ReadResult {
+        case found(String)
+        case notFound
+        case failed
+    }
+
+    static func getResultAsync(_ key: String) async -> ReadResult {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                let query: [String: Any] = [
+                    kSecClass as String: kSecClassGenericPassword,
+                    kSecAttrService as String: service,
+                    kSecAttrAccount as String: key,
+                    kSecReturnData as String: true,
+                    kSecMatchLimit as String: kSecMatchLimitOne,
+                ]
+                var result: AnyObject?
+                let status = SecItemCopyMatching(query as CFDictionary, &result)
+                switch status {
+                case errSecSuccess:
+                    guard let data = result as? Data else {
+                        continuation.resume(returning: .failed)
+                        return
+                    }
+                    continuation.resume(returning: .found(String(decoding: data, as: UTF8.self)))
+                case errSecItemNotFound:
+                    continuation.resume(returning: .notFound)
+                default:
+                    continuation.resume(returning: .failed)
+                }
+            }
+        }
+    }
+
     static func deleteAsync(_ key: String) async -> Bool {
         await withCheckedContinuation { continuation in
             queue.async { continuation.resume(returning: delete(key)) }

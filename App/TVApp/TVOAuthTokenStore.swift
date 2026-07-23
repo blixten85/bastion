@@ -90,6 +90,16 @@ enum TVOAuthTokenStore {
         load(for: providerID) != nil
     }
 
+    // Samma Keychain-IPC-på-main-actor-problem som `Keychain.getAsync` löser
+    // — `isLoggedIn`/`load(for:)` läser/avkodar synkront och kan stalla
+    // UI:t om den körs vid vy-initiering (cubic P2, tredje
+    // granskningsrundan). Samma avkodningslogik som `load(for:)`, bara
+    // via den asynkrona Keychain-vägen.
+    static func isLoggedInAsync(_ providerID: String) async -> Bool {
+        guard let json = await Keychain.getAsync(keychainKey(providerID)) else { return false }
+        return (try? JSONDecoder().decode(StoredOAuthToken.self, from: Data(json.utf8))) != nil
+    }
+
     // Returvärdet propageras hela vägen till UI:t (cubic P2) — annars kan
     // "Logga ut" rapportera lyckat medan credentialet faktiskt blir kvar i
     // Keychain om raderingen misslyckas.

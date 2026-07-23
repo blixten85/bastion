@@ -21,14 +21,24 @@ struct TVSyncSettingsView: View {
     // fortfarande var tomt-av-att-inte-hunnit-ladda, vilket `save()` då
     // tolkade som "användaren rensade fältet" och raderade en redan sparad
     // lösenfras (devin/cubic-fynd, samma granskningsrunda som async-fixet
-    // ovan introducerade). Spärrar också motsatt håll: om laddningen
-    // slutförs EFTER att användaren redan hunnit skriva in något nytt ska
-    // den inte skriva över deras inmatning.
+    // ovan introducerade).
     @State private var passphraseLoaded = false
+    // Sant så fort användaren rör fältet (skriver ELLER rensar) — utan
+    // denna kunde en rensning som händer MEDAN laddningen fortfarande
+    // pågår tolkas som "inte redigerat" och skrivas över av det laddade
+    // värdet när `.task` slutför sig (cubic P2, tredje granskningsrundan).
+    @State private var passphraseEdited = false
+    // Sant om Keychain-läsningen faktiskt MISSLYCKADES (transient fel,
+    // inte "posten finns inte") — då vet vi INTE om det finns en sparad
+    // lösenfras eller ej, så save()s tomt-betyder-radera-logik måste
+    // vägra köra istället för att gissa (cubic P1, tredje
+    // granskningsrundan: `get()`s `nil` särskiljde inte de här fallen).
+    @State private var passphraseLoadFailed = false
     @State private var status: SyncOutcome?
-    @State private var loggedIn: [String: Bool] = Dictionary(
-        uniqueKeysWithValues: TVOAuthProviders.all.map { ($0.id, TVDeviceFlowOAuthManager.isLoggedIn($0)) }
-    )
+    // Tom vid init, fylls i via .task nedan (asynkront) — samma resonemang
+    // som `passphrase` ovan, undviker synkron Keychain-IPC på main actor
+    // vid vy-initiering (cubic P2, tredje granskningsrundan).
+    @State private var loggedIn: [String: Bool] = [:]
     @State private var activeSession: DeviceFlowSession?
     @State private var loginError: String?
     @State private var logoutError: String?
@@ -64,7 +74,10 @@ struct TVSyncSettingsView: View {
                     Text("Dropbox stödjer inte inloggning utan webbläsare (device-flow) och kan därför inte erbjudas på tvOS/watchOS — använd Google Drive eller OneDrive här, eller Dropbox på iPhone/Mac.")
                 }
                 Section {
-                    SecureField("Lösenfras", text: $passphrase)
+                    SecureField("Lösenfras", text: Binding(
+                        get: { passphrase },
+                        set: { passphrase = $0; passphraseEdited = true }
+                    ))
                 } header: {
                     Text("Krypteringslösenfras")
                 } footer: {
@@ -92,9 +105,9 @@ struct TVSyncSettingsView: View {
                                 // (cubic P2) — läs om det så raden erbjuder
                                 // omautentisering istället för att tyst
                                 // fortsätta visa "Inloggad".
-                                loggedIn = Dictionary(
-                                    uniqueKeysWithValues: TVOAuthProviders.all.map { ($0.id, TVDeviceFlowOAuthManager.isLoggedIn($0)) }
-                                )
+                                for provider in TVOAuthProviders.all {
+                                    loggedIn[provider.id] = await TVDeviceFlowOAuthManager.isLoggedInAsync(provider)
+                                }
                             }
                         }
                         .disabled(syncInProgress)
@@ -108,13 +121,24 @@ struct TVSyncSettingsView: View {
             }
             .navigationTitle("Sync")
             .task {
-                let stored = await Keychain.getAsync(SyncKeys.passphraseKey) ?? ""
-                // Skriv bara in det laddade värdet om fältet fortfarande är
-                // tomt — hann användaren skriva in något eget medan
-                // laddningen pågick (knapparna är spärrade men fältet är
-                // redigerbart) ska det INTE skrivas över.
-                if passphrase.isEmpty { passphrase = stored }
+                switch await Keychain.getResultAsync(SyncKeys.passphraseKey) {
+                case .found(let value):
+                    // Skriv bara in det laddade värdet om användaren inte
+                    // redan rört fältet (skrivit ELLER rensat) medan
+                    // laddningen pågick.
+                    if !passphraseEdited { passphrase = value }
+                case .notFound:
+                    break
+                case .failed:
+                    // Vet INTE om en lösenfras faktiskt finns — save()s
+                    // tomt-betyder-radera-logik måste vägra köra tills
+                    // användaren själv gör något medvetet.
+                    passphraseLoadFailed = true
+                }
                 passphraseLoaded = true
+                for provider in TVOAuthProviders.all {
+                    loggedIn[provider.id] = await TVDeviceFlowOAuthManager.isLoggedInAsync(provider)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -238,6 +262,16 @@ struct TVSyncSettingsView: View {
     @discardableResult
     private func save() async -> Bool {
         if passphrase.isEmpty {
+            // Läsningen av den befintliga lösenfrasen misslyckades (inte
+            // "det finns ingen") och användaren har inte själv rört
+            // fältet — vi vet INTE om det finns en sparad lösenfras att
+            // radera. Gissa inte: vägra och be användaren försöka igen
+            // istället för att riskera att radera en post vi aldrig
+            // faktiskt lyckades läsa (cubic P1).
+            guard !passphraseLoadFailed || passphraseEdited else {
+                saveError = "Kunde inte läsa den sparade lösenfrasen. Försök igen innan du sparar/synkar."
+                return false
+            }
             guard await Keychain.deleteAsync(SyncKeys.passphraseKey) else {
                 saveError = "Lösenfrasen kunde inte raderas ur nyckelringen. Försök igen."
                 return false

@@ -43,12 +43,14 @@ on:
 # och kollidera vid uppladdning. Olika plattformar (ios vs tvos) har egna
 # byggnummer-sekvenser och blockerar därför inte varandra.
 concurrency:
-  # `inputs.*` är inte tillgänglig i den här scopen (workflow-nivåns
-  # `concurrency:`, inte ett jobb-steg) — den utvärderades tomt, vilket gav
-  # SAMMA grupp ("testflight-") oavsett plattform och serialiserade ios- och
-  # tvos-körningar mot varandra istället för bara mot sig själva (bug,
-  # devin+cubic, andra granskningsrundan). `github.event.inputs.*` är den
-  # dokumenterat tillgängliga vägen i den här scopen för workflow_dispatch.
+  # Två oberoende granskningsrundor (devin+cubic) flaggade `inputs.platform`
+  # här som att den serialiserade ios- och tvos-körningar mot varandra
+  # istället för bara mot sig själva — en tredje rundas motkommentar
+  # ifrågasatte om `inputs.*` verkligen saknas i den här scopen, så den
+  # exakta mekanismen är inte helt utredd. `github.event.inputs.*` är
+  # under alla omständigheter den äldre, väletablerade och garanterat
+  # fungerande vägen för workflow_dispatch-indata på workflow-nivå — ett
+  # säkert val oavsett vilken förklaring som stämmer.
   group: testflight-${{ github.event.inputs.platform }}
   cancel-in-progress: false
 
