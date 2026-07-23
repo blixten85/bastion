@@ -11,6 +11,30 @@ enum Keychain {
     // alla tvOS-nycklar under den här appens eget bundle-ID.
     private static let service = "se.denied.bastion.tv.keychain"
 
+    // Keychain-IPC kan blockera i värsta fall (systemet, delad enhet under
+    // belastning) — en serialiserad bakgrundskö låter UI-anropare `await`a
+    // resultatet istället för att blockera main-actor-tråden rakt av
+    // (cubic P3, se `setAsync`/`getAsync`/`deleteAsync` nedan).
+    private static let queue = DispatchQueue(label: "se.denied.bastion.tv.keychain.queue")
+
+    static func setAsync(_ value: String, for key: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            queue.async { continuation.resume(returning: set(value, for: key)) }
+        }
+    }
+
+    static func getAsync(_ key: String) async -> String? {
+        await withCheckedContinuation { continuation in
+            queue.async { continuation.resume(returning: get(key)) }
+        }
+    }
+
+    static func deleteAsync(_ key: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            queue.async { continuation.resume(returning: delete(key)) }
+        }
+    }
+
     @discardableResult
     static func set(_ value: String, for key: String) -> Bool {
         let base: [String: Any] = [

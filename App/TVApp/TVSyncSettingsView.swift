@@ -12,7 +12,10 @@ struct TVSyncSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(SyncKeys.enabled) private var enabled = false
     @AppStorage(SyncKeys.transport) private var transport = "googledrive"
-    @State private var passphrase = Keychain.get(SyncKeys.passphraseKey) ?? ""
+    // Tom vid init, fylls i via `.task` nedan — undviker att blockera
+    // main actor med ett synkront Keychain-anrop under vy-initiering
+    // (cubic P3, samma resonemang som `save()`).
+    @State private var passphrase = ""
     @State private var status: String?
     @State private var loggedIn: [String: Bool] = Dictionary(
         uniqueKeysWithValues: TVOAuthProviders.all.map { ($0.id, TVDeviceFlowOAuthManager.isLoggedIn($0)) }
@@ -64,8 +67,8 @@ struct TVSyncSettingsView: View {
                             // hade en misslyckad sparning tyst synkat mot den
                             // GAMLA lösenfrasen istället (cubic P1, andra
                             // granskningsrundan).
-                            guard save() else { return }
                             Task {
+                                guard await save() else { return }
                                 status = await syncNow()
                                 // Om synken upptäckte ett återkallat/utgånget
                                 // token kan syncNow() ha loggat ut i tysthet
@@ -82,10 +85,13 @@ struct TVSyncSettingsView: View {
                 }
             }
             .navigationTitle("Sync")
+            .task { passphrase = await Keychain.getAsync(SyncKeys.passphraseKey) ?? "" }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Klar") {
-                        if save() { dismiss() }
+                        Task {
+                            if await save() { dismiss() }
+                        }
                     }
                 }
             }
@@ -191,10 +197,12 @@ struct TVSyncSettingsView: View {
     /// anropare ska bara gå vidare (stänga vyn, köra en synk) vid `true`
     /// (cubic P1, andra granskningsrundan: en tyst misslyckad radering fick
     /// tidigare framstå som lyckad).
+    // Async (istället för att blockera main actor rakt av) — Keychain-IPC
+    // kan i värsta fall stalla UI:t om den anropas synkront här (cubic P3).
     @discardableResult
-    private func save() -> Bool {
+    private func save() async -> Bool {
         if passphrase.isEmpty {
-            guard Keychain.delete(SyncKeys.passphraseKey) else {
+            guard await Keychain.deleteAsync(SyncKeys.passphraseKey) else {
                 saveError = "Lösenfrasen kunde inte raderas ur nyckelringen. Försök igen."
                 return false
             }
@@ -202,7 +210,7 @@ struct TVSyncSettingsView: View {
         }
         // Ytligt fel (t.ex. Keychain otillgänglig) ska INTE stänga vyn tyst
         // med en förlorad lösenfras (cubic P1).
-        guard Keychain.set(passphrase, for: SyncKeys.passphraseKey) else {
+        guard await Keychain.setAsync(passphrase, for: SyncKeys.passphraseKey) else {
             saveError = "Lösenfrasen kunde inte sparas i nyckelringen. Försök igen."
             return false
         }

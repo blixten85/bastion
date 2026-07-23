@@ -124,7 +124,7 @@ struct TVDashboardView: View {
     @MainActor
     private func syncNow() async -> String {
         guard UserDefaults.standard.bool(forKey: SyncKeys.enabled) else { return "Sync är avstängd." }
-        guard let pass = Keychain.get(SyncKeys.passphraseKey), !pass.isEmpty else {
+        guard let pass = await Keychain.getAsync(SyncKeys.passphraseKey), !pass.isEmpty else {
             return "Ingen lösenfras angiven."
         }
         let transport = UserDefaults.standard.string(forKey: SyncKeys.transport) ?? "googledrive"
