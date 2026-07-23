@@ -34,9 +34,18 @@ private struct OAuthErrorBody: Decodable {
     let error_description: String?
 }
 
-private struct OAuthTokenRefreshError: Error {
-    let message: String
+private struct OAuthTokenRefreshError: Error, LocalizedError {
+    // Bara OAuth-protokollets EGET `error_description`-fält (om servern gav
+    // ett) — ALDRIG den råa svarskroppen. En proxy/felsida framför
+    // token-endpointen kan annars läcka intern diagnostik/HTML rakt in i
+    // UI:t via `LocalizedError` (cubic+devin säkerhetsfynd, "Information
+    // Disclosure"). Rått svar loggas separat internt, inte här.
+    let serverDescription: String?
     let isInvalidGrant: Bool
+
+    var errorDescription: String? {
+        serverDescription ?? "Tokenförnyelsen misslyckades."
+    }
 }
 
 /// tvOS-motsvarighet till `App/OAuthTokenStore.swift` — nyckeln är
@@ -47,13 +56,55 @@ private struct OAuthTokenRefreshError: Error {
 /// ett id att nyckla på). `OAuthTokenResponse`/`StoredOAuthToken` återanvänds
 /// direkt från SSHCore (redan plattformsneutrala, delade med App/).
 enum TVOAuthTokenStore {
-    private static func keychainKey(_ providerID: String) -> String { "oauth-\(providerID)-token" }
+    // Serialiserar läs-förnya-spara-sekvensen i validAccessToken PER
+    // PROVIDER — utan detta kan två samtidiga anrop för SAMMA provider
+    // (t.ex. push+pull som racear under en synk) båda se samma utgångna
+    // token och skicka samma refresh_token till servern, vilket loggar ut
+    // användaren i onödan om providern roterar refresh-tokens (cubic/devin-
+    // fynd, PR #196). Ett enda globalt lås över ALLA providers löste det
+    // men blockerade i onödan en frisk OneDrive-förnyelse bakom en hängande
+    // Google Drive-förnyelse (cubic P3, andra granskningsrundan) — nyckla
+    // låsen per provider-id istället. `locksLock` skyddar bara själva
+    // dictionary-åtkomsten (kort, ingen nätverkstrafik under den).
+    private static let locksLock = NSLock()
+    private static var providerLocks: [String: NSLock] = [:]
 
-    static func isLoggedIn(_ providerID: String) -> Bool {
-        Keychain.get(keychainKey(providerID)) != nil
+    private static func lock(for providerID: String) -> NSLock {
+        locksLock.lock()
+        defer { locksLock.unlock() }
+        if let existing = providerLocks[providerID] { return existing }
+        let new = NSLock()
+        providerLocks[providerID] = new
+        return new
     }
 
-    static func logout(_ providerID: String) {
+    private static func keychainKey(_ providerID: String) -> String { "oauth-\(providerID)-token" }
+
+    // `load(for:)`, inte en rå Keychain-koll — en malformerad eller
+    // schema-inkompatibel post finns visserligen i Keychain men avvisas
+    // av `validAccessToken` som `notLoggedIn` vid varje synk. Genom att
+    // basera detta på samma avkodning som `validAccessToken` faktiskt
+    // använder hålls "Inloggad"-status i UI:t konsekvent med vad en synk
+    // verkligen accepterar (cubic P3).
+    static func isLoggedIn(_ providerID: String) -> Bool {
+        load(for: providerID) != nil
+    }
+
+    // Samma Keychain-IPC-på-main-actor-problem som `Keychain.getAsync` löser
+    // — `isLoggedIn`/`load(for:)` läser/avkodar synkront och kan stalla
+    // UI:t om den körs vid vy-initiering (cubic P2, tredje
+    // granskningsrundan). Samma avkodningslogik som `load(for:)`, bara
+    // via den asynkrona Keychain-vägen.
+    static func isLoggedInAsync(_ providerID: String) async -> Bool {
+        guard let json = await Keychain.getAsync(keychainKey(providerID)) else { return false }
+        return (try? JSONDecoder().decode(StoredOAuthToken.self, from: Data(json.utf8))) != nil
+    }
+
+    // Returvärdet propageras hela vägen till UI:t (cubic P2) — annars kan
+    // "Logga ut" rapportera lyckat medan credentialet faktiskt blir kvar i
+    // Keychain om raderingen misslyckas.
+    @discardableResult
+    static func logout(_ providerID: String) -> Bool {
         Keychain.delete(keychainKey(providerID))
     }
 
@@ -72,6 +123,9 @@ enum TVOAuthTokenStore {
     /// Hämtar en giltig access token, förnyar tyst via `refresh_token` om
     /// den gått ut. Blockerande — matchar `SyncProvider`s synkrona gränssnitt.
     static func validAccessToken(for providerID: String, tokenEndpoint: URL, clientID: String) throws -> String {
+        let providerLock = lock(for: providerID)
+        providerLock.lock()
+        defer { providerLock.unlock() }
         guard let token = load(for: providerID) else { throw OAuthError.notLoggedIn }
         guard token.isExpired else { return token.accessToken }
         // En utgången token UTAN refresh-token är oanvändbar — returnera den
@@ -109,6 +163,10 @@ enum TVOAuthTokenStore {
         }
         var request = URLRequest(url: tokenEndpoint)
         request.httpMethod = "POST"
+        // Utan ett uttryckligt tak kan en hängande proxy/endpoint blockera
+        // `refreshLock` (och därmed ANDRA providers om låset delas) på
+        // obestämd tid (cubic P3, andra granskningsrundan).
+        request.timeoutInterval = 15
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = formBody([
             "grant_type": "refresh_token",
@@ -120,7 +178,7 @@ enum TVOAuthTokenStore {
         if !(200..<300).contains(http.statusCode) {
             let body = try? JSONDecoder().decode(OAuthErrorBody.self, from: data)
             throw OAuthTokenRefreshError(
-                message: String(decoding: data, as: UTF8.self),
+                serverDescription: body?.error_description,
                 isInvalidGrant: body?.error == "invalid_grant")
         }
         let decoded = try JSONDecoder().decode(OAuthTokenResponse.self, from: data)
@@ -141,9 +199,15 @@ enum TVOAuthTokenStore {
         }.joined(separator: "&").data(using: .utf8)!
     }
 
+    // Kastar ALDRIG den råa svarskroppen (kan vara en proxy-/felsida med
+    // intern diagnostik) — bara en generisk, statuskodbaserad diagnos.
+    // Samma resonemang som `OAuthTokenRefreshError` ovan (devin-fynd:
+    // synk-anropen här hade fortfarande läckan kvar trots att
+    // device-flow-polling redan härdats mot den).
     static func checkHTTPStatus(_ response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw OAuthError.requestFailed(String(decoding: data, as: UTF8.self))
+            let status = (response as? HTTPURLResponse)?.statusCode
+            throw OAuthError.requestFailed(status.map { "Servern svarade med status \($0)." } ?? "Inget svar från servern.")
         }
     }
 

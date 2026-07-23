@@ -75,3 +75,94 @@ platform :ios do
     )
   end
 end
+
+# tvOS-motsvarigheten till :ios-lanen ovan — samma mönster (match readonly,
+# nästa lediga byggnummer, upload_to_testflight), bara riktat mot
+# Bastion-tvOS-targeten och dess EGNA bundle-ID (se.denied.bastion.tv, ett
+# separat App Store Connect-app-record från iOS-appen).
+#
+# OBS, INTE verifierat mot en riktig körning än (samma försiktighet som
+# resten av App/ — Xcode-only, kräver riktiga secrets). EN sak krävs
+# fortfarande INNAN denna lane kan lyckas, inte görbart härifrån:
+#   Ett App Store Connect-app-record för se.denied.bastion.tv måste finnas
+#   (skapas i App Store Connect-webbportalen — App Store Connect-API:t
+#   tillåter INTE att skapa app-record via `POST /v1/apps` oavsett
+#   API-nyckelns roll, verifierat 2026-07-22, se ROADMAP.md). Kräver ett
+#   beslut om SKU/primärt språk — samma manuella steg som iOS-appen redan
+#   gick igenom.
+#
+# (Rättat 2026-07-22, cubic-fynd: certifikatet är INTE tvOS-specifikt.
+# Samma delade "Apple Distribution"-certifikat som iOS-appen använder
+# återanvänds här — bara provisioneringsprofilen, "match AppStore
+# se.denied.bastion.tv", är tvOS-specifik. Båda är redan bootstrappade i
+# blixten85/bastion-certificates sedan 2026-07-22; att tro att ett NYTT
+# eget tvOS-distributionscertifikat behövs kan onödigt trigga
+# certifikatsskapande och krocka med Apples gräns på antal
+# distributionscertifikat per konto.)
+platform :tvos do
+  desc "Bygg och ladda upp tvOS-appen till TestFlight"
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+      key_content: ENV.fetch("APP_STORE_CONNECT_KEY_CONTENT"),
+      is_key_content_base64: true,
+      in_house: false,
+    )
+
+    # `platform: "appletvos"` MÅSTE med — se.denied.bastion.tv är ett separat,
+    # tvOS-app-record, och latest_testflight_build_number defaultar platform
+    # till "ios". Utan detta frågar den efter iOS-builds på ett tvOS-record
+    # (alltid tomt), faller tillbaka på initial_build_number: 0, och varje
+    # körning väljer samma nummer 1 → duplikat-avvisat av Apple.
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: "se.denied.bastion.tv",
+      platform: "appletvos",
+      initial_build_number: 0,
+    )
+    # Stock increment_build_number (agvtool) stöder inte `target:` och är
+    # projekt-brett — samma mönster som :ios-lanen ovan. Det spelar ingen roll
+    # att detta rör iOS/macOS-targetens byggnummer i samma .xcodeproj: värdet
+    # är efemärt på CI-runnern (checkas aldrig in) och varje lane hämtar sitt
+    # EGNA nästa TestFlight-nummer per plattform innan bygget.
+    increment_build_number(
+      build_number: latest + 1,
+      xcodeproj: "Bastion.xcodeproj",
+    )
+
+    setup_ci if ENV["CI"]
+
+    match(
+      api_key: api_key,
+      type: "appstore",
+      platform: "tvos",
+      app_identifier: "se.denied.bastion.tv",
+      team_id: ENV.fetch("APP_STORE_CONNECT_TEAM_ID"),
+      git_url: "git@github.com:blixten85/bastion-certificates.git",
+      readonly: true,
+    )
+
+    build_app(
+      project: "Bastion.xcodeproj",
+      scheme: "Bastion-tvOS",
+      export_method: "app-store",
+      # Utan denna kan build_app falla tillbaka på fel destination/SDK för
+      # ett tvOS-schema (cubic/devin-fynd, andra granskningsrundan).
+      destination: "generic/platform=tvOS",
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: "se.denied.bastion.tv",
+      app_platform: "appletvos",
+      skip_waiting_for_build_processing: true,
+    )
+
+    sentry_debug_files_upload(
+      org_slug: 'anders-gh',
+      project_slug: 'bastion',
+      include_sources: true
+    )
+  end
+end

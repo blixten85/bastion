@@ -35,14 +35,26 @@ final class TVDockerModel: ObservableObject {
                 guard host.jumpHostID == nil else {
                     throw PlainMessageError(message: "Den här värden har en jump-host konfigurerad — det stöds inte i tvOS-Docker-vyn än.")
                 }
-                guard let auth = resolveAuth(for: host, password: password) else {
-                    throw PlainMessageError(message: "Kan inte autentisera värden.")
-                }
+                let auth = try resolveAuth(for: host, password: password)
                 return try await SSHConnectionChain.connect(target: host.target, targetAuth: auth, jump: nil)
             },
             open: { $0.target },
             onFailure: { [weak self] in self?.errorMessage = $0 }
         )
+    }
+
+    // Bara anslutningsnivå-fel betyder att SSH-anslutningen själv är
+    // trasig — INTE `remoteExit` (kommandot KÖRDES, det bara returnerade
+    // ett felstatus) och inte domänfel som `DockerError`. Delad mellan
+    // `invalidateSessionIfNeeded` och `act()`s felrapportering (cubic P2,
+    // två separata fynd med samma rotorsak).
+    private static func isConnectionLevel(_ error: SSHError) -> Bool {
+        switch error {
+        case .connectionFailed, .authenticationFailed, .channelFailed, .hostKeyRejected:
+            return true
+        case .remoteExit:
+            return false
+        }
     }
 
     /// Ogiltigförklarar en trasig cachad session — GÖRS ALLTID, oavsett om
@@ -51,11 +63,13 @@ final class TVDockerModel: ObservableObject {
     /// vara kvar cachad hade läckt den vidare till nästa, redan pågående
     /// refresh (cubic P2, andra granskningsrundan).
     private func invalidateSessionIfNeeded(_ error: Error, session: SSHSession) {
-        guard case SSHError.remoteExit = error else {
-            guard connector.target === session else { return }
-            connector.invalidateIfCurrent(session)
-            return
-        }
+        // Att invalidera för VARJE icke-remoteExit-fel kastade bort en
+        // fullt frisk cachad session bara för att t.ex. en
+        // `DockerError.invalidReference` (ett rent lokalt/domänfel, inte
+        // relaterat till anslutningen alls) råkade dyka upp (cubic P2).
+        guard case let sshError as SSHError = error, Self.isConnectionLevel(sshError) else { return }
+        guard connector.target === session else { return }
+        connector.invalidateIfCurrent(session)
     }
 
     // Bumpas vid varje `refresh()`-anrop — en överlappande, ÄLDRE refresh
@@ -100,7 +114,22 @@ final class TVDockerModel: ObservableObject {
             }
             await refresh()
         } catch {
+            // Fånga om `s` fortfarande var den aktiva sessionen INNAN
+            // `invalidateSessionIfNeeded` nollar `connector.target` — annars
+            // kan guarden nedan aldrig bli sann och ett anslutningsnivå-fel
+            // för den aktuella sessionen skulle tyst svälja errorMessage.
+            let wasCurrent = connector.target === s
             invalidateSessionIfNeeded(error, session: s)
+            // Ett anslutningsnivå-fel från en ÄLDRE `act()` (t.ex. den
+            // gamla sessionen dog just som en NY reconnect redan lyckats)
+            // ska inte skriva över errorMessage för den nya, friska
+            // sessionen — men ett `remoteExit`/domänfel (kommandot körde
+            // faktiskt på session `s` och misslyckades) ska alltid
+            // rapporteras, oavsett om `s` fortfarande är den aktiva
+            // sessionen (cubic P2).
+            if case let sshError as SSHError = error, Self.isConnectionLevel(sshError) {
+                guard wasCurrent else { return }
+            }
             errorMessage = "\(error)"
         }
     }
