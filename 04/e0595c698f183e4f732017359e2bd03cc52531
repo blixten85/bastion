@@ -1,0 +1,41 @@
+App/TVApp/OneDriveSyncProvider.swift
+  s_1c2bc845e6a689::t_573bc827f8df61 13-21
+App/TVApp/TVDeviceFlowOAuthManager.swift
+  s_1c2bc845e6a689::t_89e9fa63ef89f7 109-113
+  s_1c2bc845e6a689::t_0da397dde01462 197-204
+  s_1c2bc845e6a689::t_1736a833a1dcf7 93-94
+App/TVApp/ChainConnector.swift
+  s_1c2bc845e6a689::t_471c458614ac94 191,194-201
+App/TVApp/Keychain.swift
+  s_1c2bc845e6a689::t_10f33163c02b1a 8-13,18,34-42,48,63
+App/TVApp/TVOAuthTokenStore.swift
+  s_1c2bc845e6a689::t_30c5c7fa213a13 63-67
+  s_1c2bc845e6a689::t_8a3fb93c272dde 37,40-46
+App/TVApp/TVSyncSettingsView.swift
+  s_1c2bc845e6a689::t_fab53b4393b1db 91-96
+  s_1c2bc845e6a689::t_0aa106cd552b22 67-77
+  s_1c2bc845e6a689::t_97d8474ac5247c 132-139
+App/TVApp/TVDockerView.swift
+  s_1c2bc845e6a689::t_e624a27aeeac64 120-126,128-129
+  s_1c2bc845e6a689::t_7dd826196a3f58 48-61,68-69,72-74
+  s_1c2bc845e6a689::t_8729ca7c04f896 70-71
+  s_1c2bc845e6a689::t_0516772f7d8981 127
+App/fastlane/Fastfile
+  s_1c2bc845e6a689::t_f4805537f6f007 85-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "04e0595c698f183e4f732017359e2bd03cc52531",
+  "prompts": {},
+  "sessions": {
+    "s_1c2bc845e6a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7e5aa75-f353-4ff6-9e2a-8562f4261e66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}

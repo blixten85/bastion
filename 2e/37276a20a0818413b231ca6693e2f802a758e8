@@ -1,0 +1,45 @@
+.github/workflows/testflight.yml
+  s_1c2bc845e6a689::t_31730e49ed98c8 46-52
+App/TVApp/TVOAuthTokenStore.swift
+  s_1c2bc845e6a689::t_98e7ca2659ab65 156-159
+  s_1c2bc845e6a689::t_5438218b0c2fdb 192-196,199-200
+  s_1c2bc845e6a689::t_bb121e236fc776 171
+  s_1c2bc845e6a689::t_a421c28000fd37 83-88,90
+  s_1c2bc845e6a689::t_426c7049556bb9 38-43,47
+  s_1c2bc845e6a689::t_b6b5ce24faf402 116-118
+  s_1c2bc845e6a689::t_fadb11175c5911 59-79
+App/fastlane/Fastfile
+  s_1c2bc845e6a689::t_f76bdbb8282bed 150-152
+App/TVApp/TVSyncSettingsView.swift
+  s_1c2bc845e6a689::t_0ff143769815d4 106,110-111,117-118,123,127
+  s_1c2bc845e6a689::t_10ad7c3373cea3 28
+  s_1c2bc845e6a689::t_6423b7bd8d5c05 19-27
+  s_1c2bc845e6a689::t_50f12ade947b08 112-116
+  s_1c2bc845e6a689::t_fab398eabd86ff 101-104
+  s_1c2bc845e6a689::t_b93d35c708c92b 210-214
+  s_1c2bc845e6a689::t_ca1d74544bf869 87
+  s_1c2bc845e6a689::t_33cb2194a9d685 83-84,86,100
+  s_1c2bc845e6a689::t_a050f2e3ed86f6 37-40
+  s_1c2bc845e6a689::t_d84d4ff3b48a8a 42
+App/TVApp/TVDashboardView.swift
+  s_1c2bc845e6a689::t_405fb62d787568 10-20,33,41-42
+  s_1c2bc845e6a689::t_26207f58fa4334 175,178,180
+  s_1c2bc845e6a689::t_fd584e28a47154 217-223,228-231
+  s_1c2bc845e6a689::t_bd2b9e299d5a5d 136-137,139,150,153,156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2e37276a20a0818413b231ca6693e2f802a758e8",
+  "prompts": {},
+  "sessions": {
+    "s_1c2bc845e6a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7e5aa75-f353-4ff6-9e2a-8562f4261e66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
