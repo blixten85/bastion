@@ -91,7 +91,14 @@ struct TVDashboardView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showSyncSettings) {
+            .sheet(isPresented: $showSyncSettings, onDismiss: {
+                // Kör om synken när inställnings-sheeten stängs — annars kan
+                // en gammal fel-banner (t.ex. "Inte inloggad på Google Drive.")
+                // ligga kvar på dashboarden trots att användaren precis loggat
+                // in och synkat via sheeten (bara start-`.task` skrev annars
+                // `syncStatus`).
+                Task { syncStatus = await syncNow() }
+            }) {
                 TVSyncSettingsView(syncNow: syncNow)
             }
             .alert("Kunde inte väcka värden", isPresented: Binding(
@@ -102,7 +109,10 @@ struct TVDashboardView: View {
             }, message: {
                 Text(errorMessage ?? "")
             })
-            .alert("Lösenord", isPresented: .constant(passwordFor != nil)) {
+            .alert("Lösenord", isPresented: Binding(
+                get: { passwordFor != nil },
+                set: { isPresented in if !isPresented { passwordFor = nil; passwordInput = "" } }
+            )) {
                 SecureField("Lösenord", text: $passwordInput)
                 Button("Anslut") {
                     if let h = passwordFor {

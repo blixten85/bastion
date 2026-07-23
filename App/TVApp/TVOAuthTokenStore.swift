@@ -47,7 +47,7 @@ private struct OAuthTokenRefreshError: Error {
 /// ett id att nyckla på). `OAuthTokenResponse`/`StoredOAuthToken` återanvänds
 /// direkt från SSHCore (redan plattformsneutrala, delade med App/).
 enum TVOAuthTokenStore {
-    private static let tokenRefreshQueue = DispatchQueue(label: "se.denied.bastion.tv.token-refresh", attributes: .serial)
+    private static let tokenRefreshQueue = DispatchQueue(label: "se.denied.bastion.tv.token-refresh")
     private static func keychainKey(_ providerID: String) -> String { "oauth-\(providerID)-token" }
 
     static func isLoggedIn(_ providerID: String) -> Bool {

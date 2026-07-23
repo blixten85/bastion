@@ -78,7 +78,14 @@ struct TVSyncSettingsView: View {
                     }
                 }
             }
-            .sheet(item: $activeSession) { session in
+            .sheet(item: $activeSession, onDismiss: {
+                // Swajp-bort av bara device-code-sheeten (utan att hela vyn
+                // försvinner) sätter `activeSession = nil` men lämnar annars
+                // `loginTask` pollande i bakgrunden — en inloggning användaren
+                // visuellt övergav kunde då ändå slutföras och spara en token.
+                // Avbryt pollningen här så `onDisappear` inte är enda vägen ut.
+                loginTask?.cancel()
+            }) { session in
                 deviceCodeSheet(session)
             }
             .alert("Inloggning misslyckades", isPresented: Binding(

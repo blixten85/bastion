@@ -108,9 +108,14 @@ platform :tvos do
       in_house: false,
     )
 
+    # `platform: "appletvos"` — `latest_testflight_build_number` defaultar
+    # till "ios" oavsett `platform :tvos do`-blocket, så utan detta frågas
+    # iOS-buildsen (som inte finns för det här app-recordet) och `latest + 1`
+    # blir alltid 1 → varje uppladdning efter den första avvisas som dubblett.
     latest = latest_testflight_build_number(
       api_key: api_key,
       app_identifier: "se.denied.bastion.tv",
+      platform: "appletvos",
       initial_build_number: 0,
     )
     # `target:` skopar ändringen till BARA tvOS-targeten — annars hade
