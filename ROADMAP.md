@@ -711,13 +711,22 @@ Inget nytt att bygga, bara verifiera/lansera:
   App Store-distribution: `testflight.yml`/`Fastfile` har nu en `tvos beta`-
   gren (samma mönster som iOS — `match` readonly + `latest_testflight_
   build_number` + `upload_to_testflight`, egen bundle-ID `se.denied.
-  bastion.tv`). **Kvar:** Google/Microsoft-kontoverifiering och device-flow-
-  konfiguration med riktiga klient-ID:n; tvOS-distributionen kräver ETT
-  App Store Connect-app-record för `se.denied.bastion.tv` + ett bootstrappat
-  tvOS-distributionscertifikat i bastion-certificates (ingetdera görbart
-  utan en inloggad Apple Developer-session, se Fastfile-kommentaren) innan
-  en riktig `workflow_dispatch`-körning kan lyckas; verifiering på riktig
-  Apple TV-hårdvara (bara simulator hittills).
+  bastion.tv`). tvOS-distributionscertifikat + `match AppStore se.denied.
+  bastion.tv`-profil är bootstrappade i bastion-certificates (2026-07-22,
+  samma dag som iOS-certifikatet omgenererades efter att alla certifikat
+  raderades manuellt i Apple Developer-portalen). **Kvar:** ett App Store
+  Connect-app-record för `se.denied.bastion.tv` (kräver en Admin-roll-API-
+  nyckel för att skapas via API — den befintliga Team-nyckeln har bara
+  App Manager-roll, som INTE tillåter `POST /v1/apps`; annars manuellt i
+  webb-UI:t) innan en riktig `workflow_dispatch`-körning kan lyckas;
+  Google/Microsoft-kontoverifiering och device-flow-konfiguration med
+  riktiga klient-ID:n; verifiering på riktig Apple TV-hårdvara (bara
+  simulator hittills).
+- **visionOS** (nytt, 2026-07-22) — löst idé, inte påbörjat, ingen
+  prioritet satt än. Många iPad/iOS-appar körs oförändrat i "Compatible"-
+  läge på Apple Vision Pro utan kodändring; en riktig spatial UI (flytande
+  fönster osv.) skulle kräva skräddarsytt SwiftUI-arbete likt tvOS-targeten.
+  Se VISION.md "Plattforms- och paketeringsmål, fullständigt".
 - **Command Library** — ✅ klart, både App/ och LinuxApp. `CommandLibrary`/
   `CommandLibraryEntry` i SSHCore — statisk referensdata (ingen egen lagring,
   till skillnad från `Snippet`), 27 kommandon över alla sju kategorier
