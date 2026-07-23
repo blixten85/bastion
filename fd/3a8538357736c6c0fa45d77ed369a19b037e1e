@@ -1,0 +1,23 @@
+"App/TVApp/Assets.xcassets/App Icon & Top Shelf Image.brandassets/PARALLAX_FIX.md"
+  s_f3a79eb030aaa8::t_1cff5224f7676d 1-19
+App/TVApp/TVAuthResolver.swift
+  s_f3a79eb030aaa8::t_021a6c21739832 20-24,30-33
+App/TVApp/TVOAuthTokenStore.swift
+  s_f3a79eb030aaa8::t_e5fd0bad49150d 50,76-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fd3a8538357736c6c0fa45d77ed369a19b037e1e",
+  "prompts": {},
+  "sessions": {
+    "s_f3a79eb030aaa8": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_f3a79eb030aaa8",
+        "model": "unknown"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
