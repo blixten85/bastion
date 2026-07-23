@@ -7,6 +7,17 @@ import SSHCore
 /// flow (Dropbox saknar stöd för det, se `TVDeviceFlowOAuthManager.swift`),
 /// ingen mappsynk (tvOS saknar en Filer-app). Se
 /// [[project-bastion-tvos-watchos-mandate]].
+/// Bär severity EXPLICIT från källan istället för att `syncFailureBanner`
+/// gissar den genom att jämföra mot exakt svensk text — en framtida
+/// copy-/lokaliseringsändring kunde annars tyst göra en lyckad/avstängd
+/// status till ett rött felbanner eller tvärtom (cubic P3).
+struct SyncOutcome {
+    let text: String
+    let isFailure: Bool
+    static func ok(_ text: String) -> SyncOutcome { .init(text: text, isFailure: false) }
+    static func failure(_ text: String) -> SyncOutcome { .init(text: text, isFailure: true) }
+}
+
 struct TVDashboardView: View {
     @State private var hosts: [Host] = []
     @State private var wakingID: UUID?
@@ -19,7 +30,7 @@ struct TVDashboardView: View {
     @State private var passwordInput = ""
     @State private var dockerTarget: DockerTarget?
     @State private var showSyncSettings = false
-    @State private var syncStatus: String?
+    @State private var syncStatus: SyncOutcome?
 
     private let store = HostStore()
 
@@ -27,8 +38,8 @@ struct TVDashboardView: View {
     /// bara faktiska problem ska stjäla uppmärksamhet på en skärm utan
     /// någon "tryck för att stänga"-notis.
     private var syncFailureBanner: String? {
-        guard let syncStatus, syncStatus != "Synkat.", syncStatus != "Sync är avstängd." else { return nil }
-        return syncStatus
+        guard let syncStatus, syncStatus.isFailure else { return nil }
+        return syncStatus.text
     }
 
     var body: some View {
@@ -91,14 +102,7 @@ struct TVDashboardView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showSyncSettings, onDismiss: {
-                // Kör om synken när inställnings-sheeten stängs — annars kan
-                // en gammal fel-banner (t.ex. "Inte inloggad på Google Drive.")
-                // ligga kvar på dashboarden trots att användaren precis loggat
-                // in och synkat via sheeten (bara start-`.task` skrev annars
-                // `syncStatus`).
-                Task { syncStatus = await syncNow() }
-            }) {
+            .sheet(isPresented: $showSyncSettings) {
                 TVSyncSettingsView(syncNow: syncNow)
             }
             .alert("Kunde inte väcka värden", isPresented: Binding(
@@ -109,10 +113,7 @@ struct TVDashboardView: View {
             }, message: {
                 Text(errorMessage ?? "")
             })
-            .alert("Lösenord", isPresented: Binding(
-                get: { passwordFor != nil },
-                set: { isPresented in if !isPresented { passwordFor = nil; passwordInput = "" } }
-            )) {
+            .alert("Lösenord", isPresented: .constant(passwordFor != nil)) {
                 SecureField("Lösenord", text: $passwordInput)
                 Button("Anslut") {
                     if let h = passwordFor {
@@ -132,10 +133,10 @@ struct TVDashboardView: View {
     /// syncNow()` — bara Google Drive/OneDrive (device-flow), ingen
     /// `folder`/`dropbox`-transport (se filkommentaren ovan för varför).
     @MainActor
-    private func syncNow() async -> String {
-        guard UserDefaults.standard.bool(forKey: SyncKeys.enabled) else { return "Sync är avstängd." }
-        guard let pass = Keychain.get(SyncKeys.passphraseKey), !pass.isEmpty else {
-            return "Ingen lösenfras angiven."
+    private func syncNow() async -> SyncOutcome {
+        guard UserDefaults.standard.bool(forKey: SyncKeys.enabled) else { return .ok("Sync är avstängd.") }
+        guard let pass = await Keychain.getAsync(SyncKeys.passphraseKey), !pass.isEmpty else {
+            return .failure("Ingen lösenfras angiven.")
         }
         let transport = UserDefaults.standard.string(forKey: SyncKeys.transport) ?? "googledrive"
 
@@ -146,13 +147,13 @@ struct TVDashboardView: View {
         let provider: SyncProvider
         switch transport {
         case "googledrive":
-            if let err = requireLogin(TVOAuthProviders.googleDrive) { return err }
+            if let err = requireLogin(TVOAuthProviders.googleDrive) { return .failure(err) }
             provider = GoogleDriveSyncProvider(passphrase: pass)
         case "onedrive":
-            if let err = requireLogin(TVOAuthProviders.oneDrive) { return err }
+            if let err = requireLogin(TVOAuthProviders.oneDrive) { return .failure(err) }
             provider = OneDriveSyncProvider(passphrase: pass)
         default:
-            return "Den valda synktransporten är inte tillgänglig på tvOS — välj Google Drive eller OneDrive i Sync-inställningar."
+            return .failure("Den valda synktransporten är inte tillgänglig på tvOS — välj Google Drive eller OneDrive i Sync-inställningar.")
         }
 
         // `store.sync(with:)` gör blockerande, synkrona HTTP-anrop
@@ -171,12 +172,12 @@ struct TVDashboardView: View {
         // att detta redan var löst).
         let status = await withCheckedContinuation { continuation in
             Self.syncQueue.async {
-                let result: String
+                let result: SyncOutcome
                 do {
                     try store.sync(with: provider)
-                    result = "Synkat."
+                    result = .ok("Synkat.")
                 } catch {
-                    result = "Sync misslyckades: \(error.localizedDescription)"
+                    result = .failure("Sync misslyckades: \(error.localizedDescription)")
                 }
                 continuation.resume(returning: result)
             }
@@ -213,19 +214,20 @@ struct TVDashboardView: View {
     }
 }
 
-/// `navigationDestination(item:)` kräver `Identifiable` — `id` behöver
-/// inte vara stabil över flera öppningar av SAMMA värd, bara unik per
-/// navigeringstillfälle (en ny struct skapas varje gång `openDocker`
-/// körs).
-private struct DockerTarget: Identifiable, Hashable {
-    let id = UUID()
+/// `navigationDestination(item:)` kräver `Hashable`, INTE `Identifiable`
+/// (cubic-fynd: den tidigare `Identifiable`-konformansen var missvisande
+/// dead API surface). `identity` behöver inte vara stabil över flera
+/// öppningar av SAMMA värd, bara unik per navigeringstillfälle (en ny
+/// struct skapas varje gång `openDocker` körs).
+private struct DockerTarget: Hashable {
+    private let identity = UUID()
     let host: Host
     let password: String?
 
     // Manuell konformans — `Host` är `Equatable` men inte `Hashable`, så
-    // auto-syntes fungerar inte. `id` är redan unik per navigeringstillfälle
-    // (se kommentaren ovan), räcker som identitet här.
-    static func == (lhs: DockerTarget, rhs: DockerTarget) -> Bool { lhs.id == rhs.id }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    // auto-syntes fungerar inte. `identity` är redan unik per
+    // navigeringstillfälle (se kommentaren ovan), räcker som hash-identitet.
+    static func == (lhs: DockerTarget, rhs: DockerTarget) -> Bool { lhs.identity == rhs.identity }
+    func hash(into hasher: inout Hasher) { hasher.combine(identity) }
 }
 #endif

@@ -10,6 +10,15 @@ struct OneDriveSyncProvider: SyncProvider {
     private let passphrase: String
 
     init(filename: String = "bastion-sync.enc", passphrase: String) {
+        // Procentkodning i `contentURL` gör URL:en syntaktiskt säker, men
+        // OneDrives Graph-API förbjuder ändå "/" och ":" i själva filnamnet
+        // oavsett kodning — ett sådant filnamn skulle fortfarande avvisas
+        // av servern, bara med ett förvirrande API-fel istället för att
+        // fastna här direkt (cubic P3).
+        precondition(
+            !filename.contains("/") && !filename.contains(":"),
+            "OneDrive tillåter inte \"/\" eller \":\" i filnamn: \(filename)"
+        )
         self.filename = filename
         self.passphrase = passphrase
     }

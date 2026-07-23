@@ -188,9 +188,17 @@ final class ChainConnector<Client: AnyObject> {
     func invalidateIfCurrent(_ session: SSHSession) {
         guard chain?.target === session else { return }
         let c = chain
+        let cl = client
         chain = nil
         client = nil
-        Task { await c?.close() }
+        // `disconnect()` kör alltid `closeClient` på en satt klient innan
+        // kedjan stängs — den här metoden hoppade tidigare över det steget
+        // och lämnade klientens underliggande subsystem utan ordnad
+        // nedstängning (cubic P3). Samma ordning här.
+        Task { [closeClient] in
+            if let cl { await closeClient(cl) }
+            await c?.close()
+        }
     }
 
     /// Stänger klienten (om en egen stängning behövs), kedjan, och en ev.

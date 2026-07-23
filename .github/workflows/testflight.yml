@@ -4,7 +4,8 @@ name: TestFlight-uppladdning
 # byggnummer hos Apple och laddar upp en riktig build till TestFlight.
 # Välj "ios" eller "tvos" i dropdownen — separata App Store Connect-
 # app-record (se.denied.bastion / se.denied.bastion.tv), separata
-# byggnummer-sekvenser.
+# byggnummer-sekvenser. Körningar serialiseras per plattform (se
+# `concurrency` nedan) så två samtidiga uppladdningar inte krockar.
 #
 # tvOS-lanen KRÄVER (ingetdera görbart härifrån, se App/fastlane/Fastfile):
 #   1. Ett App Store Connect-app-record för se.denied.bastion.tv.
@@ -36,6 +37,22 @@ on:
         type: choice
         options: [ios, tvos]
         default: ios
+
+# Serialisera körningar per plattform — två samtidiga `tvos beta` (eller två
+# `ios beta`) skulle annars kunna hämta SAMMA nästa lediga TestFlight-byggnummer
+# och kollidera vid uppladdning. Olika plattformar (ios vs tvos) har egna
+# byggnummer-sekvenser och blockerar därför inte varandra.
+concurrency:
+  # Två oberoende granskningsrundor (devin+cubic) flaggade `inputs.platform`
+  # här som att den serialiserade ios- och tvos-körningar mot varandra
+  # istället för bara mot sig själva — en tredje rundas motkommentar
+  # ifrågasatte om `inputs.*` verkligen saknas i den här scopen, så den
+  # exakta mekanismen är inte helt utredd. `github.event.inputs.*` är
+  # under alla omständigheter den äldre, väletablerade och garanterat
+  # fungerande vägen för workflow_dispatch-indata på workflow-nivå — ett
+  # säkert val oavsett vilken förklaring som stämmer.
+  group: testflight-${{ github.event.inputs.platform }}
+  cancel-in-progress: false
 
 jobs:
   testflight:
@@ -75,7 +92,7 @@ jobs:
           chmod 600 ~/.ssh/match_deploy_key
           ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: fastlane beta
+      - name: fastlane ${{ inputs.platform }} beta
         working-directory: App
         env:
           APP_STORE_CONNECT_TEAM_ID: ${{ secrets.APP_STORE_CONNECT_TEAM_ID }}
