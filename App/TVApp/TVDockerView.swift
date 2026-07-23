@@ -35,9 +35,7 @@ final class TVDockerModel: ObservableObject {
                 guard host.jumpHostID == nil else {
                     throw PlainMessageError(message: "Den här värden har en jump-host konfigurerad — det stöds inte i tvOS-Docker-vyn än.")
                 }
-                guard let auth = resolveAuth(for: host, password: password) else {
-                    throw PlainMessageError(message: "Kan inte autentisera värden.")
-                }
+                let auth = try resolveAuth(for: host, password: password)
                 return try await SSHConnectionChain.connect(target: host.target, targetAuth: auth, jump: nil)
             },
             open: { $0.target },

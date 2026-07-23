@@ -54,6 +54,16 @@ private struct OAuthTokenRefreshError: Error, LocalizedError {
 /// ett id att nyckla på). `OAuthTokenResponse`/`StoredOAuthToken` återanvänds
 /// direkt från SSHCore (redan plattformsneutrala, delade med App/).
 enum TVOAuthTokenStore {
+    // Serialiserar hela läs-förnya-spara-sekvensen i validAccessToken —
+    // utan detta kan två samtidiga anrop (t.ex. push+pull som racear under
+    // en synk) båda se samma utgångna token, båda skicka samma
+    // refresh_token till servern, och om providern roterar refresh-tokens
+    // (de flesta gör) misslyckas det ena anropet med invalid_grant och
+    // loggar tyst ut användaren trots att det andra anropet precis lyckades
+    // (cubic/devin-fynd, PR #196). Ett enda globalt lås räcker — det här är
+    // redan blockerande synkrona nätverksanrop, ingen throughput att tappa.
+    private static let refreshLock = NSLock()
+
     private static func keychainKey(_ providerID: String) -> String { "oauth-\(providerID)-token" }
 
     static func isLoggedIn(_ providerID: String) -> Bool {
@@ -83,6 +93,8 @@ enum TVOAuthTokenStore {
     /// Hämtar en giltig access token, förnyar tyst via `refresh_token` om
     /// den gått ut. Blockerande — matchar `SyncProvider`s synkrona gränssnitt.
     static func validAccessToken(for providerID: String, tokenEndpoint: URL, clientID: String) throws -> String {
+        refreshLock.lock()
+        defer { refreshLock.unlock() }
         guard let token = load(for: providerID) else { throw OAuthError.notLoggedIn }
         guard token.isExpired else { return token.accessToken }
         // En utgången token UTAN refresh-token är oanvändbar — returnera den
