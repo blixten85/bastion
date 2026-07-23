@@ -1,0 +1,27 @@
+App/TVApp/TVSyncSettingsView.swift
+  s_1c2bc845e6a689::t_c468b708bc5c51 200-201,203,205,213
+  s_1c2bc845e6a689::t_a709a3d414a16c 88
+  s_1c2bc845e6a689::t_684c01f6befc83 15-18
+  s_1c2bc845e6a689::t_8f134e60a7c597 71
+  s_1c2bc845e6a689::t_18ab2362c2d9fd 92-94
+App/TVApp/TVDashboardView.swift
+  s_1c2bc845e6a689::t_30b348a8aa04a1 127
+App/TVApp/Keychain.swift
+  s_1c2bc845e6a689::t_8199b4ae1a8c41 14-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0387979bd67d97f07c9ce3ff2a5801467028f375",
+  "prompts": {},
+  "sessions": {
+    "s_1c2bc845e6a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7e5aa75-f353-4ff6-9e2a-8562f4261e66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
