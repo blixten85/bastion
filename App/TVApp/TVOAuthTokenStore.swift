@@ -97,6 +97,14 @@ enum TVOAuthTokenStore {
                 // granskningsrundan: mitt första utkast slog ihop de två felen).
                 logout(providerID)
                 throw OAuthError.notLoggedIn
+            } catch let error as OAuthTokenRefreshError {
+                // Alla ANDRA refresh-fel (t.ex. `invalid_client`, serverfel)
+                // — logga INTE ut, men mappa om till `OAuthError.requestFailed`
+                // så serverns faktiska detalj når UI:t. `OAuthTokenRefreshError`
+                // är inte `LocalizedError`, så om den propagerade rått hade
+                // `localizedDescription` bara blivit ett generiskt "operationen
+                // kunde inte slutföras" (devin-fynd).
+                throw OAuthError.requestFailed(error.message)
             }
         }
     }

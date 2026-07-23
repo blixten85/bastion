@@ -145,9 +145,14 @@ platform :tvos do
       export_method: "app-store",
     )
 
+    # `app_platform: "appletvos"` — undvik att App Store Connect måste
+    # gissa plattform utifrån binären. Ofarligt idag (app-recordet har bara
+    # tvOS-builds), men entydigt om samma record någonsin även får en
+    # iOS-build (devin-fynd).
     upload_to_testflight(
       api_key: api_key,
       app_identifier: "se.denied.bastion.tv",
+      app_platform: "appletvos",
       skip_waiting_for_build_processing: true,
     )
 

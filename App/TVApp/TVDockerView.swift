@@ -101,6 +101,12 @@ final class TVDockerModel: ObservableObject {
             await refresh()
         } catch {
             invalidateSessionIfNeeded(error, session: s)
+            // Skriv bara felet om åtgärden kördes mot den FORTFARANDE
+            // aktiva sessionen — annars kan ett sent fel från en session
+            // en nyare refresh redan ersatt skriva över en fungerande
+            // återanslutnings status (samma resonemang som `refresh()`s
+            // generationskoll).
+            guard connector.target === s else { return }
             errorMessage = "\(error)"
         }
     }
