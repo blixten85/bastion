@@ -47,6 +47,7 @@ private struct OAuthTokenRefreshError: Error {
 /// ett id att nyckla på). `OAuthTokenResponse`/`StoredOAuthToken` återanvänds
 /// direkt från SSHCore (redan plattformsneutrala, delade med App/).
 enum TVOAuthTokenStore {
+    private static let tokenRefreshQueue = DispatchQueue(label: "se.denied.bastion.tv.token-refresh", attributes: .serial)
     private static func keychainKey(_ providerID: String) -> String { "oauth-\(providerID)-token" }
 
     static func isLoggedIn(_ providerID: String) -> Bool {
@@ -72,29 +73,31 @@ enum TVOAuthTokenStore {
     /// Hämtar en giltig access token, förnyar tyst via `refresh_token` om
     /// den gått ut. Blockerande — matchar `SyncProvider`s synkrona gränssnitt.
     static func validAccessToken(for providerID: String, tokenEndpoint: URL, clientID: String) throws -> String {
-        guard let token = load(for: providerID) else { throw OAuthError.notLoggedIn }
-        guard token.isExpired else { return token.accessToken }
-        // En utgången token UTAN refresh-token är oanvändbar — returnera den
-        // ALDRIG som "giltig" (cubic P2, skulle annars skicka en känt
-        // utgången bearer-token istället för att kräva ny inloggning).
-        guard let refreshToken = token.refreshToken else {
-            logout(providerID)
-            throw OAuthError.notLoggedIn
-        }
-        do {
-            let refreshed = try refresh(refreshToken, tokenEndpoint: tokenEndpoint, clientID: clientID)
-            try save(refreshed, for: providerID)
-            return refreshed.accessToken
-        } catch let error as OAuthTokenRefreshError where error.isInvalidGrant {
-            // Bara `invalid_grant` betyder att REFRESH-TOKEN är permanent
-            // ogiltig (återkallad/utgången av användaren) — logga ut och
-            // kräv ny inloggning. `invalid_client` (fel/roterat client-ID)
-            // är ett KONFIGURATIONSFEL, inte något en omlogging löser — att
-            // radera token där bara döljer det riktiga problemet bakom en
-            // missvisande "logga in igen"-uppmaning (cubic P2, andra
-            // granskningsrundan: mitt första utkast slog ihop de två felen).
-            logout(providerID)
-            throw OAuthError.notLoggedIn
+        return try tokenRefreshQueue.sync {
+            guard let token = load(for: providerID) else { throw OAuthError.notLoggedIn }
+            guard token.isExpired else { return token.accessToken }
+            // En utgången token UTAN refresh-token är oanvändbar — returnera den
+            // ALDRIG som "giltig" (cubic P2, skulle annars skicka en känt
+            // utgången bearer-token istället för att kräva ny inloggning).
+            guard let refreshToken = token.refreshToken else {
+                logout(providerID)
+                throw OAuthError.notLoggedIn
+            }
+            do {
+                let refreshed = try refresh(refreshToken, tokenEndpoint: tokenEndpoint, clientID: clientID)
+                try save(refreshed, for: providerID)
+                return refreshed.accessToken
+            } catch let error as OAuthTokenRefreshError where error.isInvalidGrant {
+                // Bara `invalid_grant` betyder att REFRESH-TOKEN är permanent
+                // ogiltig (återkallad/utgången av användaren) — logga ut och
+                // kräv ny inloggning. `invalid_client` (fel/roterat client-ID)
+                // är ett KONFIGURATIONSFEL, inte något en omlogging löser — att
+                // radera token där bara döljer det riktiga problemet bakom en
+                // missvisande "logga in igen"-uppmaning (cubic P2, andra
+                // granskningsrundan: mitt första utkast slog ihop de två felen).
+                logout(providerID)
+                throw OAuthError.notLoggedIn
+            }
         }
     }
 

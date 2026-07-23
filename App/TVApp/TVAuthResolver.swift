@@ -17,11 +17,20 @@ func resolveAuth(for host: Host, password: String?) -> SSHAuth? {
     case .askPassword:
         return password.map { SSHAuth.password($0) }
     case .keyFile(let path):
+        // Värdar med .keyFile som auth-metod kan inte autentiseras på tvOS om
+        // de synkats från iPhone/Mac — tvOS har inget user-accessible fil-system
+        // och sökvägar synkas aldrig mellan plattformar. Användaren måste
+        // återanvända auth-metoden (t.ex. byta till .keychainKey eller lösenord)
+        // för att kunna använda värdarna på tvOS.
         return try? OpenSSHPrivateKey.load(path: path)
     case .agentDefault:
         let def = ("~/.ssh/id_ed25519" as NSString).expandingTildeInPath
         return try? OpenSSHPrivateKey.load(path: def)
     case .keychainKey(let id):
+        // Värdar med .keychainKey som auth-metod kan inte autentiseras på tvOS om
+        // de synkats från iPhone/Mac om keychain-access-groups inte är konfigurerad
+        // i entitlements för iOS/tvOS-delning. Utan korrekt `keychain-access-groups`
+        // returnerar Keychain.get(id) nil på tvOS för poster som sparats på iOS.
         guard let pem = Keychain.get(id) else { return nil }
         return try? OpenSSHPrivateKey.parse(pem)
     case .certificateFile(let keyPath, let certPath):
