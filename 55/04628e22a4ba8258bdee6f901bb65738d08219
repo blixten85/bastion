@@ -1,0 +1,24 @@
+App/TVApp/TVDockerView.swift
+  s_1c2bc845e6a689::t_04c69d21f4a3e4 38
+App/TVApp/TVOAuthTokenStore.swift
+  s_1c2bc845e6a689::t_fb8196a6c5cf81 57-66
+  s_1c2bc845e6a689::t_e761e4c5392232 96-97
+App/TVApp/TVAuthResolver.swift
+  s_1c2bc845e6a689::t_05eb9c29039e80 15-25,28-33,35-37,39-42,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5504628e22a4ba8258bdee6f901bb65738d08219",
+  "prompts": {},
+  "sessions": {
+    "s_1c2bc845e6a689": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7e5aa75-f353-4ff6-9e2a-8562f4261e66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Anders Eriksson <36226327+blixten85@users.noreply.github.com>"
+    }
+  }
+}
