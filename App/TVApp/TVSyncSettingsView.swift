@@ -16,7 +16,16 @@ struct TVSyncSettingsView: View {
     // main actor med ett synkront Keychain-anrop under vy-initiering
     // (cubic P3, samma resonemang som `save()`).
     @State private var passphrase = ""
-    @State private var status: String?
+    // Sant först när den asynkrona Keychain-laddningen nedan slutfört sig —
+    // utan denna spärr kunde "Klar"/"Synka nu" tryckas MEDAN `passphrase`
+    // fortfarande var tomt-av-att-inte-hunnit-ladda, vilket `save()` då
+    // tolkade som "användaren rensade fältet" och raderade en redan sparad
+    // lösenfras (devin/cubic-fynd, samma granskningsrunda som async-fixet
+    // ovan introducerade). Spärrar också motsatt håll: om laddningen
+    // slutförs EFTER att användaren redan hunnit skriva in något nytt ska
+    // den inte skriva över deras inmatning.
+    @State private var passphraseLoaded = false
+    @State private var status: SyncOutcome?
     @State private var loggedIn: [String: Bool] = Dictionary(
         uniqueKeysWithValues: TVOAuthProviders.all.map { ($0.id, TVDeviceFlowOAuthManager.isLoggedIn($0)) }
     )
@@ -25,8 +34,12 @@ struct TVSyncSettingsView: View {
     @State private var logoutError: String?
     @State private var loginTask: Task<Void, Never>?
     @State private var saveError: String?
+    // Utan denna kan upprepade tryck på "Synka nu" köa flera samtidiga
+    // fullständiga molnsynkar medan skärmen fortfarande visar förra
+    // körningens status (cubic P3).
+    @State private var syncInProgress = false
 
-    let syncNow: () async -> String
+    let syncNow: () async -> SyncOutcome
 
     var body: some View {
         NavigationStack {
@@ -67,7 +80,11 @@ struct TVSyncSettingsView: View {
                             // hade en misslyckad sparning tyst synkat mot den
                             // GAMLA lösenfrasen istället (cubic P1, andra
                             // granskningsrundan).
+                            guard !syncInProgress else { return }
+                            syncInProgress = true
                             Task {
+                                defer { syncInProgress = false }
+                                guard passphraseLoaded else { return }
                                 guard await save() else { return }
                                 status = await syncNow()
                                 // Om synken upptäckte ett återkallat/utgånget
@@ -80,19 +97,34 @@ struct TVSyncSettingsView: View {
                                 )
                             }
                         }
-                        if let status { Text(status).font(.footnote).foregroundStyle(.secondary) }
+                        .disabled(syncInProgress)
+                        if let status {
+                            Text(status.text).font(.footnote)
+                                .foregroundStyle(status.isFailure ? .red : .secondary)
+                        }
                     }
+                    .disabled(!passphraseLoaded)
                 }
             }
             .navigationTitle("Sync")
-            .task { passphrase = await Keychain.getAsync(SyncKeys.passphraseKey) ?? "" }
+            .task {
+                let stored = await Keychain.getAsync(SyncKeys.passphraseKey) ?? ""
+                // Skriv bara in det laddade värdet om fältet fortfarande är
+                // tomt — hann användaren skriva in något eget medan
+                // laddningen pågick (knapparna är spärrade men fältet är
+                // redigerbart) ska det INTE skrivas över.
+                if passphrase.isEmpty { passphrase = stored }
+                passphraseLoaded = true
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Klar") {
                         Task {
+                            guard passphraseLoaded else { return }
                             if await save() { dismiss() }
                         }
                     }
+                    .disabled(!passphraseLoaded)
                 }
             }
             .sheet(item: $activeSession, onDismiss: {
@@ -175,7 +207,11 @@ struct TVSyncSettingsView: View {
             } catch {
                 guard !Task.isCancelled else { return }
                 activeSession = nil
-                loginError = "\(error)"
+                // `error.localizedDescription`, inte `"\(error)"` — den senare
+                // skriver ut den råa enum-reflektionen (t.ex.
+                // `requestFailed("...")`) och ignorerar `OAuthError`s
+                // `errorDescription` (devin-fynd).
+                loginError = error.localizedDescription
             }
         }
     }

@@ -147,6 +147,9 @@ platform :tvos do
       project: "Bastion.xcodeproj",
       scheme: "Bastion-tvOS",
       export_method: "app-store",
+      # Utan denna kan build_app falla tillbaka på fel destination/SDK för
+      # ett tvOS-schema (cubic/devin-fynd, andra granskningsrundan).
+      destination: "generic/platform=tvOS",
     )
 
     upload_to_testflight(
