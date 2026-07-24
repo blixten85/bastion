@@ -2,6 +2,8 @@ import XCTest
 @testable import SSHCore
 
 final class WireGuardConfigTests: XCTestCase {
+    private static let testPrivateKey = ProcessInfo.processInfo.environment["BASTION_TEST_WIREGUARD_PRIVATE_KEY"]
+        ?? "safe-test-private-key"
     private static let testPresharedKey = ProcessInfo.processInfo.environment["BASTION_TEST_WIREGUARD_PRESHARED_KEY"]
         ?? "safe-test-preshared-key"
 
@@ -11,7 +13,7 @@ final class WireGuardConfigTests: XCTestCase {
     private let sample = """
     # min hem-VPN
     [Interface]
-    PrivateKey = wJ2CXaZ+qwyD3wFo6zXlBnBAxAJvZ36xbFYSaLQpQ2w=
+    PrivateKey = \(WireGuardConfigTests.testPrivateKey)
     Address = 10.0.0.2/24, fd00::2/64
     DNS = 1.1.1.1, home.example.com
     ListenPort = 51820
@@ -36,7 +38,7 @@ final class WireGuardConfigTests: XCTestCase {
 
     func testParsesInterfaceFields() {
         let config = WireGuardConfig(text: sample)
-        XCTAssertEqual(config.interface.privateKey, "wJ2CXaZ+qwyD3wFo6zXlBnBAxAJvZ36xbFYSaLQpQ2w=")
+        XCTAssertEqual(config.interface.privateKey, Self.testPrivateKey)
         XCTAssertEqual(config.interface.address, ["10.0.0.2/24", "fd00::2/64"])
         XCTAssertEqual(config.interface.dns, ["1.1.1.1", "home.example.com"])
         XCTAssertEqual(config.interface.listenPort, 51820)
