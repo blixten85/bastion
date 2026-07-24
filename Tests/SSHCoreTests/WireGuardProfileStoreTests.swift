@@ -2,6 +2,9 @@ import XCTest
 @testable import SSHCore
 
 final class WireGuardProfileStoreTests: XCTestCase {
+    private static let testPrivateKey = ProcessInfo.processInfo.environment["BASTION_TEST_WIREGUARD_PRIVATE_KEY"]
+        ?? "safe-test-private-key"
+
     private func makeConfig(privateKey: String) -> WireGuardConfig {
         var config = WireGuardConfig()
         config.interface.privateKey = privateKey
@@ -46,7 +49,7 @@ final class WireGuardProfileStoreTests: XCTestCase {
     func testFullRoundTripThroughStoreAndBackToConfText() throws {
         let text = """
         [Interface]
-        PrivateKey = wJ2CXaZ+qwyD3wFo6zXlBnBAxAJvZ36xbFYSaLQpQ2w=
+        PrivateKey = \(Self.testPrivateKey)
         Address = 10.0.0.2/24
 
         [Peer]
