@@ -536,11 +536,12 @@ fn show_host_dialog(
     win.present();
 }
 
-/// Funktioner-inställningar: just nu bara Docker-togglen (det uttryckligen
-/// namngivna kravet) — Snippets/Kommandobibliotek/SFTP/portvidarebefordran/
-/// SSH-nyckeldistribution har ingen vy att gömma i LinuxApp än (se
-/// ROADMAP.md), så deras fält finns i `settings::FeatureToggles` (för att
-/// inte tappa en delad settings.json-fils övriga värden) men saknar UI här.
+/// Funktioner-inställningar — alla sex togglar i `settings::FeatureToggles`
+/// har nu en egen rad här. Snippets saknar fortfarande en egen
+/// dedikerad vy/menypost i LinuxApp (bara Kommandobiblioteket har det) —
+/// `show_snippets` finns kvar i `FeatureToggles` (för att inte tappa en
+/// delad settings.json-fils övriga klienters värde) men saknar UI-rad här
+/// tills en Snippets-vy byggs, se ROADMAP.md.
 fn show_settings_dialog(
     app: &adw::Application,
     settings_store: &Rc<RefCell<settings::AppSettingsStore>>,
@@ -567,11 +568,23 @@ fn show_settings_dialog(
         .subtitle("Visa Filer-knappen på värdar")
         .active(current.show_sftp_browser)
         .build();
+    let forward_row = adw::SwitchRow::builder()
+        .title("Tunnel (portvidarebefordran)")
+        .subtitle("Visa Tunnel-knappen på värdar")
+        .active(current.show_port_forward)
+        .build();
+    let key_deploy_row = adw::SwitchRow::builder()
+        .title("SSH-nyckel")
+        .subtitle("Visa Nyckel-knappen på värdar")
+        .active(current.show_key_deploy)
+        .build();
 
     let group = adw::PreferencesGroup::builder().title("Funktioner").build();
     group.add(&docker_row);
     group.add(&commands_row);
     group.add(&sftp_row);
+    group.add(&forward_row);
+    group.add(&key_deploy_row);
 
     let sync_folder_row = adw::ActionRow::builder()
         .title("Synkmapp")
@@ -643,7 +656,7 @@ fn show_settings_dialog(
         .transient_for(&app.active_window().expect("inget aktivt fönster"))
         .modal(true)
         .default_width(420)
-        .default_height(260)
+        .default_height(560)
         .title("Inställningar")
         .content(&content)
         .build();
@@ -710,6 +723,52 @@ fn show_settings_dialog(
         move |row| {
             let mut toggles = settings_store.borrow().current();
             toggles.show_sftp_browser = row.is_active();
+            if let Err(e) = settings_store.borrow_mut().update(toggles) {
+                eprintln!("kunde inte spara inställningarna: {e}");
+            }
+            refresh_list(&list, &store, &app, &area, &settings_store, &snippet_store);
+        }
+    ));
+
+    forward_row.connect_active_notify(clone!(
+        #[strong]
+        settings_store,
+        #[strong]
+        store,
+        #[weak]
+        list,
+        #[strong]
+        app,
+        #[strong]
+        area,
+        #[strong]
+        snippet_store,
+        move |row| {
+            let mut toggles = settings_store.borrow().current();
+            toggles.show_port_forward = row.is_active();
+            if let Err(e) = settings_store.borrow_mut().update(toggles) {
+                eprintln!("kunde inte spara inställningarna: {e}");
+            }
+            refresh_list(&list, &store, &app, &area, &settings_store, &snippet_store);
+        }
+    ));
+
+    key_deploy_row.connect_active_notify(clone!(
+        #[strong]
+        settings_store,
+        #[strong]
+        store,
+        #[weak]
+        list,
+        #[strong]
+        app,
+        #[strong]
+        area,
+        #[strong]
+        snippet_store,
+        move |row| {
+            let mut toggles = settings_store.borrow().current();
+            toggles.show_key_deploy = row.is_active();
             if let Err(e) = settings_store.borrow_mut().update(toggles) {
                 eprintln!("kunde inte spara inställningarna: {e}");
             }
